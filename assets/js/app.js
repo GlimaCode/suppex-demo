@@ -105,7 +105,10 @@ SUPPEX.app = (function () {
     var search = $('[data-search]');
 
     if (nav) { nav.classList.toggle('is-open', name === 'nav'); }
-    if (drawer) { drawer.classList.toggle('is-open', name === 'cart'); }
+    if (drawer) {
+      if (name === 'cart') { resetPaymentStep(); }
+      drawer.classList.toggle('is-open', name === 'cart');
+    }
     if (search) { search.classList.toggle('is-open', name === 'search'); }
 
     if (name === 'search') {
@@ -168,6 +171,90 @@ SUPPEX.app = (function () {
 
     var checkout = $('[data-checkout]');
     if (checkout) { checkout.disabled = snapshot.count === 0; }
+  }
+
+  /* ====================================================================
+     Payment step
+     ==================================================================== */
+
+  /* Iranian bank cards are 16 digits and carry a Luhn check digit. A typo in
+     config.payment.cardNumber would otherwise fail silently — the shopper
+     copies it, the transfer bounces, and the order is simply lost. */
+  function isValidCard(digits) {
+    if (!/^\d{16}$/.test(digits)) { return false; }
+    var sum = 0;
+    for (var i = 0; i < 16; i++) {
+      var d = +digits[15 - i];
+      if (i % 2) { d *= 2; if (d > 9) { d -= 9; } }
+      sum += d;
+    }
+    return sum % 10 === 0;
+  }
+
+  function warnAboutCard() {
+    if (cfg.payment.method !== 'card') { return; }
+    var digits = String(cfg.payment.cardNumber || '').replace(/\D/g, '');
+    if (!isValidCard(digits)) {
+      console.warn('[suppex] config.payment.cardNumber is not a valid 16-digit ' +
+                   'card number — a transfer to it will be rejected. Set the real one.');
+    }
+  }
+
+  /* Replaces the cart contents with the amount and card details. Kept inside
+     the drawer the shopper already has open rather than a new modal. */
+  function showPaymentStep(snapshot) {
+    var body = $('[data-cart-items]');
+    var foot = $('[data-drawer] .drawer__foot');
+    if (!body) { return; }
+    body.innerHTML = ui.paymentPanel(snapshot);
+    if (foot) { foot.hidden = true; }
+  }
+
+  function resetPaymentStep() {
+    var foot = $('[data-drawer] .drawer__foot');
+    if (foot && foot.hidden) {
+      foot.hidden = false;
+      renderCart(store.snapshot());
+    }
+  }
+
+  function copyCard(btn) {
+    var digits = btn.getAttribute('data-copy-card') || '';
+    var done = function () {
+      var original = btn.textContent;
+      btn.textContent = 'کپی شد';
+      btn.classList.add('is-done');
+      setTimeout(function () {
+        btn.textContent = original;
+        btn.classList.remove('is-done');
+      }, 1600);
+    };
+    /* navigator.clipboard needs a secure context; on plain http it is absent,
+       so fall back to the old execCommand trick rather than failing silently. */
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(digits).then(done, function () { legacyCopy(digits, done); });
+    } else {
+      legacyCopy(digits, done);
+    }
+  }
+
+  function legacyCopy(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:absolute;left:-9999px;top:0';
+    document.body.appendChild(ta);
+    ta.select();
+
+    /* execCommand reports failure by RETURNING false, not by throwing. Taking
+       the return value on trust would flash "کپی شد" over an empty clipboard,
+       and the shopper would paste nothing into their banking app. */
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+    ta.remove();
+
+    if (ok) { done(); }
+    else { toast('کپی نشد — شماره را دستی انتخاب کنید'); }
   }
 
   function addToCart(product, extras) {
@@ -245,6 +332,14 @@ SUPPEX.app = (function () {
         if (e.target.closest('[data-remove]')) { store.remove(key); return; }
       }
 
+      /* Copy the card number */
+      var copyBtn = e.target.closest('[data-copy-card]');
+      if (copyBtn) {
+        e.preventDefault();
+        copyCard(copyBtn);
+        return;
+      }
+
       /* Accordions */
       var trigger = e.target.closest('.acc__trigger');
       if (trigger) {
@@ -272,14 +367,17 @@ SUPPEX.app = (function () {
       else if (cfg.ordering.method === 'whatsapp') { checkout.textContent = 'ثبت سفارش در واتس‌اپ'; }
 
       checkout.addEventListener('click', function () {
-        if (store.snapshot().count === 0) { return; }
+        var snapshot = store.snapshot();
+        if (snapshot.count === 0) { return; }
         var url = store.orderUrl();
         if (!url) {
           toast('پرداخت آنلاین در فاز بعدی اضافه می‌شود');
           return;
         }
+        /* Opened first and synchronously — a popup blocker only allows this
+           while the click gesture is still on the stack. */
         window.open(url, '_blank', 'noopener');
-        toast('سفارش شما آماده ارسال است');
+        showPaymentStep(snapshot);
       });
     }
 
@@ -326,6 +424,8 @@ SUPPEX.app = (function () {
     if (!cfg.flags.showTestimonials) {
       $$('[data-social-proof]').forEach(function (el) { el.remove(); });
     }
+
+    warnAboutCard();
 
     store.subscribe(renderCart);
     store.init();

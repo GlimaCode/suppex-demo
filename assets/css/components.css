@@ -509,6 +509,84 @@
 .stepper-mini button:hover { color: var(--amber); }
 .stepper-mini span { min-width: 22px; text-align: center; font-size: var(--fs-xs); font-weight: 800; }
 
+/* --------------------------------------------------------------------------
+   Payment step — replaces the cart list once an order is handed to Telegram
+   -------------------------------------------------------------------------- */
+.pay { display: flex; flex-direction: column; gap: var(--sp-5); padding-block: var(--sp-4); }
+
+.pay__done {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  color: var(--success);
+}
+.pay__done svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+.pay__amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-block-end: var(--sp-4);
+  border-block-end: 1px solid var(--line);
+}
+.pay__amount strong { font-size: 1.2rem; }
+
+/* The card sits on the light panel so it reads as a physical thing to copy
+   from, and stands apart from everything else in the drawer. */
+.pay__card {
+  background: var(--inverse-bg);
+  color: var(--inverse-text);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+}
+.pay__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-block-end: var(--sp-3);
+}
+.pay__card-head .u-eyebrow { color: var(--accent-deep); }
+
+.pay__number {
+  font-family: var(--font-display);
+  font-size: clamp(1.15rem, 1rem + 1.2vw, 1.5rem);
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding-block: var(--sp-2);
+}
+.pay__holder {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: rgba(22, 19, 14, 0.6);
+  text-align: center;
+}
+
+.pay__copy {
+  flex-shrink: 0;
+  background: var(--inverse-text);
+  color: var(--inverse-bg);
+  border-radius: var(--r-pill);
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.pay__copy:hover { background: var(--accent); color: #fff; }
+.pay__copy.is-done { background: var(--success); color: #0B1F0D; }
+
+.pay__note {
+  font-size: var(--fs-xs);
+  line-height: 1.9;
+  color: var(--text-muted);
+  padding: var(--sp-4);
+  border: 1px dashed var(--line-mid);
+  border-radius: var(--r-md);
+}
+
 .empty-state { text-align: center; padding: var(--sp-16) var(--sp-4); color: var(--text-dim); }
 .empty-state svg { width: 46px; height: 46px; margin: 0 auto var(--sp-4); opacity: 0.4; }
 

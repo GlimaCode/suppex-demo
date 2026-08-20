@@ -51,6 +51,24 @@ SUPPEX.config = {
     intro: 'سلام، می‌خواستم این سفارش را ثبت کنم:',
   },
 
+  /* --- Payment details shown after an order is placed -------------------
+     Card-to-card, which is how this shop already gets paid. The details are
+     revealed only once the shopper has actually placed an order, not printed
+     on a public page for anyone to scrape and reuse in a scam.
+
+     cardNumber is a deliberately INVALID placeholder: it fails the Luhn check
+     every Iranian bank runs, so a transfer to it is rejected rather than
+     landing in a stranger's account if this ships unedited. Replace it with
+     the real one — assets/js/app.js warns in the console if the replacement
+     is not a valid 16-digit card number. */
+  payment: {
+    method: 'card',                        // 'card' | 'gateway' | 'none'
+    cardNumber: '6037 9911 0000 0000',     // ← شماره کارت واقعی را اینجا بگذارید
+    cardHolder: 'نام صاحب حساب',           // ← نام دقیقاً همان‌طور که در بانک ثبت شده
+    bankName: 'بانک ملی',
+    note: 'پس از واریز، رسید را همان‌جا در تلگرام بفرستید تا سفارش ثبت نهایی شود.',
+  },
+
   /* --- Feature flags --------------------------------------------------
      The reference designs gated seasonal UI behind booleans; same idea here.
      Flip a flag to preview the campaign state during a client review.       */

@@ -219,6 +219,36 @@ SUPPEX.ui = (function () {
       '</div>';
   }
 
+  /* Shown in the drawer the moment an order is handed to Telegram, so the
+     shopper has the amount and the card number in front of them without the
+     seller having to type anything. */
+  function paymentPanel(snapshot) {
+    var p = cfg.payment;
+    var digits = String(p.cardNumber || '').replace(/\D/g, '');
+    var grouped = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+
+    return '' +
+      '<div class="pay">' +
+        '<div class="pay__done">' + icon('check') + '<span>سفارش شما آماده ارسال در تلگرام است</span></div>' +
+
+        '<div class="pay__amount">' +
+          '<span class="u-sm u-muted">مبلغ قابل پرداخت</span>' +
+          '<strong><span class="num">' + money(snapshot.total) + '</span> ' + esc(cfg.currency.label) + '</strong>' +
+        '</div>' +
+
+        '<div class="pay__card">' +
+          '<div class="pay__card-head">' +
+            '<span class="u-eyebrow u-eyebrow--bare">' + esc(p.bankName || '') + '</span>' +
+            '<button class="pay__copy" type="button" data-copy-card="' + esc(digits) + '">کپی شماره</button>' +
+          '</div>' +
+          '<div class="pay__number num" dir="ltr">' + esc(grouped) + '</div>' +
+          '<div class="pay__holder">به نام ' + esc(p.cardHolder || '—') + '</div>' +
+        '</div>' +
+
+        '<p class="pay__note">' + esc(p.note || '') + '</p>' +
+      '</div>';
+  }
+
   function searchRow(product) {
     return '' +
       '<a class="search__row" href="product.html?p=' + encodeURIComponent(product.slug) + '">' +
@@ -243,6 +273,7 @@ SUPPEX.ui = (function () {
     reviewCard: reviewCard,
     journalCard: journalCard,
     lineItem: lineItem,
+    paymentPanel: paymentPanel,
     searchRow: searchRow,
   };
 })();
