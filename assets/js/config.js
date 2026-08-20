@@ -45,8 +45,8 @@ SUPPEX.config = {
      changes; nothing else in the cart or catalogue is touched.             */
   ordering: {
     method: 'telegram',            // 'telegram' | 'whatsapp' | 'gateway'
-    telegramUsername: 'suppex_shop',   // without the @
-    whatsappNumber: '989121234567',    // country code, digits only
+    telegramUsername: 'eli_beigi11',   // without the @
+    whatsappNumber: '989382969605',    // country code, digits only
     /* Prepended to the generated order message. */
     intro: 'سلام، می‌خواستم این سفارش را ثبت کنم:',
   },
