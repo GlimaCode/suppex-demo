@@ -1,0 +1,132 @@
+/* ==========================================================================
+   SUPPEX — Design Tokens
+   Direction A "Premium". Single source of truth for the whole prototype.
+   Change a value here and it propagates everywhere — no component hard-codes
+   a colour, radius or step of the spacing scale.
+
+   Colours are authored in oklch (perceptually uniform, as in the reference
+   designs). Each token is declared twice: an sRGB hex fallback first, then the
+   oklch value. Browsers without oklch simply keep the hex.
+   ========================================================================== */
+
+:root {
+  /* --- Brand ------------------------------------------------------------ */
+  --accent:          #F25914;
+  --accent:          oklch(0.66 0.20 40);      /* copper-brick, primary CTA  */
+  --accent-hover:    #D9480F;
+  --accent-hover:    oklch(0.60 0.19 38);
+  --accent-deep:     #9F3501;
+  --accent-deep:     oklch(0.48 0.15 40);      /* accent on light panels     */
+  --amber:           #F97C3D;
+  --amber:           oklch(0.72 0.17 45);      /* ratings, editorial accents */
+  --success:         #61BD67;
+  --success:         oklch(0.72 0.15 145);     /* stock status only          */
+
+  /* --- Surfaces (warm graphite — never pure black) ---------------------- */
+  --bg:              #131210;
+  --surface:         #1C1A17;                  /* cards                      */
+  --surface-2:       #242019;                  /* image wells, insets        */
+  --surface-3:       #2C2721;                  /* hover / raised             */
+  --footer-bg:       #0D0C0A;
+  --inverse-bg:      #F2EDE3;                  /* light panels (bundle, etc) */
+  --inverse-text:    #16130E;
+
+  /* --- Text ------------------------------------------------------------- */
+  --text:            #F2EDE3;
+  --text-muted:      rgba(242, 237, 227, 0.62);
+  --text-dim:        rgba(242, 237, 227, 0.45);
+  --text-faint:      rgba(242, 237, 227, 0.28);
+
+  /* --- Lines ------------------------------------------------------------ */
+  --line:            rgba(242, 237, 227, 0.11);
+  --line-mid:        rgba(242, 237, 227, 0.18);
+  --line-strong:     rgba(242, 237, 227, 0.32);
+
+  /* --- Typography ------------------------------------------------------- */
+  /* Split by script, not by role: Persian copy is set in Vazirmatn, and every
+     Latin run — brand marks, product names, numerals — keeps Archivo.
+     Note there is deliberately no font-weight token for the display role.
+     'Archivo Black' is a single-weight family registered at 400, so asking for
+     900 would make the browser fake the bolding on a face that is already
+     black. The rules that use --font-display therefore set no weight at all. */
+  --font-fa:      'Vazirmatn', system-ui, sans-serif;                  /* Persian UI + body   */
+  --font-lat:     'Archivo', 'Vazirmatn', system-ui, sans-serif;       /* Latin product names */
+  --font-display: 'Archivo Black', 'Vazirmatn', system-ui, sans-serif; /* logo, numerals      */
+  --font-serif:   'Instrument Serif', Georgia, serif;                  /* editorial accent    */
+
+  /* Fluid type scale — every heading interpolates between mobile and desktop */
+  --fs-display: clamp(2.6rem, 1.4rem + 5.4vw, 5.6rem);
+  --fs-h1:      clamp(2.1rem, 1.3rem + 3.6vw, 3.6rem);
+  --fs-h2:      clamp(1.7rem, 1.2rem + 2.3vw, 2.85rem);
+  --fs-h3:      clamp(1.25rem, 1.05rem + 0.9vw, 1.6rem);
+  --fs-lead:    clamp(1rem, 0.94rem + 0.3vw, 1.125rem);
+  --fs-body:    0.975rem;
+  --fs-sm:      0.875rem;
+  --fs-xs:      0.8125rem;
+  --fs-eyebrow: 0.6875rem;
+
+  --lh-tight: 1.05;
+  --lh-snug:  1.3;
+  --lh-body:  1.75;   /* Persian needs more leading than Latin */
+  --ls-eyebrow: 0.16em;
+
+  /* --- Spacing scale (4px base) ----------------------------------------- */
+  --sp-1: 0.25rem;  --sp-2: 0.5rem;   --sp-3: 0.75rem;  --sp-4: 1rem;
+  --sp-5: 1.25rem;  --sp-6: 1.5rem;   --sp-8: 2rem;     --sp-10: 2.5rem;
+  --sp-12: 3rem;    --sp-16: 4rem;    --sp-20: 5rem;    --sp-24: 6rem;
+
+  /* Section rhythm scales with viewport so mobile isn't over-padded */
+  --section-y: clamp(3.5rem, 2rem + 6vw, 6rem);
+  --gutter:    clamp(1.15rem, 0.6rem + 2.2vw, 2rem);
+  --container: 1240px;
+  --grid-gap:  clamp(0.75rem, 0.35rem + 1.4vw, 1.125rem);
+
+  /* --- Radii ------------------------------------------------------------ */
+  --r-sm:   10px;
+  --r-md:   14px;
+  --r-lg:   20px;
+  --r-xl:   26px;
+  --r-pill: 999px;
+
+  /* --- Elevation -------------------------------------------------------- */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.38);
+  --shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.5);
+  --glow:      0 0 0 1px rgba(242, 89, 20, 0.35), 0 8px 30px rgba(242, 89, 20, 0.18);
+
+  /* --- Energy ----------------------------------------------------------
+     Direction A is the base; these are the controlled borrowings from the
+     "hardcore gym" direction — diagonal hazard lines, a faster ticker and
+     oversized display numerals. Everything energetic is dialled from here,
+     so the intensity can be turned up or down in one place rather than
+     hunted through the stylesheets. */
+  --energy-angle:  115deg;
+  --energy-line:   rgba(242, 89, 20, 0.14);  /* diagonal rule on dark panels */
+  --ticker-speed:  20s;                      /* was 32s in the calm variant  */
+  --cut:           clamp(15px, 3vw, 38px);   /* clipped corner on the promo  */
+
+  /* --- Motion ----------------------------------------------------------- */
+  --ease:      cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast:  0.18s;
+  --dur:       0.28s;
+  --dur-slow:  0.6s;
+
+  /* --- Layering --------------------------------------------------------- */
+  --z-sticky: 50;
+  --z-drawer: 90;
+  --z-modal:  100;
+  --z-toast:  110;
+}
+
+/* Motion is a garnish, never a dependency: everything must remain usable
+   and legible when the user asks the OS to reduce it. */
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0.01ms; --dur: 0.01ms; --dur-slow: 0.01ms; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

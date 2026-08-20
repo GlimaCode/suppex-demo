@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 44" role="img" aria-label="SUPPEX">
+  <rect x="1" y="3" width="38" height="38" rx="11" fill="none" stroke="#F2EDE3" stroke-width="1.6" opacity="0.28"/>
+  <rect x="7"  y="18" width="5" height="8"  rx="2" fill="#F25914"/>
+  <rect x="13" y="15" width="4" height="14" rx="2" fill="#F2EDE3"/>
+  <rect x="17" y="20" width="6" height="4"  rx="2" fill="#F2EDE3"/>
+  <rect x="23" y="15" width="4" height="14" rx="2" fill="#F2EDE3"/>
+  <rect x="28" y="18" width="5" height="8"  rx="2" fill="#F25914"/>
+  <text x="50" y="30" font-family="Archivo Black, Arial Black, sans-serif" font-size="21"
+        font-weight="900" fill="#F2EDE3" letter-spacing="0.5">SUPPEX</text>
+  <text x="176" y="19" font-family="Arial, sans-serif" font-size="9" fill="#F97C3D">®</text>
+</svg>

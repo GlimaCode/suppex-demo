@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="TRAINING">
+  <defs>
+    <linearGradient id="jg0" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#2A251E"/>
+      <stop offset="0.6" stop-color="#16130F"/>
+      <stop offset="1"   stop-color="#0B0A09"/>
+    </linearGradient>
+    <linearGradient id="ja0" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F25914"/>
+      <stop offset="1" stop-color="#7A2A08"/>
+    </linearGradient>
+    <radialGradient id="jr0" cx="0.72" cy="0.3" r="0.6">
+      <stop offset="0" stop-color="#F25914" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#F25914" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="480" height="300" fill="url(#jg0)"/>
+  <rect width="480" height="300" fill="url(#jr0)"/>
+  <g stroke="#F25914" stroke-width="2" opacity="0.30" fill="none">
+    <path d="M-20 250 L200 30 M40 300 L280 40 M120 320 L360 60 M200 340 L440 80"/>
+  </g>
+  <rect x="0" y="0" width="480" height="5" fill="url(#ja0)"/>
+  <text x="32" y="252" font-family="Arial Black, Helvetica, sans-serif" font-size="15"
+        font-weight="900" fill="#F2EDE3" letter-spacing="4" opacity="0.5">TRAINING</text>
+  <text x="32" y="60" font-family="Arial Black, Helvetica, sans-serif" font-size="13"
+        font-weight="900" fill="#F25914" letter-spacing="3">SUPPEX JOURNAL</text>
+</svg>

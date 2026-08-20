@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="WHEY">
+
+  <defs>
+    <linearGradient id="body2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0"    stop-color="#0C0B0A"/>
+      <stop offset="0.18" stop-color="#3A342C"/>
+      <stop offset="0.42" stop-color="#57503F"/>
+      <stop offset="0.68" stop-color="#2C2822"/>
+      <stop offset="1"    stop-color="#0A0908"/>
+    </linearGradient>
+    <linearGradient id="cap2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0"    stop-color="#121110"/>
+      <stop offset="0.22" stop-color="#4A443A"/>
+      <stop offset="0.55" stop-color="#6A6252"/>
+      <stop offset="1"    stop-color="#14120F"/>
+    </linearGradient>
+    <linearGradient id="label2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#F25914"/>
+      <stop offset="1"   stop-color="#8A2A05"/>
+    </linearGradient>
+    <linearGradient id="sheen2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="1"   stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow2" cx="0.5" cy="0.42" r="0.6">
+      <stop offset="0"   stop-color="#F25914" stop-opacity="0.30"/>
+      <stop offset="1"   stop-color="#F25914" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft2" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+  <ellipse cx="200" cy="212" rx="150" ry="150" fill="url(#glow2)"/>
+  <ellipse cx="200" cy="350" rx="112" ry="16" fill="#000" opacity="0.55" filter="url(#soft2)"/>
+
+  <path d="M112 118 h176 v212 a16 16 0 0 1 -16 16 h-144 a16 16 0 0 1 -16 -16 z" fill="url(#body2)"/>
+  <!-- crimped top seal -->
+  <rect x="104" y="96" width="192" height="26" rx="5" fill="url(#cap2)"/>
+  <g fill="#000" opacity="0.3">
+    <rect x="112" y="101" width="176" height="2"/>
+    <rect x="112" y="108" width="176" height="2"/>
+    <rect x="112" y="115" width="176" height="2"/>
+  </g>
+
+  <rect x="112" y="176" width="176" height="126" fill="url(#label2)"/>
+  <text x="200" y="204" text-anchor="middle" font-family="Arial Black, Helvetica, sans-serif"
+        font-size="15" font-weight="900" fill="#fff" letter-spacing="3.4" opacity="0.95">SUPPEX</text>
+  <rect x="168" y="212" width="64" height="2" fill="#fff" opacity="0.45"/>
+  <text x="200" y="246" text-anchor="middle" font-family="Arial Black, Helvetica, sans-serif"
+        font-size="22" font-weight="900" fill="#fff">WHEY</text>
+  <text x="200" y="274" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"
+        font-size="12" font-weight="700" fill="#fff" opacity="0.82" letter-spacing="1.6">REFILL PACK</text>
+
+  <path d="M126 124 h18 v222 h-4 a14 14 0 0 1 -14 -14 z" fill="url(#sheen2)"/>
+  <path d="M262 124 h14 v208 a14 14 0 0 1 -14 14 z" fill="#fff" opacity="0.05"/>
+</svg>

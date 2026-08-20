@@ -1,0 +1,176 @@
+/* ==========================================================================
+   SUPPEX — Reset, document defaults, RTL typography
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  /* offset for the sticky header when jumping to #anchors */
+  scroll-padding-top: 96px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-fa);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+body.is-locked { overflow: hidden; }
+
+h1, h2, h3, h4, p, figure, blockquote { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+img, svg, video { display: block; max-width: 100%; }
+img { height: auto; }
+
+a { color: inherit; text-decoration: none; }
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+}
+button { cursor: pointer; }
+
+::selection { background: var(--accent); color: #fff; }
+
+/* --- Focus: invisible for mouse users, unmistakable for keyboard users --- */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+
+/* --- Scrollbar ---------------------------------------------------------- */
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: var(--r-pill);
+  border: 3px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
+
+/* ==========================================================================
+   Typography roles
+   The reference designs get their character from a two-voice headline:
+   a heavy sans for the statement, a serif italic for the turn. Persian has no
+   equivalent serif italic, so the second voice is rebuilt as a lighter weight
+   in the accent colour — and Latin fragments still use the real serif.
+   ========================================================================== */
+
+.u-display {
+  font-family: var(--font-fa);
+  font-weight: 900;
+  font-size: var(--fs-display);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.02em;
+}
+
+.u-h1 { font-weight: 900; font-size: var(--fs-h1); line-height: 1.15; letter-spacing: -0.015em; }
+.u-h2 { font-weight: 900; font-size: var(--fs-h2); line-height: 1.2;  letter-spacing: -0.015em; }
+.u-h3 { font-weight: 800; font-size: var(--fs-h3); line-height: 1.35; }
+
+/* The "second voice" of a headline */
+.u-accent-voice {
+  display: block;
+  font-weight: 400;
+  color: var(--amber);
+}
+
+/* Latin words inside Persian text: product names, categories, brand terms.
+   `direction: ltr` + `unicode-bidi: isolate` stops the bidi algorithm from
+   dragging adjacent Persian punctuation into the Latin run. */
+.lat {
+  font-family: var(--font-lat);
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Editorial serif italic — Latin only, used sparingly for emphasis */
+.serif {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  direction: ltr;
+  unicode-bidi: isolate;
+  letter-spacing: 0;
+}
+
+.u-eyebrow {
+  font-size: var(--fs-eyebrow);
+  font-weight: 800;
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+  color: var(--amber);
+  line-height: 1.4;
+}
+/* Hazard-stripe tick before every section eyebrow. One rule, so the motif
+   lands identically on all sections instead of being pasted in per-section. */
+.u-eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 24px;
+  height: 8px;
+  margin-inline-end: 10px;
+  vertical-align: -1px;
+  background: repeating-linear-gradient(
+    var(--energy-angle),
+    var(--accent) 0 3px,
+    transparent 3px 6px
+  );
+}
+/* For eyebrows sitting inline in a dense metadata row, where the tick would
+   read as clutter rather than structure. */
+.u-eyebrow--bare::before { content: none; }
+
+.u-lead   { font-size: var(--fs-lead); color: var(--text-muted); line-height: 1.85; text-wrap: pretty; }
+.u-muted  { color: var(--text-muted); }
+.u-dim    { color: var(--text-dim); }
+.u-sm     { font-size: var(--fs-sm); }
+.u-xs     { font-size: var(--fs-xs); }
+
+/* Numerals stay Latin (per brand decision) and get tabular figures so prices
+   and counts line up in columns without jitter. */
+.num {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* --- Accessibility helpers --------------------------------------------- */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: var(--sp-4);
+  top: -100px;
+  z-index: var(--z-toast);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  padding: var(--sp-3) var(--sp-5);
+  border-radius: var(--r-pill);
+  transition: top var(--dur) var(--ease);
+}
+.skip-link:focus-visible { top: var(--sp-4); }
