@@ -45,8 +45,8 @@ SUPPEX.config = {
      changes; nothing else in the cart or catalogue is touched.             */
   ordering: {
     method: 'telegram',            // 'telegram' | 'whatsapp' | 'gateway'
-    telegramUsername: 'eli_beigi11',   // without the @
-    whatsappNumber: '989382969605',    // country code, digits only
+    telegramUsername: 'ARSENX2003',   // without the @
+    whatsappNumber: '989121234567',    // country code, digits only
     /* Prepended to the generated order message. */
     intro: 'سلام، می‌خواستم این سفارش را ثبت کنم:',
   },
@@ -91,9 +91,18 @@ SUPPEX.config = {
     modelSrc: 'assets/models/tub.mesh.js',
     labelSrc: 'assets/models/label.tex.js',
     threeSrc: 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js',
-    /* Below this viewport width the 3D stage never initialises — mobile gets
-       the static poster instead. Saves the download and the battery. */
-    minViewportWidth: 900,
+    /* Below this viewport width the 3D stage never initialises and the static
+       poster is used instead. Set low enough that phones DO get the 3D: the
+       people this prototype is shown to open links on a phone, and the hero is
+       the most persuasive thing on the page — hiding it there defeats the
+       point. The payload is modest (three.js ~150 KB gzipped, mesh ~137 KB,
+       label ~110 KB) and only 7,360 triangles, which any recent phone renders
+       comfortably. */
+    minViewportWidth: 320,   // 320 = the narrowest phone still in use
+
+    /* …but not at any cost. On a metered or very slow connection the poster
+       stays and nothing is downloaded. */
+    skipOnSlowConnection: true,
   },
 
   storageKey: 'suppex.cart.v1',

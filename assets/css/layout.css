@@ -277,6 +277,11 @@
 }
 [dir="ltr"] .stage__hint { transform: translateX(-50%); }
 .stage.is-live .stage__hint { opacity: 1; }
+/* The hint tells you to move the pointer, which means nothing on a touch
+   screen — and the tub sways on its own there anyway. */
+@media (hover: none), (pointer: coarse) {
+  .stage__hint { display: none; }
+}
 
 /* Floating trust chip that breaks the stage frame, as in the references */
 .stage-chip {

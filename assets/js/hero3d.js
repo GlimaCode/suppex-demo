@@ -35,6 +35,17 @@ SUPPEX.hero3d = (function () {
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
+  /* Respect a metered or genuinely slow connection. 3g is deliberately NOT in
+     this list: the poster is already on screen and the 3D fades in whenever it
+     arrives, so a slow load costs patience, not a broken layout. */
+  function onSlowConnection() {
+    if (!cfg.skipOnSlowConnection) { return false; }
+    var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!c) { return false; }
+    if (c.saveData) { return true; }
+    return c.effectiveType === 'slow-2g' || c.effectiveType === '2g';
+  }
+
   function hasWebGL() {
     try {
       var canvas = document.createElement('canvas');
@@ -389,6 +400,7 @@ SUPPEX.hero3d = (function () {
 
       if (!SUPPEX.config.flags.show3DHero) { return; }
       if (prefersReducedMotion()) { return; }
+      if (onSlowConnection()) { return; }
       if (!hasWebGL()) { return; }
 
       /* Both conditions — wide enough, and near the viewport — are evaluated
