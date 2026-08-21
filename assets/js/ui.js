@@ -64,6 +64,7 @@ SUPPEX.ui = (function () {
     whatsapp: '<path d="M4 20l1.2-3.8A8 8 0 1 1 8.6 19z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5"/>',
     play: '<rect x="3" y="5" width="18" height="14" rx="4"/><path d="M11 9.8l4 2.2-4 2.2z" fill="currentColor" stroke="none"/>',
     box: '<path d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/>',
+    chat: '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/>',
   };
 
   /* width/height are emitted as presentation attributes, not CSS. An inline
@@ -219,6 +220,25 @@ SUPPEX.ui = (function () {
       '</div>';
   }
 
+  var CHANNEL_ICON = {
+    telegram: 'telegram',
+    whatsapp: 'whatsapp',
+    bale: 'chat',
+    eitaa: 'chat',
+  };
+
+  /* One button per enabled channel. The first is the primary; the rest are
+     ghosts, so the drawer still has a single obvious next step. */
+  function channelButtons(channels) {
+    return channels.map(function (c, i) {
+      return '<button class="btn ' + (i === 0 ? 'btn--primary' : 'btn--ghost') + ' btn--block" ' +
+        'type="button" data-channel="' + esc(c.id) + '">' +
+        icon(CHANNEL_ICON[c.id] || 'chat') +
+        '<span>ثبت سفارش در ' + esc(c.label) + '</span>' +
+      '</button>';
+    }).join('');
+  }
+
   /* Shown in the drawer the moment an order is handed to Telegram, so the
      shopper has the amount and the card number in front of them without the
      seller having to type anything. */
@@ -273,6 +293,7 @@ SUPPEX.ui = (function () {
     reviewCard: reviewCard,
     journalCard: journalCard,
     lineItem: lineItem,
+    channelButtons: channelButtons,
     paymentPanel: paymentPanel,
     searchRow: searchRow,
   };

@@ -509,6 +509,14 @@
 .stepper-mini button:hover { color: var(--amber); }
 .stepper-mini span { min-width: 22px; text-align: center; font-size: var(--fs-xs); font-weight: 800; }
 
+/* Channel picker at the foot of the cart */
+.channels { display: flex; flex-direction: column; gap: var(--sp-2); }
+.channels .btn { gap: var(--sp-3); }
+.channels .btn svg { width: 17px; height: 17px; flex-shrink: 0; }
+.channels .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.channels .btn:disabled:hover { background: var(--accent); box-shadow: none; }
+.channels .btn--ghost:disabled:hover { background: none; color: var(--text); border-color: var(--line-strong); }
+
 /* --------------------------------------------------------------------------
    Payment step — replaces the cart list once an order is handed to Telegram
    -------------------------------------------------------------------------- */

@@ -134,18 +134,21 @@ SUPPEX.store = (function () {
       return lines.join('\n');
     },
 
-    /* The destination for that message. Returns null when the shop has moved
-       on to a real gateway, which the caller treats as "run checkout". */
-    orderUrl: function () {
-      var o = cfg.ordering;
-      var text = encodeURIComponent(api.asOrderText());
-      if (o.method === 'telegram') {
-        return 'https://t.me/' + encodeURIComponent(o.telegramUsername) + '?text=' + text;
-      }
-      if (o.method === 'whatsapp') {
-        return 'https://wa.me/' + encodeURIComponent(o.whatsappNumber) + '?text=' + text;
-      }
-      return null;
+    /* Channels the shopper can actually pick from, in config order. */
+    channels: function () {
+      return (cfg.ordering.channels || []).filter(function (c) { return c.enabled; });
+    },
+
+    /* Where a given channel should open. When the app accepts a prefill
+       parameter the order rides along in the URL; otherwise the bare chat URL
+       is returned and the caller is expected to put the text on the clipboard
+       so the shopper can paste it. */
+    channelUrl: function (channel) {
+      if (!channel || !channel.url) { return null; }
+      if (!channel.prefillParam) { return channel.url; }
+      var sep = channel.url.indexOf('?') === -1 ? '?' : '&';
+      return channel.url + sep + encodeURIComponent(channel.prefillParam) +
+             '=' + encodeURIComponent(api.asOrderText());
     },
 
     init: function () { load(); emit(); },

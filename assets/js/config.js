@@ -44,11 +44,65 @@ SUPPEX.config = {
      Phase 2 switches `method` to 'gateway' and only the checkout handler
      changes; nothing else in the cart or catalogue is touched.             */
   ordering: {
-    method: 'telegram',            // 'telegram' | 'whatsapp' | 'gateway'
-    telegramUsername: 'ARSENX2003',   // without the @
-    whatsappNumber: '989121234567',    // country code, digits only
     /* Prepended to the generated order message. */
     intro: 'سلام، می‌خواستم این سفارش را ثبت کنم:',
+
+    /* Every way a shopper may send their order. The first enabled one is the
+       primary button; the rest sit under it.
+
+       prefillParam is the query parameter that carries the order text in the
+       URL. Telegram and WhatsApp both accept `text`. For anything where that
+       is unknown or unsupported — Bale, Eitaa — leave it null: the order is
+       copied to the clipboard first and the shopper pastes it into the chat,
+       which works on every app regardless of what it supports.
+
+       If you test Bale and find it does accept a prefill parameter, set it
+       here and the copy step disappears on its own. */
+    channels: [
+      {
+        id: 'telegram',
+        label: 'تلگرام',
+        enabled: true,
+        url: 'https://t.me/ARSENX2003',
+        prefillParam: 'text',
+      },
+      {
+        id: 'bale',
+        label: 'بله',
+        enabled: true,
+        url: 'https://ble.ir/ARSENX2003',   // ← آیدی بله را اینجا بگذارید
+        prefillParam: null,                 // untested — falls back to copy+paste
+      },
+      {
+        id: 'whatsapp',
+        label: 'واتس‌اپ',
+        enabled: false,
+        url: 'https://wa.me/989121234567',  // country code, digits only
+        prefillParam: 'text',
+      },
+      {
+        id: 'eitaa',
+        label: 'ایتا',
+        enabled: false,
+        url: 'https://eitaa.com/ARSENX2003',
+        prefillParam: null,
+      },
+    ],
+  },
+
+  /* --- Order notification (SMS, etc.) ----------------------------------
+     DELIBERATELY OFF, and it cannot be switched on from here alone.
+
+     Sending an SMS needs a provider API key. This file is downloaded by every
+     visitor, so a key placed in it is public: anyone could read it and burn
+     the shop's SMS credit. There is no client-side way around that.
+
+     What this hook does is POST the order to an endpoint you control — a small
+     serverless function that holds the key and calls the SMS provider. Set the
+     URL once that exists. The endpoint must rate-limit and validate, because a
+     public page can be made to call it by anyone. */
+  notify: {
+    webhookUrl: null,
   },
 
   /* --- Payment details shown after an order is placed -------------------

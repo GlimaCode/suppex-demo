@@ -171,6 +171,7 @@ SUPPEX.app = (function () {
 
     var checkout = $('[data-checkout]');
     if (checkout) { checkout.disabled = snapshot.count === 0; }
+    setChannelsEnabled(snapshot.count > 0);
   }
 
   /* ====================================================================
@@ -216,6 +217,58 @@ SUPPEX.app = (function () {
       foot.hidden = false;
       renderCart(store.snapshot());
     }
+  }
+
+  /* renderCart used to disable a single [data-checkout] button; with a channel
+     list it has to grey out the whole group instead. */
+  function setChannelsEnabled(enabled) {
+    $$('[data-channels] [data-channel]').forEach(function (b) { b.disabled = !enabled; });
+  }
+
+  function sendOrder(channelId) {
+    var snapshot = store.snapshot();
+    if (snapshot.count === 0) { return; }
+
+    var channel = store.channels().filter(function (c) { return c.id === channelId; })[0];
+    if (!channel) { return; }
+
+    /* Apps that take a prefill parameter get the order in the URL. The rest
+       get the bare chat link, with the order put on the clipboard first so the
+       shopper only has to paste — that works no matter what the app supports. */
+    if (!channel.prefillParam && navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(store.asOrderText()).then(function () {
+        toast('متن سفارش کپی شد — در گفتگو پیست کنید');
+      }, function () { /* the panel still shows the order, so this is not fatal */ });
+    }
+
+    /* Opened synchronously inside the click: a popup blocker only permits it
+       while the gesture is still on the stack. */
+    window.open(store.channelUrl(channel), '_blank', 'noopener');
+
+    pingWebhook(snapshot, channel);
+    showPaymentStep(snapshot);
+  }
+
+  /* Fire-and-forget POST to whatever endpoint the shop points at — the seam an
+     SMS notification plugs into. No key lives here; the endpoint holds it. */
+  function pingWebhook(snapshot, channel) {
+    var url = cfg.notify && cfg.notify.webhookUrl;
+    if (!url) { return; }
+    try {
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: channel.id,
+          total: snapshot.total,
+          items: snapshot.items.map(function (i) {
+            return { name: i.nameFa, variant: i.variantLabel, qty: i.qty, price: i.price };
+          }),
+          text: store.asOrderText(),
+        }),
+        keepalive: true,   // survives the tab losing focus to the messaging app
+      }).catch(function () { /* the order already went out by chat; never block on this */ });
+    } catch (err) { /* ditto */ }
   }
 
   function copyCard(btn) {
@@ -332,6 +385,14 @@ SUPPEX.app = (function () {
         if (e.target.closest('[data-remove]')) { store.remove(key); return; }
       }
 
+      /* Send the order through the chosen channel */
+      var chan = e.target.closest('[data-channel]');
+      if (chan) {
+        e.preventDefault();
+        sendOrder(chan.getAttribute('data-channel'));
+        return;
+      }
+
       /* Copy the card number */
       var copyBtn = e.target.closest('[data-copy-card]');
       if (copyBtn) {
@@ -363,22 +424,16 @@ SUPPEX.app = (function () {
        tab so the shopper's cart survives if they come back. */
     var checkout = $('[data-checkout]');
     if (checkout) {
-      if (cfg.ordering.method === 'telegram') { checkout.textContent = 'ثبت سفارش در تلگرام'; }
-      else if (cfg.ordering.method === 'whatsapp') { checkout.textContent = 'ثبت سفارش در واتس‌اپ'; }
-
-      checkout.addEventListener('click', function () {
-        var snapshot = store.snapshot();
-        if (snapshot.count === 0) { return; }
-        var url = store.orderUrl();
-        if (!url) {
-          toast('پرداخت آنلاین در فاز بعدی اضافه می‌شود');
-          return;
-        }
-        /* Opened first and synchronously — a popup blocker only allows this
-           while the click gesture is still on the stack. */
-        window.open(url, '_blank', 'noopener');
-        showPaymentStep(snapshot);
-      });
+      var channels = store.channels();
+      if (!channels.length) {
+        checkout.textContent = 'راهی برای ثبت سفارش تنظیم نشده';
+        checkout.disabled = true;
+      } else {
+        /* The lone button is replaced by one per channel, so the shopper picks
+           the app they actually use rather than being pushed onto Telegram. */
+        checkout.outerHTML = '<div class="channels" data-channels>' +
+          ui.channelButtons(channels) + '</div>';
+      }
     }
 
     /* Newsletter — validates, then reports without sending anywhere */
