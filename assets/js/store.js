@@ -15,7 +15,8 @@ SUPPEX.store = (function () {
 
   /* A line item is keyed by slug + variant, so the same product in two
      flavours or two sizes stays two separate lines — as a real cart must. */
-  var state = { items: [] };
+  var state = { items: [], customer: {} };
+  var DIVIDER = '—————————————';
 
   function keyOf(item) {
     return [item.slug, item.flavorId || '-', item.sizeId || '-'].join('::');
@@ -28,6 +29,7 @@ SUPPEX.store = (function () {
       if (!raw) { return; }
       var parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.items)) { state.items = parsed.items; }
+      if (parsed && parsed.customer) { state.customer = parsed.customer; }
     } catch (err) {
       /* Corrupt or unavailable storage (private mode, quota) must never stop
          the page from rendering — start empty and carry on. */
@@ -90,6 +92,14 @@ SUPPEX.store = (function () {
 
     keyOf: keyOf,
 
+    /* Persisted with the cart so a returning shopper does not retype their
+       address. It never leaves the browser except inside the order message. */
+    setCustomer: function (fields) {
+      state.customer = Object.assign({}, state.customer, fields);
+      emit();
+    },
+    getCustomer: function () { return Object.assign({}, state.customer); },
+
     /* Totals are computed here, never in a template. */
     snapshot: function () {
       var subtotal = state.items.reduce(function (sum, i) { return sum + i.price * i.qty; }, 0);
@@ -98,6 +108,7 @@ SUPPEX.store = (function () {
       var shipping = count === 0 || freeShipping ? 0 : cfg.shippingFlatRate;
 
       return {
+        customer: Object.assign({}, state.customer),
         items: state.items.map(function (i) {
           return Object.assign({}, i, { key: keyOf(i), lineTotal: i.price * i.qty });
         }),
@@ -131,6 +142,22 @@ SUPPEX.store = (function () {
       lines.push('جمع کالاها: ' + money(snap.subtotal) + ' ' + unit);
       lines.push('هزینه ارسال: ' + (snap.freeShipping ? 'رایگان' : money(snap.shipping) + ' ' + unit));
       lines.push('مبلغ قابل پرداخت: ' + money(snap.total) + ' ' + unit);
+
+      /* The whole point of collecting these is that they arrive WITH the order
+         rather than being asked for afterwards, one message at a time. */
+      var c = state.customer || {};
+      var filled = (cfg.customerFields || []).filter(function (f) {
+        return String(c[f.id] || '').trim();
+      });
+      if (filled.length) {
+        lines.push('');
+        lines.push(DIVIDER);
+        lines.push('مشخصات گیرنده:');
+        filled.forEach(function (f) {
+          lines.push(f.label.replace(' (اختیاری)', '') + ': ' + String(c[f.id]).trim());
+        });
+      }
+
       return lines.join('\n');
     },
 

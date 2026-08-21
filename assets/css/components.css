@@ -509,6 +509,24 @@
 .stepper-mini button:hover { color: var(--amber); }
 .stepper-mini span { min-width: 22px; text-align: center; font-size: var(--fs-xs); font-weight: 800; }
 
+/* --------------------------------------------------------------------------
+   Delivery details form
+   -------------------------------------------------------------------------- */
+.form { display: flex; flex-direction: column; gap: var(--sp-4); padding-block: var(--sp-3); }
+.form__intro { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.85; margin: 0; }
+.form__row { display: flex; flex-direction: column; gap: var(--sp-2); }
+.form__label { font-size: var(--fs-xs); font-weight: 800; color: var(--text-muted); }
+.form__req { color: var(--accent); margin-inline-start: 4px; }
+
+/* Textareas need a squarer radius than the pill inputs, or the first line of
+   text collides with the curve. */
+.form__control { border-radius: var(--r-md); }
+textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
+
+.form__error { font-size: 0.6875rem; color: var(--accent); min-height: 0; }
+.form__row.is-invalid .form__control { border-color: var(--accent); background: rgba(242, 89, 20, 0.07); }
+.form__row.is-invalid .form__error { min-height: 1em; }
+
 /* Channel picker at the foot of the cart */
 .channels { display: flex; flex-direction: column; gap: var(--sp-2); }
 .channels .btn { gap: var(--sp-3); }
@@ -531,6 +549,23 @@
   color: var(--success);
 }
 .pay__done svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+/* The paste reminder for apps that cannot take the order in the URL. It stays
+   on screen because a toast would be gone before they switch apps. */
+.pay__paste {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--r-md);
+  background: rgba(242, 89, 20, 0.1);
+  border: 1px solid rgba(242, 89, 20, 0.35);
+  font-size: var(--fs-xs);
+  line-height: 1.85;
+  color: var(--text);
+}
+.pay__paste svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--accent); margin-top: 3px; }
+.pay__paste strong { color: var(--amber); }
 
 .pay__amount {
   display: flex;

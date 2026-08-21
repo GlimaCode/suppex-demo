@@ -65,6 +65,7 @@ SUPPEX.ui = (function () {
     play: '<rect x="3" y="5" width="18" height="14" rx="4"/><path d="M11 9.8l4 2.2-4 2.2z" fill="currentColor" stroke="none"/>',
     box: '<path d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/>',
     chat: '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/>',
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
   };
 
   /* width/height are emitted as presentation attributes, not CSS. An inline
@@ -220,6 +221,38 @@ SUPPEX.ui = (function () {
       '</div>';
   }
 
+  /* The delivery details, asked once before the order goes out instead of
+     being chased through the chat afterwards. Values are pre-filled from the
+     last order so a repeat customer only has to press send. */
+  function customerForm(customer) {
+    customer = customer || {};
+    var rows = (cfg.customerFields || []).map(function (f) {
+      var val = esc(customer[f.id] || '');
+      var id = 'cust-' + f.id;
+      var attrs =
+        ' id="' + id + '" name="' + esc(f.id) + '" data-field="' + esc(f.id) + '"' +
+        (f.autocomplete ? ' autocomplete="' + esc(f.autocomplete) + '"' : '') +
+        (f.placeholder ? ' placeholder="' + esc(f.placeholder) + '"' : '') +
+        (f.required ? ' required' : '');
+
+      var control = f.type === 'textarea'
+        ? '<textarea class="input form__control"' + attrs + ' rows="' + (f.rows || 3) + '">' + val + '</textarea>'
+        : '<input class="input form__control" type="' + esc(f.type || 'text') + '"' + attrs + ' value="' + val + '">';
+
+      return '<div class="form__row" data-row="' + esc(f.id) + '">' +
+        '<label class="form__label" for="' + id + '">' + esc(f.label) +
+          (f.required ? '<span class="form__req">*</span>' : '') + '</label>' +
+        control +
+        '<span class="form__error" data-error></span>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="form" data-customer-form>' +
+      '<p class="form__intro">برای هماهنگی ارسال، این اطلاعات لازم است. یک بار وارد کنید — دفعه بعد پر شده است.</p>' +
+      rows +
+    '</div>';
+  }
+
   var CHANNEL_ICON = {
     telegram: 'telegram',
     whatsapp: 'whatsapp',
@@ -242,14 +275,24 @@ SUPPEX.ui = (function () {
   /* Shown in the drawer the moment an order is handed to Telegram, so the
      shopper has the amount and the card number in front of them without the
      seller having to type anything. */
-  function paymentPanel(snapshot) {
+  function paymentPanel(snapshot, channel) {
     var p = cfg.payment;
+    var appName = (channel && channel.label) || 'همان گفتگو';
     var digits = String(p.cardNumber || '').replace(/\D/g, '');
     var grouped = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
 
     return '' +
       '<div class="pay">' +
-        '<div class="pay__done">' + icon('check') + '<span>سفارش شما آماده ارسال در تلگرام است</span></div>' +
+        '<div class="pay__done">' + icon('check') +
+          '<span>سفارش شما آماده ارسال در ' + esc(appName) + ' است</span></div>' +
+
+        /* Apps without URL prefill got the order via the clipboard. A toast
+           vanishes; this has to stay on screen until they have pasted it. */
+        (channel && !channel.prefillParam
+          ? '<div class="pay__paste">' + icon('copy') +
+            '<span>متن سفارش کپی شد — در گفتگوی ' + esc(appName) +
+            ' آن را <strong>پیست کنید و بفرستید</strong>.</span></div>'
+          : '') +
 
         '<div class="pay__amount">' +
           '<span class="u-sm u-muted">مبلغ قابل پرداخت</span>' +
@@ -265,7 +308,7 @@ SUPPEX.ui = (function () {
           '<div class="pay__holder">به نام ' + esc(p.cardHolder || '—') + '</div>' +
         '</div>' +
 
-        '<p class="pay__note">' + esc(p.note || '') + '</p>' +
+        '<p class="pay__note">' + esc(String(p.note || '').replace('{channel}', appName)) + '</p>' +
       '</div>';
   }
 
@@ -293,6 +336,7 @@ SUPPEX.ui = (function () {
     reviewCard: reviewCard,
     journalCard: journalCard,
     lineItem: lineItem,
+    customerForm: customerForm,
     channelButtons: channelButtons,
     paymentPanel: paymentPanel,
     searchRow: searchRow,

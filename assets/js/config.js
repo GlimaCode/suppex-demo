@@ -120,8 +120,30 @@ SUPPEX.config = {
     cardNumber: '6037 9911 0000 0000',     // ← شماره کارت واقعی را اینجا بگذارید
     cardHolder: 'نام صاحب حساب',           // ← نام دقیقاً همان‌طور که در بانک ثبت شده
     bankName: 'بانک ملی',
-    note: 'پس از واریز، رسید را در همان گفتگویی که سفارش را فرستادید ارسال کنید تا سفارش نهایی شود.',
+    /* {channel} is replaced with the app the shopper actually chose, so a
+       Bale customer is never told to go and find Telegram. */
+    note: 'پس از واریز، رسید را در همان گفتگوی {channel} بفرستید تا سفارش نهایی شود.',
   },
+
+  /* --- Details collected before the order is sent -----------------------
+     Without these the seller has to ask for the address and phone number by
+     hand, one message at a time, which is most of the back-and-forth the site
+     is meant to remove. They are appended to the order message.
+
+     Everything stays in the browser (localStorage) so a returning customer
+     does not retype it — there is no server to hold it. */
+  customerFields: [
+    { id: 'name',    label: 'نام و نام خانوادگی', type: 'text',  required: true,
+      autocomplete: 'name' },
+    { id: 'phone',   label: 'شماره تماس',        type: 'tel',   required: true,
+      autocomplete: 'tel', placeholder: '09xxxxxxxxx', validate: 'mobile' },
+    { id: 'address', label: 'آدرس دقیق',         type: 'textarea', required: true,
+      autocomplete: 'street-address', rows: 3 },
+    { id: 'postal',  label: 'کد پستی',           type: 'text',  required: true,
+      autocomplete: 'postal-code', placeholder: '۱۰ رقم', validate: 'postal' },
+    { id: 'note',    label: 'توضیحات (اختیاری)', type: 'textarea', required: false,
+      rows: 2, placeholder: 'مثلاً ساعت مناسب تحویل' },
+  ],
 
   /* --- Feature flags --------------------------------------------------
      The reference designs gated seasonal UI behind booleans; same idea here.

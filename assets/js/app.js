@@ -201,14 +201,46 @@ SUPPEX.app = (function () {
     }
   }
 
-  /* Replaces the cart contents with the amount and card details. Kept inside
-     the drawer the shopper already has open rather than a new modal. */
-  function showPaymentStep(snapshot) {
+  /* Step 2: the delivery details, followed by the channel buttons. Picking a
+     channel is what submits the form, so ordering stays two taps. */
+  function showDetailsStep() {
     var body = $('[data-cart-items]');
     var foot = $('[data-drawer] .drawer__foot');
     if (!body) { return; }
-    body.innerHTML = ui.paymentPanel(snapshot);
+
+    body.innerHTML = ui.customerForm(store.getCustomer()) +
+      '<div class="channels" data-channels>' + ui.channelButtons(store.channels()) + '</div>';
     if (foot) { foot.hidden = true; }
+    setDrawerBack(true);
+  }
+
+  /* Step 3: amount and card details. Told which app was used so it never
+     names the wrong one. */
+  function showPaymentStep(snapshot, channel) {
+    var body = $('[data-cart-items]');
+    var foot = $('[data-drawer] .drawer__foot');
+    if (!body) { return; }
+    body.innerHTML = ui.paymentPanel(snapshot, channel);
+    if (foot) { foot.hidden = true; }
+    setDrawerBack(true);
+  }
+
+  /* A back arrow in the drawer header, shown only past the first step. */
+  function setDrawerBack(show) {
+    var head = $('[data-drawer] .drawer__head');
+    if (!head) { return; }
+    var btn = $('[data-drawer-back]', head);
+    if (show && !btn) {
+      btn = document.createElement('button');
+      btn.className = 'icon-btn';
+      btn.type = 'button';
+      btn.setAttribute('data-drawer-back', '');
+      btn.setAttribute('aria-label', 'بازگشت');
+      btn.innerHTML = ui.icon('arrow');
+      head.insertBefore(btn, head.firstChild);
+    } else if (!show && btn) {
+      btn.remove();
+    }
   }
 
   function resetPaymentStep() {
@@ -217,6 +249,7 @@ SUPPEX.app = (function () {
       foot.hidden = false;
       renderCart(store.snapshot());
     }
+    setDrawerBack(false);
   }
 
   /* renderCart used to disable a single [data-checkout] button; with a channel
@@ -225,12 +258,85 @@ SUPPEX.app = (function () {
     $$('[data-channels] [data-channel]').forEach(function (b) { b.disabled = !enabled; });
   }
 
+  /* Shoppers type Persian and Arabic-Indic digits interchangeably; a phone
+     number in ۰۹۱۲ form is the same number and must not be rejected. */
+  var DIGIT_MAP = { '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4',
+                    '۵':'5','۶':'6','۷':'7','۸':'8','۹':'9',
+                    '٠':'0','١':'1','٢':'2','٣':'3','٤':'4',
+                    '٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
+
+  function toLatinDigits(str) {
+    return String(str).replace(/[۰-۹٠-٩]/g, function (d) { return DIGIT_MAP[d]; });
+  }
+
+  var VALIDATORS = {
+    mobile: function (v) {
+      var d = toLatinDigits(v).replace(/[\s-]/g, '');
+      return /^09\d{9}$/.test(d) ? null : 'شماره موبایل باید با ۰۹ شروع شود و ۱۱ رقم باشد';
+    },
+    postal: function (v) {
+      var d = toLatinDigits(v).replace(/[\s-]/g, '');
+      return /^\d{10}$/.test(d) ? null : 'کد پستی باید دقیقاً ۱۰ رقم باشد';
+    },
+  };
+
+  /* Reads the form, shows errors in place, and returns the values or null.
+     Digits are normalised on the way out so the seller always receives a
+     number they can dial or paste into a courier form. */
+  function readCustomerForm() {
+    var form = $('[data-customer-form]');
+    if (!form) { return {}; }
+
+    var values = {};
+    var firstBad = null;
+
+    (cfg.customerFields || []).forEach(function (f) {
+      var input = $('[data-field="' + f.id + '"]', form);
+      if (!input) { return; }
+      var row = input.closest('.form__row');
+      var err = $('[data-error]', row);
+      var raw = String(input.value || '').trim();
+      var message = null;
+
+      if (f.required && !raw) {
+        message = 'این مورد لازم است';
+      } else if (raw && f.validate && VALIDATORS[f.validate]) {
+        message = VALIDATORS[f.validate](raw);
+      }
+
+      if (message) {
+        row.classList.add('is-invalid');
+        if (err) { err.textContent = message; }
+        if (!firstBad) { firstBad = input; }
+      } else {
+        row.classList.remove('is-invalid');
+        if (err) { err.textContent = ''; }
+        values[f.id] = f.validate ? toLatinDigits(raw).replace(/[\s-]/g, '') : raw;
+      }
+    });
+
+    if (firstBad) {
+      firstBad.focus();
+      return null;
+    }
+    return values;
+  }
+
   function sendOrder(channelId) {
     var snapshot = store.snapshot();
     if (snapshot.count === 0) { return; }
 
     var channel = store.channels().filter(function (c) { return c.id === channelId; })[0];
     if (!channel) { return; }
+
+    /* Validate before anything opens — a popup that appears and then turns out
+       to be premature is far worse than a blocked one. */
+    var customer = readCustomerForm();
+    if (customer === null) {
+      toast('لطفاً موارد مشخص‌شده را تکمیل کنید');
+      return;
+    }
+    store.setCustomer(customer);
 
     /* Apps that take a prefill parameter get the order in the URL. The rest
        get the bare chat link, with the order put on the clipboard first so the
@@ -246,7 +352,7 @@ SUPPEX.app = (function () {
     window.open(store.channelUrl(channel), '_blank', 'noopener');
 
     pingWebhook(snapshot, channel);
-    showPaymentStep(snapshot);
+    showPaymentStep(snapshot, channel);
   }
 
   /* Fire-and-forget POST to whatever endpoint the shop points at — the seam an
@@ -385,6 +491,20 @@ SUPPEX.app = (function () {
         if (e.target.closest('[data-remove]')) { store.remove(key); return; }
       }
 
+      /* Cart -> details */
+      if (e.target.closest('[data-goto-details]')) {
+        e.preventDefault();
+        if (store.snapshot().count > 0) { showDetailsStep(); }
+        return;
+      }
+
+      /* Any step -> back to the cart */
+      if (e.target.closest('[data-drawer-back]')) {
+        e.preventDefault();
+        resetPaymentStep();
+        return;
+      }
+
       /* Send the order through the chosen channel */
       var chan = e.target.closest('[data-channel]');
       if (chan) {
@@ -429,10 +549,8 @@ SUPPEX.app = (function () {
         checkout.textContent = 'راهی برای ثبت سفارش تنظیم نشده';
         checkout.disabled = true;
       } else {
-        /* The lone button is replaced by one per channel, so the shopper picks
-           the app they actually use rather than being pushed onto Telegram. */
-        checkout.outerHTML = '<div class="channels" data-channels>' +
-          ui.channelButtons(channels) + '</div>';
+        checkout.textContent = 'ادامه و تکمیل مشخصات';
+        checkout.setAttribute('data-goto-details', '');
       }
     }
 
