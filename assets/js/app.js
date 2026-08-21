@@ -216,11 +216,11 @@ SUPPEX.app = (function () {
 
   /* Step 3: amount and card details. Told which app was used so it never
      names the wrong one. */
-  function showPaymentStep(snapshot, channel) {
+  function showPaymentStep(snapshot, channel, route) {
     var body = $('[data-cart-items]');
     var foot = $('[data-drawer] .drawer__foot');
     if (!body) { return; }
-    body.innerHTML = ui.paymentPanel(snapshot, channel);
+    body.innerHTML = ui.paymentPanel(snapshot, channel, route);
     if (foot) { foot.hidden = true; }
     setDrawerBack(true);
   }
@@ -338,10 +338,12 @@ SUPPEX.app = (function () {
     }
     store.setCustomer(customer);
 
-    /* Apps that take a prefill parameter get the order in the URL. The rest
-       get the bare chat link, with the order put on the clipboard first so the
-       shopper only has to paste — that works no matter what the app supports. */
-    if (!channel.prefillParam && navigator.clipboard && window.isSecureContext) {
+    /* The store decides whether the order fits in the URL. When it does not —
+       either the app has no prefill parameter, or the order is too long to
+       survive one — it goes on the clipboard instead. */
+    var route = store.resolveChannel(channel);
+
+    if (route.needsPaste && navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(store.asOrderText()).then(function () {
         toast('متن سفارش کپی شد — در گفتگو پیست کنید');
       }, function () { /* the panel still shows the order, so this is not fatal */ });
@@ -349,10 +351,10 @@ SUPPEX.app = (function () {
 
     /* Opened synchronously inside the click: a popup blocker only permits it
        while the gesture is still on the stack. */
-    window.open(store.channelUrl(channel), '_blank', 'noopener');
+    window.open(route.url, '_blank', 'noopener');
 
     pingWebhook(snapshot, channel);
-    showPaymentStep(snapshot, channel);
+    showPaymentStep(snapshot, channel, route);
   }
 
   /* Fire-and-forget POST to whatever endpoint the shop points at — the seam an

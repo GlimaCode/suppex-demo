@@ -47,17 +47,19 @@ SUPPEX.config = {
     /* Prepended to the generated order message. */
     intro: 'سلام، می‌خواستم این سفارش را ثبت کنم:',
 
+    /* Beyond this the order is handed over by clipboard instead of in the URL.
+       Persian percent-encodes to ~4.6x, so a four-item order with a full
+       address already reaches ~3,400 characters and apps start truncating. */
+    maxPrefillUrlLength: 2000,
+
     /* Every way a shopper may send their order. The first enabled one is the
        primary button; the rest sit under it.
 
        prefillParam is the query parameter that carries the order text in the
-       URL. Telegram and WhatsApp both accept `text`. For anything where that
-       is unknown or unsupported — Bale, Eitaa — leave it null: the order is
-       copied to the clipboard first and the shopper pastes it into the chat,
-       which works on every app regardless of what it supports.
-
-       If you test Bale and find it does accept a prefill parameter, set it
-       here and the copy step disappears on its own. */
+       URL. Telegram, WhatsApp and Bale all accept `text` — Bale was checked on
+       a real device. For anything still unverified, such as Eitaa, leave it
+       null: the order is copied to the clipboard first and the shopper pastes
+       it into the chat, which works on every app regardless of support. */
     channels: [
       {
         id: 'telegram',
@@ -71,7 +73,7 @@ SUPPEX.config = {
         label: 'بله',
         enabled: true,
         url: 'https://ble.ir/ALIARSENX',
-        prefillParam: null,                 // untested — falls back to copy+paste
+        prefillParam: 'text',               // verified on a device: Bale prefills the composer
       },
       {
         id: 'whatsapp',

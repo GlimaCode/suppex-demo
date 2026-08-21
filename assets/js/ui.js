@@ -275,9 +275,10 @@ SUPPEX.ui = (function () {
   /* Shown in the drawer the moment an order is handed to Telegram, so the
      shopper has the amount and the card number in front of them without the
      seller having to type anything. */
-  function paymentPanel(snapshot, channel) {
+  function paymentPanel(snapshot, channel, route) {
     var p = cfg.payment;
     var appName = (channel && channel.label) || 'همان گفتگو';
+    var needsPaste = route ? route.needsPaste : !(channel && channel.prefillParam);
     var digits = String(p.cardNumber || '').replace(/\D/g, '');
     var grouped = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
 
@@ -288,7 +289,7 @@ SUPPEX.ui = (function () {
 
         /* Apps without URL prefill got the order via the clipboard. A toast
            vanishes; this has to stay on screen until they have pasted it. */
-        (channel && !channel.prefillParam
+        (needsPaste
           ? '<div class="pay__paste">' + icon('copy') +
             '<span>متن سفارش کپی شد — در گفتگوی ' + esc(appName) +
             ' آن را <strong>پیست کنید و بفرستید</strong>.</span></div>'

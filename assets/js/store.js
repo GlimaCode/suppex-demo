@@ -166,16 +166,35 @@ SUPPEX.store = (function () {
       return (cfg.ordering.channels || []).filter(function (c) { return c.enabled; });
     },
 
-    /* Where a given channel should open. When the app accepts a prefill
-       parameter the order rides along in the URL; otherwise the bare chat URL
-       is returned and the caller is expected to put the text on the clipboard
-       so the shopper can paste it. */
-    channelUrl: function (channel) {
+    /* Decides how a channel receives the order: in the URL, or via the
+       clipboard.
+
+       The length guard matters more than it looks. Persian percent-encodes to
+       roughly 4.6x its character count — every letter becomes %D8%A8 — so a
+       four-item order with a real address reaches ~3,400 characters. Apps and
+       browsers disagree about how long a URL may be, and the failure mode is
+       silent truncation: the order arrives cut off mid-line and neither side
+       notices until something is missing from the parcel. Above the limit the
+       clipboard route is used instead, which has no length ceiling. */
+    resolveChannel: function (channel) {
       if (!channel || !channel.url) { return null; }
-      if (!channel.prefillParam) { return channel.url; }
+      if (!channel.prefillParam) {
+        return { url: channel.url, needsPaste: true };
+      }
       var sep = channel.url.indexOf('?') === -1 ? '?' : '&';
-      return channel.url + sep + encodeURIComponent(channel.prefillParam) +
-             '=' + encodeURIComponent(api.asOrderText());
+      var full = channel.url + sep + encodeURIComponent(channel.prefillParam) +
+                 '=' + encodeURIComponent(api.asOrderText());
+      var limit = cfg.ordering.maxPrefillUrlLength || 2000;
+      if (full.length > limit) {
+        return { url: channel.url, needsPaste: true, tooLongForUrl: true };
+      }
+      return { url: full, needsPaste: false };
+    },
+
+    /* Kept for callers that only want the address. */
+    channelUrl: function (channel) {
+      var r = api.resolveChannel(channel);
+      return r ? r.url : null;
     },
 
     init: function () { load(); emit(); },
