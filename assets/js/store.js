@@ -161,6 +161,27 @@ SUPPEX.store = (function () {
       return lines.join('\n');
     },
 
+    /* What the server needs to record this order.
+
+       Note what is absent: prices, line totals and the grand total. The server
+       recomputes all of them from its own catalogue, so sending them would be
+       pointless at best and, if the server trusted them, an open invitation to
+       edit localStorage and set your own price. */
+    asOrderPayload: function (channelId) {
+      return {
+        items: state.items.map(function (i) {
+          return {
+            slug: i.slug,
+            flavorId: i.flavorId || null,
+            sizeId: i.sizeId || null,
+            qty: i.qty,
+          };
+        }),
+        customer: Object.assign({}, state.customer),
+        channel: channelId || '',
+      };
+    },
+
     /* Channels the shopper can actually pick from, in config order. */
     channels: function () {
       return (cfg.ordering.channels || []).filter(function (c) { return c.enabled; });

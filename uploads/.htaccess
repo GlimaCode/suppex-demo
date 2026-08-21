@@ -1,0 +1,28 @@
+# ===========================================================================
+# Uploaded files are DATA. Nothing in this directory may ever be executed.
+#
+# This is the last line of defence behind lib/images.php, which already
+# re-encodes every upload through GD and generates the filename itself. Both
+# exist because either one can be defeated on its own: a server
+# misconfiguration can make PHP run a .jpg, and a future edit to the upload
+# code can drop a check. A file that cannot execute is harmless regardless.
+# ===========================================================================
+
+# Apache 2.4 and the PHP handler on most cPanel hosts
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>
+
+# LiteSpeed / suPHP / FastCGI ignore php_flag, so strip the handler as well
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phps .cgi .pl .py
+RemoveType    .php .phtml .php3 .php4 .php5 .php7 .php8 .phps
+
+# And refuse the request outright if anything scriptable still lands here
+<FilesMatch "\.(php|phtml|php[0-9]|phps|cgi|pl|py|sh|htaccess)$">
+  Require all denied
+</FilesMatch>
+
+Options -ExecCGI -Indexes

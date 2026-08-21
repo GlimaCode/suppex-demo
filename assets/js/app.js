@@ -217,11 +217,11 @@ SUPPEX.app = (function () {
 
   /* Step 3: amount and card details. Told which app was used so it never
      names the wrong one. */
-  function showPaymentStep(snapshot, channel, route) {
+  function showPaymentStep(snapshot, channel, route, server) {
     var body = $('[data-cart-items]');
     var foot = $('[data-drawer] .drawer__foot');
     if (!body) { return; }
-    body.innerHTML = ui.paymentPanel(snapshot, channel, route);
+    body.innerHTML = ui.paymentPanel(snapshot, channel, route, server);
     if (foot) { foot.hidden = true; }
     setDrawerBack(true);
   }
@@ -351,11 +351,32 @@ SUPPEX.app = (function () {
     }
 
     /* Opened synchronously inside the click: a popup blocker only permits it
-       while the gesture is still on the stack. */
+       while the gesture is still on the stack. This is why the order is NOT
+       awaited first — a round trip here would put the window.open outside the
+       gesture and the chat would silently fail to open on most phones. */
     window.open(route.url, '_blank', 'noopener');
 
     pingWebhook(snapshot, channel);
+
+    /* Render the panel straight away from what the browser already knows, so
+       the shopper is never left looking at a spinner while a request runs. */
     showPaymentStep(snapshot, channel, route);
+
+    /* Then record it. The server assigns the tracking code and returns the
+       current card details, and the panel is re-rendered with both.
+
+       A failure here is deliberately quiet. The order is already open in the
+       shopper's chat window; telling them it failed would make them abandon a
+       message that is about to arrive perfectly well. The shop keeps taking
+       orders exactly as it does today — it just loses this one from the
+       dashboard, which is the lesser of the two problems. */
+    repo.createOrder(store.asOrderPayload(channelId)).then(function (server) {
+      if (server && server.ok) {
+        showPaymentStep(snapshot, channel, route, server);
+      }
+    }, function (err) {
+      console.warn('[suppex] order was not recorded server-side:', err && err.message);
+    });
   }
 
   /* Fire-and-forget POST to whatever endpoint the shop points at — the seam an

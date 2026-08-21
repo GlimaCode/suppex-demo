@@ -27,6 +27,24 @@ SUPPEX.ui = (function () {
     return cfg.currency.format(value);
   }
 
+  /* A product can exist before anyone has uploaded a photo for it — the admin
+     panel deliberately allows that, so the shop owner can enter names and
+     prices first and add pictures later. An empty src renders as a broken-image
+     icon, which looks like a bug rather than a gap, so an inert neutral tile
+     stands in until the real photo arrives. Inline SVG, so it costs no request
+     and cannot itself 404. */
+  var IMAGE_PLACEHOLDER =
+    'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+      '<rect width="100" height="100" fill="%231c1a18"/>' +
+      '<path d="M30 62l14-16 10 11 7-7 9 12z" fill="%232f2b27"/>' +
+      '<circle cx="38" cy="38" r="6" fill="%232f2b27"/></svg>');
+
+  function imgSrc(value) {
+    var src = String(value == null ? '' : value).trim();
+    return src === '' ? IMAGE_PLACEHOLDER : esc(src);
+  }
+
   function priceHtml(product, opts) {
     opts = opts || {};
     var cls = 'price' + (opts.large ? ' price--lg' : '');
@@ -130,7 +148,7 @@ SUPPEX.ui = (function () {
       '<article class="pcard reveal">' +
         '<div class="pcard__media">' +
           '<a href="' + href + '" class="media media--1x1 media--lit" aria-label="' + esc(product.nameFa) + '">' +
-            '<img src="' + esc(product.image) + '" alt="' + esc(product.nameFa + ' — ' + product.name) + '" loading="lazy" width="400" height="400">' +
+            '<img src="' + imgSrc(product.image) + '" alt="' + esc(product.nameFa + ' — ' + product.name) + '" loading="lazy" width="400" height="400">' +
           '</a>' +
           flags +
         '</div>' +
@@ -156,7 +174,7 @@ SUPPEX.ui = (function () {
     return '' +
       '<a class="ccard reveal" href="#featured" data-category="' + esc(cat.id) + '">' +
         '<span class="media media--4x5" style="border-radius:0;display:block">' +
-          '<img src="' + esc(cat.image) + '" alt="دسته‌بندی ' + esc(cat.name) + '" loading="lazy" width="320" height="400">' +
+          '<img src="' + imgSrc(cat.image) + '" alt="دسته‌بندی ' + esc(cat.name) + '" loading="lazy" width="320" height="400">' +
         '</span>' +
         '<span class="ccard__label">' +
           '<span>' +
@@ -185,7 +203,7 @@ SUPPEX.ui = (function () {
     return '' +
       '<a class="pcard reveal" href="#">' +
         '<div class="media media--16x10">' +
-          '<img src="' + esc(post.image) + '" alt="" loading="lazy" width="480" height="300">' +
+          '<img src="' + imgSrc(post.image) + '" alt="" loading="lazy" width="480" height="300">' +
         '</div>' +
         '<div class="pcard__body">' +
           '<div class="row" style="gap:8px">' +
@@ -201,7 +219,7 @@ SUPPEX.ui = (function () {
     return '' +
       '<div class="line-item" data-key="' + esc(item.key) + '">' +
         '<span class="line-item__media media media--1x1">' +
-          '<img src="' + esc(item.image) + '" alt="" width="74" height="74">' +
+          '<img src="' + imgSrc(item.image) + '" alt="" width="74" height="74">' +
         '</span>' +
         '<div class="line-item__info">' +
           '<div class="line-item__title">' + esc(item.nameFa) + '</div>' +
@@ -294,17 +312,34 @@ SUPPEX.ui = (function () {
   /* Shown in the drawer the moment an order is handed to Telegram, so the
      shopper has the amount and the card number in front of them without the
      seller having to type anything. */
-  function paymentPanel(snapshot, channel, route) {
+  /* `server` is the response from the order API, or null in prototype mode.
+     When it is present its card details win: the shop can change the card from
+     the admin panel without anyone redeploying the site, and a stale number
+     baked into config.js is exactly the failure that sends a customer's money
+     to the wrong account. */
+  function paymentPanel(snapshot, channel, route, server) {
     var p = cfg.payment;
+    var pay = (server && server.payment) || {};
+    var bankName   = pay.bankName   || p.bankName   || '';
+    var cardHolder = pay.cardHolder || p.cardHolder || '—';
     var appName = (channel && channel.label) || 'همان گفتگو';
     var needsPaste = route ? route.needsPaste : !(channel && channel.prefillParam);
-    var digits = String(p.cardNumber || '').replace(/\D/g, '');
+    var digits = String(pay.cardNumber || p.cardNumber || '').replace(/\D/g, '');
     var grouped = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
 
     return '' +
       '<div class="pay">' +
         '<div class="pay__done">' + icon('check') +
           '<span>سفارش شما آماده ارسال در ' + esc(appName) + ' است</span></div>' +
+
+        /* Shown only when the order really was recorded. It is the reference
+           the shopper quotes if anything goes wrong, so inventing one in
+           prototype mode — where nothing was saved — would be worse than
+           showing none at all. */
+        (server && server.code
+          ? '<div class="pay__code">شماره پیگیری سفارش: ' +
+            '<strong class="num" dir="ltr">' + esc(server.code) + '</strong></div>'
+          : '') +
 
         /* Apps without URL prefill got the order via the clipboard. A toast
            vanishes; this has to stay on screen until they have pasted it. */
@@ -321,11 +356,11 @@ SUPPEX.ui = (function () {
 
         '<div class="pay__card">' +
           '<div class="pay__card-head">' +
-            '<span class="u-eyebrow u-eyebrow--bare">' + esc(p.bankName || '') + '</span>' +
+            '<span class="u-eyebrow u-eyebrow--bare">' + esc(bankName) + '</span>' +
             '<button class="pay__copy" type="button" data-copy-card="' + esc(digits) + '">کپی شماره</button>' +
           '</div>' +
           '<div class="pay__number num" dir="ltr">' + esc(grouped) + '</div>' +
-          '<div class="pay__holder">به نام ' + esc(p.cardHolder || '—') + '</div>' +
+          '<div class="pay__holder">به نام ' + esc(cardHolder) + '</div>' +
         '</div>' +
 
         '<p class="pay__note">' + esc(String(p.note || '').replace('{channel}', appName)) + '</p>' +
@@ -335,7 +370,7 @@ SUPPEX.ui = (function () {
   function searchRow(product) {
     return '' +
       '<a class="search__row" href="product.html?p=' + encodeURIComponent(product.slug) + '">' +
-        '<span class="media media--1x1"><img src="' + esc(product.image) + '" alt="" width="52" height="52"></span>' +
+        '<span class="media media--1x1"><img src="' + imgSrc(product.image) + '" alt="" width="52" height="52"></span>' +
         '<span style="flex:1;min-width:0">' +
           '<span style="font-weight:800;font-size:.9rem;display:block">' + esc(product.nameFa) + '</span>' +
           '<span class="u-xs u-dim lat">' + esc(product.name) + '</span>' +

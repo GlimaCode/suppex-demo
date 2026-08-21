@@ -1,0 +1,58 @@
+# ===========================================================================
+# SUPPEX — site root
+# ===========================================================================
+
+# --- Defence in depth: application code is not a web page ------------------
+# lib/ and db/ hold includes, not pages. Nothing should ever request them
+# directly, so nothing is allowed to. This matters because if PHP execution
+# ever breaks — a bad handler, a failed upgrade — every .php file is served as
+# plain text, and lib/db.php would then reveal how the database is reached.
+RedirectMatch 404 ^/(lib|db)/
+<FilesMatch "\.(sql|json|md|ini|log)$">
+  Require all denied
+</FilesMatch>
+# db/catalog-seed.json is only read from disk by seed.php, never over HTTP.
+
+# --- UTF-8 by default -------------------------------------------------------
+AddDefaultCharset UTF-8
+
+# --- Compression ------------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml \
+                                application/javascript application/json \
+                                image/svg+xml
+</IfModule>
+
+# --- Caching ----------------------------------------------------------------
+# Long for fingerprinted-by-content assets, short for HTML so a price change is
+# visible immediately rather than after a week of stale cache.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css                "access plus 7 days"
+  ExpiresByType application/javascript  "access plus 7 days"
+  ExpiresByType image/webp              "access plus 30 days"
+  ExpiresByType image/jpeg              "access plus 30 days"
+  ExpiresByType image/png               "access plus 30 days"
+  ExpiresByType image/svg+xml           "access plus 30 days"
+  ExpiresByType text/html               "access plus 0 seconds"
+</IfModule>
+
+# --- Security headers -------------------------------------------------------
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# --- Force HTTPS ------------------------------------------------------------
+# Commented out until the certificate is installed: enabling it first makes the
+# site unreachable rather than merely insecure. Uncomment the day cPanel's
+# AutoSSL issues the certificate, then set 'https_only' => true in the config.
+# <IfModule mod_rewrite.c>
+#   RewriteEngine On
+#   RewriteCond %{HTTPS} off
+#   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>
+
+# --- Never list a directory -------------------------------------------------
+Options -Indexes

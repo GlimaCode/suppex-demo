@@ -29,15 +29,24 @@ SUPPEX.repo = (function () {
     });
   }
 
-  function remote(path, params) {
-    var url = cfg.api.baseUrl + path;
-    if (params) {
-      var qs = Object.keys(params)
-        .filter(function (k) { return params[k] != null && params[k] !== ''; })
-        .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); })
-        .join('&');
-      if (qs) { url += '?' + qs; }
-    }
+  /* The API is a single front controller routed by ?r=, rather than a path per
+     endpoint. That is a deliberate choice for shared hosting: pretty paths
+     would need mod_rewrite, which is not guaranteed to be enabled and fails in
+     a way that looks like the whole site is broken. A query parameter works on
+     any server that can run PHP at all. */
+  function apiUrl(route, params) {
+    var base = cfg.api.baseUrl;
+    var url = base + (base.indexOf('?') === -1 ? '?' : '&') + 'r=' + encodeURIComponent(route);
+    Object.keys(params || {}).forEach(function (k) {
+      var v = params[k];
+      if (v == null || v === '') { return; }
+      url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(v);
+    });
+    return url;
+  }
+
+  function remote(route, params) {
+    var url = apiUrl(route, params);
     return fetch(url, { headers: { Accept: 'application/json' } }).then(function (res) {
       if (!res.ok) { throw new Error('Request failed: ' + res.status + ' ' + url); }
       return res.json();
@@ -93,9 +102,7 @@ SUPPEX.repo = (function () {
     },
 
     getProduct: function (slug) {
-      if (isRemote()) {
-        return remote(cfg.api.endpoints.product.replace(':slug', encodeURIComponent(slug)));
-      }
+      if (isRemote()) { return remote(cfg.api.endpoints.product, { slug: slug }); }
       var found = db.products.filter(function (p) { return p.slug === slug; })[0];
       return local(found ? withDerived(found) : null);
     },
@@ -119,5 +126,34 @@ SUPPEX.repo = (function () {
 
     getReviews: function () { return local(db.reviews.slice()); },
     getJournal: function () { return local(db.journal.slice()); },
+
+    /* ------------------------------------------------------------------
+       Records the order server-side.
+
+       Only slugs, variant ids and quantities are sent. Prices deliberately
+       are not: the cart lives in localStorage where anyone can edit it, so a
+       total posted from here is a number the customer chose. The server looks
+       every price up again and recomputes the total from its own catalogue.
+
+       Resolves to null when there is no backend configured, which is what the
+       file:// prototype does — the caller falls back to the message-only flow
+       and nothing breaks. */
+    createOrder: function (payload) {
+      if (!isRemote()) { return local(null); }
+      return fetch(apiUrl('order'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload),
+      }).then(function (res) {
+        return res.json().then(function (body) {
+          if (!res.ok) {
+            var err = new Error(body && body.error ? body.error : 'order failed');
+            err.fields = body && body.fields;
+            throw err;
+          }
+          return body;
+        });
+      });
+    },
   };
 })();

@@ -181,13 +181,24 @@ SUPPEX.config = {
      The repository layer already speaks Promises, so switching sources does
      not change a single caller.                                             */
   api: {
-    baseUrl: null,
+    /* null  -> read from the bundled catalogue, and orders are message-only.
+       'api/index.php' -> the PHP backend: catalogue from MySQL, orders
+       recorded before the messaging app opens, card details returned with the
+       order rather than published on a page.
+
+       A RELATIVE path on purpose. An absolute one would hard-code the domain
+       and break the moment the site moves, is previewed on a staging
+       subdomain, or is opened over http instead of https. */
+    baseUrl: null,           // ← on the cPanel deploy set this to 'api/index.php'
+
+    /* Route names for the ?r= front controller, not URL paths. */
     endpoints: {
-      products: '/api/products',
-      product: '/api/products/:slug',
-      categories: '/api/categories',
-      search: '/api/search',
-      cart: '/api/cart',
+      products: 'products',
+      product: 'product',
+      categories: 'categories',
+      search: 'search',
+      order: 'order',
+      config: 'config',
     },
   },
 
