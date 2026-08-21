@@ -48,9 +48,18 @@ SUPPEX.config = {
     intro: 'سلام، می‌خواستم این سفارش را ثبت کنم:',
 
     /* Beyond this the order is handed over by clipboard instead of in the URL.
-       Persian percent-encodes to ~4.6x, so a four-item order with a full
-       address already reaches ~3,400 characters and apps start truncating. */
-    maxPrefillUrlLength: 2000,
+
+       Persian percent-encodes to ~4.6x its character count, so the URL grows
+       fast: 1 item ~1,800 chars, 2 items ~2,100, 5 items ~2,900. The first
+       value here was 2000, borrowed from the generic "safe URL length" advice
+       that dates to old servers — it turned out to push every order past one
+       item onto the clipboard, which defeated the point of prefill entirely.
+
+       4000 covers a realistic cart (about six items with a full address) while
+       still refusing the extreme case. It is a measured guess, not a published
+       limit: no app documents its ceiling, and the failure mode is silent
+       truncation, so verify with a real multi-item order before raising it. */
+    maxPrefillUrlLength: 4000,
 
     /* Every way a shopper may send their order. The first enabled one is the
        primary button; the rest sit under it.
