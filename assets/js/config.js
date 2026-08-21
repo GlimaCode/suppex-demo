@@ -38,11 +38,11 @@ SUPPEX.config = {
 
   /* --- How an order actually gets placed -------------------------------
      Phase 1 deliberately has no payment gateway. The cart is composed into a
-     ready-made message and handed to Telegram (or WhatsApp), so the seller
-     keeps receiving orders exactly where they already do — no gateway, no
-     trust seal, no company registration needed to go live.
-     Phase 2 switches `method` to 'gateway' and only the checkout handler
-     changes; nothing else in the cart or catalogue is touched.             */
+     ready-made message and handed to a messaging app, so the seller keeps
+     receiving orders exactly where they already do — no gateway, no trust
+     seal, no company registration needed to go live.
+     Phase 2 replaces the checkout handler with a gateway redirect; nothing
+     else in the cart or catalogue is touched.                              */
   ordering: {
     /* Prepended to the generated order message. */
     intro: 'سلام، می‌خواستم این سفارش را ثبت کنم:',
@@ -70,7 +70,7 @@ SUPPEX.config = {
         id: 'bale',
         label: 'بله',
         enabled: true,
-        url: 'https://ble.ir/ARSENX2003',   // ← آیدی بله را اینجا بگذارید
+        url: 'https://ble.ir/ALIARSENX',
         prefillParam: null,                 // untested — falls back to copy+paste
       },
       {
@@ -120,7 +120,7 @@ SUPPEX.config = {
     cardNumber: '6037 9911 0000 0000',     // ← شماره کارت واقعی را اینجا بگذارید
     cardHolder: 'نام صاحب حساب',           // ← نام دقیقاً همان‌طور که در بانک ثبت شده
     bankName: 'بانک ملی',
-    note: 'پس از واریز، رسید را همان‌جا در تلگرام بفرستید تا سفارش ثبت نهایی شود.',
+    note: 'پس از واریز، رسید را در همان گفتگویی که سفارش را فرستادید ارسال کنید تا سفارش نهایی شود.',
   },
 
   /* --- Feature flags --------------------------------------------------
