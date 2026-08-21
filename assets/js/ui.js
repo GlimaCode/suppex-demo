@@ -65,6 +65,7 @@ SUPPEX.ui = (function () {
     play: '<rect x="3" y="5" width="18" height="14" rx="4"/><path d="M11 9.8l4 2.2-4 2.2z" fill="currentColor" stroke="none"/>',
     box: '<path d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/>',
     chat: '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.6"/>',
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
   };
 
@@ -253,6 +254,24 @@ SUPPEX.ui = (function () {
     '</div>';
   }
 
+  /* Sits under the channel buttons, before anything opens.
+
+     Whether the order lands in the chat box by itself depends on the app and
+     on how long the order is — neither of which the shopper knows or should
+     have to. Left unexplained, an empty chat box reads as "the site is
+     broken", and the order is simply abandoned. Saying it up front costs one
+     short paragraph and removes that whole failure. */
+  function orderHelpNote() {
+    return '<div class="order-help">' +
+      icon('info') +
+      '<div>' +
+        '<strong>اگر متن سفارش خودش در کادر پیام نوشته نشد</strong>، نگران نباشید — ' +
+        'کل سفارش در حافظه گوشی شما کپی شده است. در گفتگوی فروشگاه روی کادر تایپ ' +
+        'نگه دارید، گزینه «چسباندن / Paste» را بزنید و پیام را بفرستید.' +
+      '</div>' +
+    '</div>';
+  }
+
   var CHANNEL_ICON = {
     telegram: 'telegram',
     whatsapp: 'whatsapp',
@@ -338,6 +357,7 @@ SUPPEX.ui = (function () {
     journalCard: journalCard,
     lineItem: lineItem,
     customerForm: customerForm,
+    orderHelpNote: orderHelpNote,
     channelButtons: channelButtons,
     paymentPanel: paymentPanel,
     searchRow: searchRow,

@@ -209,7 +209,8 @@ SUPPEX.app = (function () {
     if (!body) { return; }
 
     body.innerHTML = ui.customerForm(store.getCustomer()) +
-      '<div class="channels" data-channels>' + ui.channelButtons(store.channels()) + '</div>';
+      '<div class="channels" data-channels>' + ui.channelButtons(store.channels()) + '</div>' +
+      ui.orderHelpNote();
     if (foot) { foot.hidden = true; }
     setDrawerBack(true);
   }
