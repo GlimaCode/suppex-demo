@@ -349,9 +349,22 @@ SUPPEX.ui = (function () {
             ' آن را <strong>پیست کنید و بفرستید</strong>.</span></div>'
           : '') +
 
+        /* The server's total wins whenever there is one.
+
+           This is the figure the shopper is told to transfer, and the order in
+           the database was recorded at the server's number, not at the cart's.
+           The two can differ with nobody doing anything wrong: the shop edits a
+           price while an old tab still holds the previous one in localStorage,
+           or a shipping rule changes between the cart being filled and the
+           order being sent. Showing the browser's copy would ask for one amount
+           and record another, and the mismatch surfaces later as a customer who
+           paid "the wrong price" — with the receipt to prove the site told them
+           to. */
         '<div class="pay__amount">' +
           '<span class="u-sm u-muted">مبلغ قابل پرداخت</span>' +
-          '<strong><span class="num">' + money(snapshot.total) + '</span> ' + esc(cfg.currency.label) + '</strong>' +
+          '<strong><span class="num">' +
+            money(server && typeof server.total === 'number' ? server.total : snapshot.total) +
+          '</span> ' + esc(cfg.currency.label) + '</strong>' +
         '</div>' +
 
         '<div class="pay__card">' +

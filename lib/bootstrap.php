@@ -28,12 +28,36 @@ function suppex_config(): array
     ];
 
     foreach ($candidates as $path) {
-        if (is_file($path)) {
-            $loaded = require $path;
-            if (is_array($loaded)) {
-                $config = $loaded;
-                return $config;
-            }
+        if (!is_file($path)) {
+            continue;
+        }
+
+        /* Buffered, and anything the file prints is thrown away.
+           The config file must emit nothing at all, and the usual reason it
+           does is invisible: Notepad and most Windows editors save UTF-8 with
+           a three-byte BOM, and PHP sends those bytes to the browser before
+           the first header. Sessions then cannot start, header() cannot
+           redirect, and the admin panel serves its logged-out pages with
+           HTTP 200 instead of bouncing to the login form — which reads as
+           "the panel has no password on it" rather than as a file-encoding
+           problem. A stray blank line after a closing ?> does the same.
+           Swallowing it here costs nothing and removes a failure whose
+           symptom points nowhere near its cause. */
+        ob_start();
+        $loaded = require $path;
+        $stray  = ob_get_clean();
+
+        if ($stray !== '') {
+            error_log(sprintf(
+                '[suppex] %s emitted %d bytes before returning (BOM or stray whitespace?) — discarded',
+                $path,
+                strlen($stray)
+            ));
+        }
+
+        if (is_array($loaded)) {
+            $config = $loaded;
+            return $config;
         }
     }
 

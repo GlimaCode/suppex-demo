@@ -65,27 +65,49 @@ function image_store(array $file): array
     }
 
     [$width, $height, $type] = $info;
-    $allowed = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP];
-    if (!in_array($type, $allowed, true)) {
-        return ['ok' => false, 'error' => 'فقط JPG، PNG و WebP پذیرفته می‌شود.'];
-    }
-
-    /* A "decompression bomb": a small file that expands to a gigantic bitmap
-       and exhausts the PHP memory limit the moment GD opens it. */
-    if ($width * $height > 40_000_000) {
-        return ['ok' => false, 'error' => 'ابعاد تصویر بیش از حد بزرگ است.'];
-    }
 
     if (!function_exists('imagecreatefromjpeg')) {
         return ['ok' => false, 'error' => 'افزونه GD روی سرور فعال نیست. از پشتیبانی هاست بخواهید آن را فعال کند.'];
     }
 
-    $src = match ($type) {
-        IMAGETYPE_JPEG => @imagecreatefromjpeg($file['tmp_name']),
-        IMAGETYPE_PNG  => @imagecreatefrompng($file['tmp_name']),
-        IMAGETYPE_WEBP => @imagecreatefromwebp($file['tmp_name']),
-        default        => false,
-    };
+    /* The allow-list is built from the decoders this GD build actually has,
+       rather than being a fixed list.
+
+       getimagesize() identifies WebP by reading the file header and needs no
+       GD at all, so on a build compiled without libwebp — still common on older
+       cPanel stacks — a .webp file would pass a hard-coded allow-list and then
+       hit a fatal "call to undefined function imagecreatefromwebp()". That is a
+       white page with no explanation, where the honest answer is "this server
+       cannot read WebP, send a JPG". */
+    $decoders = [
+        IMAGETYPE_JPEG => 'imagecreatefromjpeg',
+        IMAGETYPE_PNG  => 'imagecreatefrompng',
+        IMAGETYPE_WEBP => 'imagecreatefromwebp',
+    ];
+    if (!isset($decoders[$type]) || !function_exists($decoders[$type])) {
+        return ['ok' => false, 'error' => 'این قالب تصویر روی سرور پشتیبانی نمی‌شود. از JPG یا PNG استفاده کنید.'];
+    }
+
+    /* A "decompression bomb": a small file that expands to a gigantic bitmap
+       and exhausts the memory limit the moment GD opens it.
+
+       The ceiling is derived from the memory actually available rather than
+       being a fixed pixel count. GD allocates four bytes per pixel for a
+       truecolor image, so a flat-colour 7000x5600 PNG compresses to a couple of
+       hundred kilobytes — sailing past the file-size check — and then asks for
+       about 160 MB, which a stock 128 MB limit cannot give it. A fixed 40 MP
+       guard never fires before that happens; it is above the real ceiling, not
+       below it. Half the limit leaves room for the resized copy that is
+       allocated at the same time. */
+    $memoryLimit = image_memory_limit_bytes();
+    $maxPixels   = $memoryLimit > 0
+        ? (int) (($memoryLimit * 0.5) / 4)
+        : 12_000_000;
+    if ($width * $height > $maxPixels) {
+        return ['ok' => false, 'error' => 'ابعاد تصویر بیش از حد بزرگ است. تصویر را کوچک‌تر کنید.'];
+    }
+
+    $src = @$decoders[$type]($file['tmp_name']);
     if ($src === false) {
         return ['ok' => false, 'error' => 'تصویر قابل خواندن نیست.'];
     }
@@ -165,6 +187,31 @@ function image_delete(string $webPath): bool
     }
 
     return @unlink($realFile);
+}
+
+/**
+ * PHP's memory_limit in bytes.
+ *
+ * ini_get() returns a shorthand string such as "128M", and -1 means unlimited —
+ * comparing either against a byte count without converting quietly produces
+ * nonsense (PHP casts "128M" to 128).
+ *
+ * @return int bytes, or 0 when unlimited/unknown
+ */
+function image_memory_limit_bytes(): int
+{
+    $raw = trim((string) ini_get('memory_limit'));
+    if ($raw === '' || $raw === '-1') {
+        return 0;
+    }
+
+    $value = (int) $raw;
+    switch (strtolower(substr($raw, -1))) {
+        case 'g': $value *= 1024 * 1024 * 1024; break;
+        case 'm': $value *= 1024 * 1024; break;
+        case 'k': $value *= 1024; break;
+    }
+    return max(0, $value);
 }
 
 function image_upload_error_message(int $code): string

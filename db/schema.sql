@@ -35,9 +35,13 @@ CREATE TABLE IF NOT EXISTS admins (
 
 
 -- --- Failed sign-in attempts, for throttling -------------------------------
--- A login form with no rate limit is a password guesser's free pass. Rows are
--- keyed by IP *and* username so one attacker cannot lock out a real admin by
--- hammering their username from elsewhere.
+-- A login form with no rate limit is a password guesser's free pass.
+--
+-- Both counters in auth_is_throttled() are scoped to the requesting IP: one
+-- counts that address's failures against any username, the other its failures
+-- against one username. Counting a username's failures across ALL addresses
+-- would let anyone who knows the admin's username lock them out of their own
+-- shop from anywhere, which is a worse outcome than the guessing it prevents.
 CREATE TABLE IF NOT EXISTS login_attempts (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   ip          VARBINARY(16) NOT NULL,

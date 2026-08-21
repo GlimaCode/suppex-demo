@@ -68,28 +68,42 @@ function auth_require(): array
 }
 
 /* --- Login throttle --------------------------------------------------------
-   Counted per IP and per username so that neither an attacker spraying one
-   username from many addresses, nor one address trying many usernames, gets a
-   free run. Locking on username alone would also let anyone lock a real admin
-   out by failing on purpose, which is why the IP condition is an OR of two
-   separately-counted limits rather than a single combined key. */
+   Two limits, both scoped to the requesting address:
+
+     * failures from this IP against any username  — stops one attacker working
+       through a list of usernames;
+     * failures from this IP against THIS username — stops one attacker working
+       through a list of passwords.
+
+   Neither counter is global to the username, and that is the important part.
+   An earlier version here counted failures for a username across all
+   addresses, which meant anyone who knew the admin's username could lock them
+   out of their own shop from anywhere, permanently, by failing on purpose once
+   every couple of minutes. Refusing the real owner is a worse outcome than the
+   guessing attempt the counter was meant to stop.
+
+   The trade is that a guesser spread across many addresses is not rate-limited
+   by username. That is the accepted cost: a long password defeats distributed
+   guessing, while nothing in the application can defeat a lockout that the
+   application itself imposes. */
 function auth_is_throttled(string $username): bool
 {
     $cfg    = suppex_config()['login'] ?? [];
     $max    = (int) ($cfg['max_attempts'] ?? 8);
     $window = (int) ($cfg['window_minutes'] ?? 15);
     $since  = date('Y-m-d H:i:s', time() - $window * 60);
+    $ip     = client_ip_binary();
 
     $byIp = (int) db_value(
         'SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND attempted_at > ?',
-        [client_ip_binary(), $since]
+        [$ip, $since]
     );
-    $byUser = (int) db_value(
-        'SELECT COUNT(*) FROM login_attempts WHERE username = ? AND attempted_at > ?',
-        [$username, $since]
+    $byIpAndUser = (int) db_value(
+        'SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND username = ? AND attempted_at > ?',
+        [$ip, $username, $since]
     );
 
-    return $byIp >= $max || $byUser >= $max;
+    return $byIp >= $max || $byIpAndUser >= $max;
 }
 
 function auth_record_failure(string $username): void

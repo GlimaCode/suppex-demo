@@ -22,9 +22,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         /* Only same-site paths are honoured as a redirect target. Echoing back
            whatever ?next= contains would turn the login page into an open
            redirect — a link that looks like it goes to this shop and lands the
-           admin on a copy of it that harvests the password they just typed. */
+           admin on a copy of it that harvests the password they just typed.
+
+           Matched against an allow-list pattern rather than a "not //" check.
+           Rejecting only a doubled slash is not enough: browsers follow the URL
+           spec and treat a backslash as a slash, so "/\evil.example/" is read as
+           a protocol-relative URL to evil.example and redirects off-site while
+           looking like a local path. The rule here is positive — one leading
+           slash, then no slash or backslash — so anything not clearly a local
+           path falls back to the dashboard. */
         $next = (string) ($_POST['next'] ?? $_GET['next'] ?? '');
-        $safe = (strlen($next) > 1 && $next[0] === '/' && $next[1] !== '/')
+        $safe = preg_match('~^/(?![/\\\\])[^\\\\]*$~', $next) === 1
             ? $next
             : 'index.php';
         header('Location: ' . $safe);
