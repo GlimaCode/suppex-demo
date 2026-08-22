@@ -17,6 +17,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/products.php';
+require_once __DIR__ . '/pricing.php';
 
 const ORDER_STATUSES = ['new', 'paid', 'shipped', 'done', 'cancelled'];
 
@@ -41,7 +42,8 @@ function order_price_line(array $line): ?array
     }
 
     $product = db_one(
-        'SELECT id, slug, name_fa, price, variant_label, in_stock
+        'SELECT id, slug, name_fa, price, variant_label, in_stock,
+                cost_toman, profit_toman, price_mode
            FROM products WHERE slug = ? AND is_active = 1',
         [$slug]
     );
@@ -57,14 +59,24 @@ function order_price_line(array $line): ?array
     $unitPrice   = (int) $product['price'];
     $variantBits = [];
 
+    /* When a size is chosen, BOTH its price and its cost come from the size
+       row. Taking the price from the variant and the cost from the parent —
+       which an earlier version did — records a 2270g tub's revenue against a
+       900g tub's cost, overstating profit on large sizes and flooring it at
+       zero on small ones. That figure is what the partnership share is computed
+       from, so the mismatch is not cosmetic. */
+    $unitCost = (int) ($product['cost_toman'] ?? 0);
+
     $sizeId = clean_text($line['sizeId'] ?? '', 60);
     if ($sizeId !== '') {
         $size = db_one(
-            'SELECT label, price FROM product_sizes WHERE product_id = ? AND ext_id = ?',
+            'SELECT label, price, cost_toman FROM product_sizes
+              WHERE product_id = ? AND ext_id = ?',
             [(int) $product['id'], $sizeId]
         );
         if ($size !== null) {
             $unitPrice     = (int) $size['price'];
+            $unitCost      = (int) ($size['cost_toman'] ?? 0);
             $variantBits[] = $size['label'];
         }
     }
@@ -80,6 +92,20 @@ function order_price_line(array $line): ?array
         }
     }
 
+    /* Cost and profit are snapshotted alongside the price, because the
+       partnership share is computed from them and an old order must keep
+       reporting the profit it was actually made at. cost_toman is the dirham
+       cost converted at the rate the price was last applied — the rate the shop
+       genuinely priced against — not whatever the rate happens to be when a
+       report is run next month.
+
+       Profit is derived by subtraction rather than read from profit_toman,
+       because a size variant overrides the price but not the cost: on a larger
+       tub the extra revenue is extra profit, and the per-unit figure would
+       understate it. Where no cost is recorded both stay zero, and the report
+       treats that as unknown rather than as zero profit. */
+    $unitProfit = $unitCost > 0 ? max(0, $unitPrice - $unitCost) : 0;
+
     return [
         'product_id'    => (int) $product['id'],
         'slug'          => $product['slug'],
@@ -87,7 +113,10 @@ function order_price_line(array $line): ?array
         'variant_label' => $variantBits ? implode(' · ', $variantBits) : (string) $product['variant_label'],
         'qty'           => $qty,
         'unit_price'    => $unitPrice,
+        'unit_cost'     => $unitCost,
+        'unit_profit'   => $unitProfit,
         'line_total'    => $unitPrice * $qty,
+        'line_profit'   => $unitProfit * $qty,
     ];
 }
 
@@ -153,7 +182,25 @@ function order_create(array $payload): array
        not on shipping, because shipping is a cost passed through rather than
        revenue either side earns. */
     $commissionPercent = max(0.0, min(100.0, setting_float('commission_percent', 0)));
-    $commissionAmount  = (int) round($subtotal * $commissionPercent / 100);
+
+    /* The share can be taken on goods revenue or on realised profit.
+
+       Profit is the fairer basis for a shop that imports at a volatile rate: a
+       percentage of revenue silently grows as the rate rises, even though the
+       shop's own margin has not moved at all. But it is only meaningful once
+       costs are actually recorded. With no cost data a profit basis computes a
+       commission of zero, which reads as agreement rather than as missing data,
+       so it falls back to goods and stores which basis was used — making the
+       fallback visible on the order instead of silent. */
+    $profitTotal = array_sum(array_column($items, 'line_profit'));
+    $basis = setting('commission_basis', 'goods') === 'profit' ? 'profit' : 'goods';
+    if ($basis === 'profit' && $profitTotal <= 0) {
+        $basis = 'goods';
+    }
+
+    $commissionBase   = $basis === 'profit' ? $profitTotal : $subtotal;
+    $commissionAmount = (int) round($commissionBase * $commissionPercent / 100);
+    $rateAtOrder      = pricing_rate();
 
     $channel = clean_text($payload['channel'] ?? '', 32);
 
@@ -171,12 +218,14 @@ function order_create(array $payload): array
                 $orderId = db_insert(
                     'INSERT INTO orders
                         (code, status, customer_name, phone, address, postal, note,
-                         subtotal, shipping, total, commission_percent, commission_amount,
+                         subtotal, shipping, total, profit_total,
+                         commission_percent, commission_amount, commission_basis, rate_at_order,
                          channel, ip, user_agent)
-                     VALUES (?, "new", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     VALUES (?, "new", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         $code, $name, $phone, $address, $postal, $note,
-                        $subtotal, $shipping, $total, $commissionPercent, $commissionAmount,
+                        $subtotal, $shipping, $total, $profitTotal,
+                        $commissionPercent, $commissionAmount, $basis, $rateAtOrder,
                         $channel, client_ip_binary(),
                         mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
                     ]
@@ -192,10 +241,12 @@ function order_create(array $payload): array
         foreach ($items as $it) {
             db_query(
                 'INSERT INTO order_items
-                    (order_id, product_id, slug, name_fa, variant_label, qty, unit_price, line_total)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    (order_id, product_id, slug, name_fa, variant_label, qty,
+                     unit_price, unit_cost, unit_profit, line_total, line_profit)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [$orderId, $it['product_id'], $it['slug'], $it['name_fa'],
-                 $it['variant_label'], $it['qty'], $it['unit_price'], $it['line_total']]
+                 $it['variant_label'], $it['qty'], $it['unit_price'],
+                 $it['unit_cost'], $it['unit_profit'], $it['line_total'], $it['line_profit']]
             );
         }
 
@@ -325,6 +376,7 @@ function orders_settlement(string $from, string $to): array
                 COALESCE(SUM(subtotal), 0)  AS goods_total,
                 COALESCE(SUM(shipping), 0)  AS shipping_total,
                 COALESCE(SUM(total), 0)     AS gross_total,
+                COALESCE(SUM(profit_total), 0) AS profit_total,
                 COALESCE(SUM(commission_amount), 0) AS commission_total
            FROM orders
           WHERE status IN ("paid", "shipped", "done")
@@ -339,6 +391,7 @@ function orders_settlement(string $from, string $to): array
         'goods_total'      => (int) $row['goods_total'],
         'shipping_total'   => (int) $row['shipping_total'],
         'gross_total'      => (int) $row['gross_total'],
+        'profit_total'     => (int) $row['profit_total'],
         'commission_total' => (int) $row['commission_total'],
     ];
 }

@@ -5,7 +5,7 @@
    Creates the tables and the first admin account, then imports the demo
    catalogue. Run it once from the browser:
 
-       https://your-domain.ir/db/setup.php
+       https://your-domain.ir/setup.php
 
    DELETE THIS FILE once it reports success. It creates an administrator, and
    a script that can create administrators has no business staying reachable
@@ -15,7 +15,7 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/lib/bootstrap.php';
+require_once __DIR__ . '/lib/bootstrap.php';
 
 header('Content-Type: text/html; charset=utf-8');
 
@@ -40,7 +40,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     if ($hasAdmin) {
         $errors[] = 'یک حساب مدیر از قبل وجود دارد. این اسکریپت دوباره اجرا نمی‌شود. '
-                  . 'فایل db/setup.php را حذف کنید.';
+                  . 'فایل setup.php را حذف کنید.';
     } else {
         $username = trim((string) ($_POST['username'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
@@ -58,7 +58,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             try {
                 /* --- Schema --------------------------------------------------- */
                 if (!$hasTables) {
-                    db_run_sql_file(__DIR__ . '/schema.sql');
+                    db_run_sql_file(__DIR__ . '/db/schema.sql');
                     $done[] = 'جدول‌های دیتابیس ساخته شد.';
                 }
 
@@ -72,7 +72,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
                 /* --- Demo catalogue ------------------------------------------- */
                 if ($seed) {
-                    require __DIR__ . '/seed.php';
+                    require __DIR__ . '/db/seed.php';
                     $counts = suppex_seed();
                     $done[] = sprintf(
                         '%d دسته و %d محصول نمونه وارد شد.',
@@ -95,7 +95,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>نصب SUPPEX</title>
-<link rel="stylesheet" href="../admin/assets/admin.css">
+<link rel="stylesheet" href="admin/assets/admin.css">
 </head>
 <body>
 <div class="login">
@@ -112,16 +112,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     <?php if ($done): ?>
       <div class="flash flash--error">
-        <strong>حالا فایل db/setup.php را از روی هاست حذف کنید.</strong>
+        <strong>حالا فایل setup.php را از روی هاست حذف کنید.</strong>
         تا وقتی این فایل روی سرور باشد، یک صفحه ساخت حساب مدیر روی سایت باز است.
       </div>
-      <a class="btn btn--primary btn--block" href="../admin/login.php">ورود به پنل مدیریت</a>
+      <a class="btn btn--primary btn--block" href="admin/login.php">ورود به پنل مدیریت</a>
 
     <?php elseif ($hasAdmin): ?>
       <div class="flash flash--info">
-        نصب قبلاً انجام شده است. فایل db/setup.php را حذف کنید.
+        نصب قبلاً انجام شده است. فایل setup.php را حذف کنید.
       </div>
-      <a class="btn btn--primary btn--block" href="../admin/login.php">ورود به پنل مدیریت</a>
+      <a class="btn btn--primary btn--block" href="admin/login.php">ورود به پنل مدیریت</a>
 
     <?php else: ?>
       <form method="post" action="setup.php">

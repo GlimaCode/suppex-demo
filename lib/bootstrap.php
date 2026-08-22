@@ -22,10 +22,20 @@ function suppex_config(): array
     }
 
     $candidates = [
+        /* An explicit override, for running the same code against a second
+           database — a staging copy, or a test database that can be wiped
+           between runs without touching the live one. Set in the environment,
+           never in a request: $_ENV and $_SERVER can be influenced by the
+           client through headers on some setups, and a config path chosen by
+           the visitor would be a way to point the site at someone else's
+           database. getenv() reads only the real process environment. */
+        getenv('SUPPEX_CONFIG') ?: null,
+
         dirname(SUPPEX_ROOT) . '/suppex-config.php',   // preferred: above public_html
         SUPPEX_ROOT . '/../suppex-config.php',
         SUPPEX_ROOT . '/suppex-config.php',            // fallback for local development
     ];
+    $candidates = array_filter($candidates);
 
     foreach ($candidates as $path) {
         if (!is_file($path)) {

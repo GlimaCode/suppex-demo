@@ -83,7 +83,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     $price  = parse_money($_POST['price'] ?? '');
 
     if ($nameFa === '') { $errors['name_fa'] = 'نام فارسی محصول لازم است.'; }
-    if ($price <= 0)    { $errors['price']   = 'قیمت را وارد کنید.'; }
+
+    /* The typed price is required only in manual mode. In dirham mode the
+       formula produces it, and insisting on a number that is about to be
+       overwritten only invites someone to type a wrong one. */
+    $wantsAed = (($_POST['price_mode'] ?? 'manual') === 'aed');
+    if ($price <= 0 && !$wantsAed) { $errors['price'] = 'قیمت را وارد کنید.'; }
 
     $compareRaw = trim((string) ($_POST['compare_at'] ?? ''));
     $compareAt  = $compareRaw === '' ? null : parse_money($compareRaw);
@@ -100,6 +105,27 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     }
 
     $categoryId = (int) ($_POST['category_id'] ?? 0) ?: null;
+
+    /* --- Dirham pricing ---------------------------------------------------
+       A product is dirham-linked only when it has a dirham cost to work from.
+       Allowing the mode without one would leave the product invisible to the
+       pricing page and its price frozen forever, with nothing on screen
+       explaining why. */
+    $priceMode   = (($_POST['price_mode'] ?? 'manual') === 'aed') ? 'aed' : 'manual';
+    $costAedRaw  = trim(to_latin_digits((string) ($_POST['cost_aed'] ?? '')));
+    $costAed     = $costAedRaw === '' ? null : round((float) str_replace(',', '', $costAedRaw), 2);
+    $profitToman = parse_money($_POST['profit_toman'] ?? '');
+
+    if ($priceMode === 'aed') {
+        if ($costAed === null || $costAed <= 0) {
+            $errors['cost_aed'] = 'برای قیمت‌گذاری درهمی، قیمت خرید به درهم لازم است.';
+        }
+        if ($profitToman <= 0) {
+            $errors['profit_toman'] = 'مقدار سود روی این محصول را وارد کنید.';
+        }
+    }
+    if ($costAed !== null && $costAed <= 0) { $costAed = null; }
+    if ($profitToman <= 0) { $profitToman = null; }
 
     /* The slug is the product's URL. It is generated once from the name and
        then left alone: changing it silently breaks every link anyone has
@@ -127,6 +153,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             'nutrition_serving' => clean_text($_POST['nutrition_serving'] ?? '', 180),
             'sort_order'        => (int) ($_POST['sort_order'] ?? 0),
             'is_active'         => empty($_POST['is_active']) ? 0 : 1,
+
+            /* Dirham-linked pricing. cost_aed is a decimal, so it keeps its
+               fractional part — dirham prices are routinely quoted as 42.50,
+               and rounding that to 42 loses about 1% of the cost basis on
+               every single unit. */
+            'cost_aed'          => $costAed,
+            'profit_toman'      => $profitToman,
+            'price_mode'        => $priceMode,
         ];
 
         /* Nutrition rows arrive as two parallel arrays; empty labels are
@@ -180,6 +214,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             $sServings = (array) ($_POST['size_servings'] ?? []);
             $sPrices   = (array) ($_POST['size_price'] ?? []);
             $sCompares = (array) ($_POST['size_compare'] ?? []);
+            $sCostAed  = (array) ($_POST['size_cost_aed'] ?? []);
+            $sProfit   = (array) ($_POST['size_profit'] ?? []);
             foreach ($sLabels as $i => $label) {
                 $label = clean_text((string) $label, 120);
                 if ($label === '') { continue; }
@@ -189,14 +225,25 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 $sComp   = $sCompRaw === '' ? null : parse_money($sCompRaw);
                 $serv    = (int) digits_only((string) ($sServings[$i] ?? ''));
 
+                /* Each size carries its own dirham cost, because each is a
+                   separate purchase in Dubai at a separate price. Left blank,
+                   it falls back to the parent's figures at pricing time. */
+                $sAedRaw  = trim(to_latin_digits((string) ($sCostAed[$i] ?? '')));
+                $sAed     = $sAedRaw === '' ? null : round((float) str_replace(',', '', $sAedRaw), 2);
+                $sProfitT = parse_money($sProfit[$i] ?? '');
+
                 db_query(
                     'INSERT INTO product_sizes
-                        (product_id, ext_id, label, servings, price, compare_at, sort_order)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        (product_id, ext_id, label, servings, price, compare_at,
+                         cost_aed, profit_toman, sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [$id, $ext !== '' ? $ext : slugify($label), $label,
                      $serv > 0 ? $serv : null,
                      $sPrice > 0 ? $sPrice : $price,
-                     ($sComp !== null && $sComp > 0) ? $sComp : null, $i]
+                     ($sComp !== null && $sComp > 0) ? $sComp : null,
+                     ($sAed !== null && $sAed > 0) ? $sAed : null,
+                     $sProfitT > 0 ? $sProfitT : null,
+                     $i]
                 );
             }
 
@@ -330,6 +377,45 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
                value="<?= e(v($product, 'compare_at')) ?>">
         <span class="hint">خالی بگذارید تا محصول بدون تخفیف نمایش داده شود.</span>
         <?php if (!empty($errors['compare_at'])): ?><span class="err"><?= e($errors['compare_at']) ?></span><?php endif; ?>
+      </div>
+
+      <div class="field field--wide" style="border-block-start:1px solid var(--line);padding-block-start:16px">
+        <label>حالت قیمت‌گذاری</label>
+        <label class="check">
+          <input type="radio" name="price_mode" value="manual"
+            <?= v($product, 'price_mode', 'manual') !== 'aed' ? ' checked' : '' ?>>
+          <span>قیمت را دستی وارد می‌کنم</span>
+        </label>
+        <label class="check" style="margin-block-start:8px">
+          <input type="radio" name="price_mode" value="aed"
+            <?= v($product, 'price_mode', 'manual') === 'aed' ? ' checked' : '' ?>>
+          <span>بر اساس نرخ درهم حساب شود</span>
+        </label>
+        <span class="hint">
+          با انتخاب حالت درهمی، قیمت این محصول از فرمول
+          <span class="num">(خرید به درهم × نرخ) + سود</span>
+          ساخته می‌شود و در صفحه <a href="pricing.php" style="text-decoration:underline">قیمت‌گذاری</a>
+          با هر تغییر نرخ به‌روز می‌شود. قیمت بالا دیگر دستی ویرایش نمی‌شود.
+        </span>
+      </div>
+
+      <div class="field">
+        <label for="cost_aed">قیمت خرید (درهم)</label>
+        <input type="text" id="cost_aed" name="cost_aed" dir="ltr" inputmode="decimal"
+               placeholder="42.50" value="<?= e(v($product, 'cost_aed')) ?>">
+        <span class="hint">اعشار هم می‌پذیرد. همان عددی که در دبی پرداخت کرده‌اید.</span>
+        <?php if (!empty($errors['cost_aed'])): ?><span class="err"><?= e($errors['cost_aed']) ?></span><?php endif; ?>
+      </div>
+
+      <div class="field">
+        <label for="profit_toman">سود شما روی این محصول (تومان)</label>
+        <input type="text" id="profit_toman" name="profit_toman" inputmode="numeric"
+               placeholder="1750000" value="<?= e(v($product, 'profit_toman')) ?>">
+        <span class="hint">
+          مبلغ ثابتی که می‌خواهید روی هر عدد سود کنید. هزینه حمل و ترخیص را
+          هم در همین عدد یا در قیمت خرید حساب کنید.
+        </span>
+        <?php if (!empty($errors['profit_toman'])): ?><span class="err"><?= e($errors['profit_toman']) ?></span><?php endif; ?>
       </div>
 
       <div class="field">
@@ -470,18 +556,23 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
     <h2 class="card__title">اندازه‌ها و قیمت هرکدام</h2>
     <div class="rows" data-repeat="size">
       <div class="rows__row rows__row--5 rows__head">
-        <span>شناسه</span><span>عنوان</span><span>تعداد سروینگ</span>
-        <span>قیمت</span><span>قیمت قبل تخفیف</span><span></span>
+        <span>شناسه</span><span>عنوان</span><span>سروینگ</span>
+        <span>خرید (درهم)</span><span>سود (تومان)</span><span>قیمت فروش</span><span></span>
       </div>
       <?php
-      $sizeRows = $sizes ?: [['ext_id' => '', 'label' => '', 'servings' => '', 'price' => '', 'compare_at' => '']];
+      $sizeRows = $sizes ?: [['ext_id' => '', 'label' => '', 'servings' => '', 'price' => '',
+                             'compare_at' => '', 'cost_aed' => '', 'profit_toman' => '']];
       foreach ($sizeRows as $s): ?>
         <div class="rows__row rows__row--5" data-row>
           <input type="text" name="size_id[]" dir="ltr" placeholder="900" value="<?= e($s['ext_id']) ?>">
           <input type="text" name="size_label[]" placeholder="900 گرم" value="<?= e($s['label']) ?>">
           <input type="text" name="size_servings[]" inputmode="numeric" value="<?= e((string) $s['servings']) ?>">
+          <input type="text" name="size_cost_aed[]" dir="ltr" inputmode="decimal"
+                 placeholder="42.50" value="<?= e((string) ($s['cost_aed'] ?? '')) ?>">
+          <input type="text" name="size_profit[]" inputmode="numeric"
+                 placeholder="1750000" value="<?= e((string) ($s['profit_toman'] ?? '')) ?>">
           <input type="text" name="size_price[]" inputmode="numeric" value="<?= e((string) $s['price']) ?>">
-          <input type="text" name="size_compare[]" inputmode="numeric" value="<?= e((string) $s['compare_at']) ?>">
+          <input type="hidden" name="size_compare[]" value="<?= e((string) $s['compare_at']) ?>">
           <button class="rows__del" type="button" data-del aria-label="حذف">×</button>
         </div>
       <?php endforeach; ?>
@@ -491,6 +582,10 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
     </button>
     <p class="hint" style="margin-block-start:10px">
       اگر محصول فقط یک اندازه دارد، این بخش را خالی بگذارید — قیمت اصلی محصول استفاده می‌شود.
+      <br>
+      در حالت درهمی، قیمت فروش هر اندازه از قیمت خرید و سود همان اندازه
+      ساخته می‌شود — دستی واردش نکنید.
+      خالی گذاشتن خرید یا سود، یعنی از مقدار خود محصول استفاده شود.
     </p>
   </div>
 

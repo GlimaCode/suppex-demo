@@ -6,6 +6,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/orders.php';
+require_once SUPPEX_ROOT . '/lib/pricing.php';
 require_once __DIR__ . '/partials/layout.php';
 
 $user = auth_require();
@@ -29,8 +30,33 @@ $cardNumber  = (string) setting('card_number');
 $cardIsSet   = $cardNumber !== '';
 $cardIsValid = $cardIsSet && is_valid_card_number($cardNumber);
 
+/* Stale prices are the failure this shop is most exposed to: the dirham
+   moves, nobody re-prices, and every sale that day is made at yesterday's
+   cost. It is invisible unless something says so on the page people open
+   first, so it goes above the numbers rather than inside the pricing screen
+   that nobody visits when they have no reason to. */
+$priceStale = ['stale' => false];
+try {
+    $priceStale = pricing_staleness();
+} catch (Throwable $e) {
+    /* Pricing columns not migrated yet — the panel still works without them. */
+}
+
 admin_head('داشبورد', ['user' => $user]);
 ?>
+
+<?php if (!empty($priceStale['stale'])): ?>
+  <div class="flash flash--error">
+    <?php $drift = (float) $priceStale['drift_pct']; ?>
+    نرخ درهم نسبت به قیمت‌های روی سایت
+    <span class="num"><?= e((string) abs($drift)) ?>٪</span>
+    <?= $drift > 0 ? 'بالاتر' : 'پایین‌تر' ?> رفته است.
+    <?php if ($drift > 0): ?>
+      <strong>یعنی الان ارزان‌تر از قیمت تمام‌شده امروز می‌فروشید.</strong>
+    <?php endif; ?>
+    <a href="pricing.php" style="text-decoration:underline">به‌روزرسانی قیمت‌ها</a>
+  </div>
+<?php endif; ?>
 
 <?php if (!$cardIsSet): ?>
   <div class="flash flash--error">

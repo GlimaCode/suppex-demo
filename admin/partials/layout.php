@@ -33,6 +33,7 @@ function admin_nav_items(): array
         ['href' => 'orders.php',   'label' => 'سفارش‌ها', 'icon' => 'box'],
         ['href' => 'products.php', 'label' => 'محصولات',  'icon' => 'tag'],
         ['href' => 'categories.php', 'label' => 'دسته‌ها', 'icon' => 'layers'],
+        ['href' => 'pricing.php',  'label' => 'قیمت‌گذاری', 'icon' => 'coins'],
         ['href' => 'report.php',   'label' => 'گزارش مالی', 'icon' => 'chart'],
         ['href' => 'settings.php', 'label' => 'تنظیمات',  'icon' => 'gear'],
     ];
@@ -46,6 +47,7 @@ function admin_icon(string $name): string
         'tag'    => '<path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.4"/>',
         'layers' => '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
         'chart'  => '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+        'coins'  => '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
         'gear'   => '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
         'plus'   => '<path d="M12 5v14M5 12h14"/>',
         'back'   => '<path d="M19 12H5M11 18l-6-6 6-6"/>',

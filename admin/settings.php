@@ -68,6 +68,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
         if (!$errors) {
             settings_save([
+                'commission_basis'        => ($_POST['commission_basis'] ?? 'goods') === 'profit'
+                                              ? 'profit' : 'goods',
                 'shop_name'               => clean_text($_POST['shop_name'] ?? '', 80),
                 'shop_phone'              => digits_only((string) ($_POST['shop_phone'] ?? '')),
                 'free_shipping_threshold' => parse_money($_POST['free_shipping_threshold'] ?? 0),
@@ -208,8 +210,27 @@ admin_head('تنظیمات', ['user' => $user]);
           <span class="err"><?= e($errors['commission_percent']) ?></span>
         <?php endif; ?>
         <span class="hint">
-          روی مبلغ کالاها حساب می‌شود، نه روی هزینه ارسال.
-          این درصد در لحظه ثبت هر سفارش ذخیره می‌شود، بنابراین تغییر آن روی سفارش‌های گذشته اثری ندارد.
+          این درصد در لحظه ثبت هر سفارش ذخیره می‌شود،
+          بنابراین تغییر آن روی سفارش‌های گذشته اثری ندارد.
+        </span>
+      </div>
+
+      <div class="field">
+        <label>مبنای محاسبه</label>
+        <label class="check">
+          <input type="radio" name="commission_basis" value="goods"
+            <?= setting('commission_basis', 'goods') !== 'profit' ? ' checked' : '' ?>>
+          <span>درصدی از <strong>مبلغ کالاها</strong></span>
+        </label>
+        <label class="check" style="margin-block-start:8px">
+          <input type="radio" name="commission_basis" value="profit"
+            <?= setting('commission_basis', 'goods') === 'profit' ? ' checked' : '' ?>>
+          <span>درصدی از <strong>سود خالص</strong></span>
+        </label>
+        <span class="hint">
+          مبنای «سود خالص» فقط وقتی کار می‌کند که قیمت خرید محصولات وارد شده باشد.
+          برای هر قلمی که قیمت خرید ندارد، سیستم خودکار به مبنای مبلغ کالاها برمی‌گردد
+          — تا یک سفارش بدون قیمت خرید، سهم صفر ثبت نکند.
         </span>
       </div>
     </div>

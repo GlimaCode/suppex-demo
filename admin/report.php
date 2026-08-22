@@ -96,8 +96,8 @@ admin_head('گزارش مالی', ['user' => $user]);
       <span class="stat__unit">تومان</span></div>
   </div>
   <div class="stat">
-    <div class="stat__label">هزینه ارسال دریافتی</div>
-    <div class="stat__value num"><?= money($s['shipping_total']) ?>
+    <div class="stat__label">سود خالص فروشگاه</div>
+    <div class="stat__value num"><?= money($s['profit_total'] ?? 0) ?>
       <span class="stat__unit">تومان</span></div>
   </div>
   <div class="stat stat--accent">
@@ -111,7 +111,17 @@ admin_head('گزارش مالی', ['user' => $user]);
   <h2 class="card__title">این عدد چطور حساب شده است</h2>
   <ul style="padding-inline-start:20px;line-height:2.1;color:var(--text-muted)">
     <li>فقط سفارش‌هایی شمرده شده‌اند که وضعیتشان «پرداخت شده»، «ارسال شده» یا «تکمیل شده» است.</li>
-    <li>سهم همکاری روی مبلغ کالاها حساب می‌شود، نه روی هزینه ارسال.</li>
+    <?php $basisIsProfit = setting('commission_basis', 'goods') === 'profit'; ?>
+    <li>
+      سهم همکاری روی
+      <strong><?= $basisIsProfit ? 'سود خالص' : 'مبلغ کالاها' ?></strong>
+      حساب می‌شود، نه روی هزینه ارسال.
+      <?php if ($basisIsProfit): ?>
+        سود هر قلم = قیمت فروش منهای قیمت تمام‌شده،
+        و قیمت تمام‌شده همان قیمت خرید به درهم است که با نرخ لحظه
+        قیمت‌گذاری به تومان تبدیل شده بود.
+      <?php endif; ?>
+    </li>
     <li>درصد هر سفارش همان درصدی است که در لحظه ثبت آن سفارش تعیین شده بود؛
         تغییر درصد در تنظیمات، گذشته را عوض نمی‌کند.</li>
     <li>
