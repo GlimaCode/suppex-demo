@@ -67,6 +67,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
 
         if (!$errors) {
+            /* The shop-wide rate goes in the same append-only log as the
+               per-product overrides, so the two can be read as one history
+               rather than as two places to look. */
+            $previousRate = (float) setting('commission_percent', '0');
+            if (abs($previousRate - $commission) > 0.001) {
+                db_query(
+                    'INSERT INTO commission_log
+                        (scope, scope_id, label, old_percent, new_percent, admin_id, admin_name)
+                     VALUES ("shop", NULL, ?, ?, ?, ?, ?)',
+                    ['درصد کلی فروشگاه', $previousRate, $commission, $user['id'], $user['name']]
+                );
+            }
+
             settings_save([
                 'commission_basis'        => ($_POST['commission_basis'] ?? 'goods') === 'profit'
                                               ? 'profit' : 'goods',

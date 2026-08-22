@@ -88,7 +88,7 @@ function order_price_line(array $line): ?array
 
     $product = db_one(
         'SELECT id, slug, name_fa, price, variant_label, in_stock,
-                cost_toman, profit_toman, price_mode
+                cost_toman, profit_toman, price_mode, commission_percent
            FROM products WHERE slug = ? AND is_active = 1',
         [$slug]
     );
@@ -112,10 +112,16 @@ function order_price_line(array $line): ?array
        from, so the mismatch is not cosmetic. */
     $unitCost = (int) ($product['cost_toman'] ?? 0);
 
+    /* The commission rate resolves most-specific first: size, then product,
+       then the shop-wide setting. NULL means "not overridden here", which is
+       why an unset rate has to stay NULL rather than 0 — a zero override and
+       an absent one mean opposite things. */
+    $rateOverride = $product['commission_percent'];
+
     $sizeId = clean_text($line['sizeId'] ?? '', 60);
     if ($sizeId !== '') {
         $size = db_one(
-            'SELECT label, price, cost_toman FROM product_sizes
+            'SELECT label, price, cost_toman, commission_percent FROM product_sizes
               WHERE product_id = ? AND ext_id = ?',
             [(int) $product['id'], $sizeId]
         );
@@ -123,6 +129,9 @@ function order_price_line(array $line): ?array
             $unitPrice     = (int) $size['price'];
             $unitCost      = (int) ($size['cost_toman'] ?? 0);
             $variantBits[] = $size['label'];
+            if ($size['commission_percent'] !== null) {
+                $rateOverride = $size['commission_percent'];
+            }
         }
     }
 
@@ -162,6 +171,7 @@ function order_price_line(array $line): ?array
         'unit_profit'   => $unitProfit,
         'line_total'    => $unitPrice * $qty,
         'line_profit'   => $unitProfit * $qty,
+        'rate_override' => $rateOverride === null ? null : (float) $rateOverride,
     ];
 }
 
@@ -243,9 +253,38 @@ function order_create(array $payload): array
         $basis = 'goods';
     }
 
-    $commissionBase   = $basis === 'profit' ? $profitTotal : $subtotal;
-    $commissionAmount = (int) round($commissionBase * $commissionPercent / 100);
-    $rateAtOrder      = pricing_rate();
+    /* Commission is summed per line, not applied once to the order total.
+
+       A product may carry its own rate — a deliberate loss-leader, or a line
+       negotiated separately — so one percentage over one number would be the
+       wrong answer the moment any override exists. Each line records the rate
+       it was charged at, and the order-level percentage becomes the blended
+       result rather than an input. Where nothing is overridden the two are
+       identical, so the simple case reads exactly as before. */
+    $commissionBase   = 0;
+    $commissionAmount = 0;
+
+    foreach ($items as $i => $it) {
+        $rate = $it['rate_override'] ?? $commissionPercent;
+        $rate = max(0.0, min(100.0, (float) $rate));
+
+        $lineBase = $basis === 'profit' ? $it['line_profit'] : $it['line_total'];
+        $lineComm = (int) round($lineBase * $rate / 100);
+
+        $items[$i]['commission_percent'] = $rate;
+        $items[$i]['commission_amount']  = $lineComm;
+
+        $commissionBase   += $lineBase;
+        $commissionAmount += $lineComm;
+    }
+
+    /* Reported back as the rate that actually applied, so the order page does
+       not claim 20% on an order where half the lines were charged 10%. */
+    $effectivePercent = $commissionBase > 0
+        ? round($commissionAmount / $commissionBase * 100, 2)
+        : $commissionPercent;
+
+    $rateAtOrder = pricing_rate();
 
     $channel = clean_text($payload['channel'] ?? '', 32);
 
@@ -274,7 +313,7 @@ function order_create(array $payload): array
                     [
                         $code, $name, $phone, $address, $postal, $note,
                         $subtotal, $shipping, $total, $profitTotal,
-                        $commissionPercent, $commissionAmount, $basis, $rateAtOrder,
+                        $effectivePercent, $commissionAmount, $basis, $rateAtOrder,
                         $expiresAt, $channel, client_ip_binary(),
                         mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
                     ]
@@ -291,11 +330,13 @@ function order_create(array $payload): array
             db_query(
                 'INSERT INTO order_items
                     (order_id, product_id, slug, name_fa, variant_label, qty,
-                     unit_price, unit_cost, unit_profit, line_total, line_profit)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     unit_price, unit_cost, unit_profit, line_total, line_profit,
+                     commission_percent, commission_amount)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [$orderId, $it['product_id'], $it['slug'], $it['name_fa'],
                  $it['variant_label'], $it['qty'], $it['unit_price'],
-                 $it['unit_cost'], $it['unit_profit'], $it['line_total'], $it['line_profit']]
+                 $it['unit_cost'], $it['unit_profit'], $it['line_total'], $it['line_profit'],
+                 $it['commission_percent'], $it['commission_amount']]
             );
         }
 

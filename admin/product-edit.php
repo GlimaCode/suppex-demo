@@ -127,6 +127,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     if ($costAed !== null && $costAed <= 0) { $costAed = null; }
     if ($profitToman <= 0) { $profitToman = null; }
 
+    /* Blank means "use the shop-wide rate", which is not the same as 0 — a zero
+       override says this product pays no commission at all, and that has to be
+       something someone typed on purpose rather than something a blank field
+       decays into. */
+    $commRaw = trim(to_latin_digits((string) ($_POST['commission_percent'] ?? '')));
+    $commissionOverride = null;
+    if ($commRaw !== '') {
+        $commissionOverride = round((float) str_replace(',', '', $commRaw), 2);
+        if ($commissionOverride < 0 || $commissionOverride > 100) {
+            $errors['commission_percent'] = 'درصد باید بین ۰ تا ۱۰۰ باشد.';
+        }
+    }
+
     /* The slug is the product's URL. It is generated once from the name and
        then left alone: changing it silently breaks every link anyone has
        already shared. Editing it stays possible, deliberately, but by hand. */
@@ -161,6 +174,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             'cost_aed'          => $costAed,
             'profit_toman'      => $profitToman,
             'price_mode'        => $priceMode,
+            'commission_percent' => $commissionOverride,
         ];
 
         /* Nutrition rows arrive as two parallel arrays; empty labels are
@@ -176,6 +190,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             }
         }
         $fields['nutrition_rows'] = json_encode_pretty($nRows);
+
+        /* Read before writing, so the log records what it actually changed
+           from. Captured here rather than after the UPDATE for the obvious
+           reason. */
+        $previousComm = $isNew
+            ? null
+            : db_value('SELECT commission_percent FROM products WHERE id = ?', [$id]);
 
         $columns = array_keys($fields);
         $pdo = db();
@@ -244,6 +265,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                      ($sAed !== null && $sAed > 0) ? $sAed : null,
                      $sProfitT > 0 ? $sProfitT : null,
                      $i]
+                );
+            }
+
+            /* A commission change moves money between two parties, so it is
+               not an ordinary edit and does not belong only in the row it
+               changed. Logged append-only, with who and when. */
+            $before = $previousComm === null ? null : (float) $previousComm;
+            $after  = $commissionOverride;
+            if ($before !== $after) {
+                db_query(
+                    'INSERT INTO commission_log
+                        (scope, scope_id, label, old_percent, new_percent, admin_id, admin_name)
+                     VALUES ("product", ?, ?, ?, ?, ?, ?)',
+                    [$id, $nameFa, $before, $after, $user['id'], $user['name']]
                 );
             }
 
@@ -405,6 +440,24 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
                placeholder="42.50" value="<?= e(v($product, 'cost_aed')) ?>">
         <span class="hint">اعشار هم می‌پذیرد. همان عددی که در دبی پرداخت کرده‌اید.</span>
         <?php if (!empty($errors['cost_aed'])): ?><span class="err"><?= e($errors['cost_aed']) ?></span><?php endif; ?>
+      </div>
+
+      <div class="field">
+        <label for="commission_percent">درصد سهم همکاری (اختیاری)</label>
+        <input type="text" id="commission_percent" name="commission_percent" dir="ltr"
+               inputmode="decimal" placeholder="پیش‌فرض فروشگاه"
+               value="<?= e(v($product, 'commission_percent')) ?>">
+        <span class="hint">
+          <strong>خالی بگذارید</strong> مگر اینکه این محصول عمداً استثنا باشد.
+          چون سهم روی <em>سود</em> حساب می‌شود، محصول کم‌حاشیه خودش سهم کمتری می‌دهد
+          و لازم نیست درصدش را دستی پایین بیاورید.
+          <br>
+          <span class="num">0</span> یعنی این محصول اصلاً سهمی ندارد —
+          با خالی بودن فرق دارد. هر تغییر این عدد در تاریخچه ثبت می‌شود.
+        </span>
+        <?php if (!empty($errors['commission_percent'])): ?>
+          <span class="err"><?= e($errors['commission_percent']) ?></span>
+        <?php endif; ?>
       </div>
 
       <div class="field">

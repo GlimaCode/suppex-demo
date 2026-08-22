@@ -205,6 +205,11 @@ CREATE TABLE IF NOT EXISTS order_items (
   qty           INT    NOT NULL DEFAULT 1,
   unit_price    BIGINT NOT NULL DEFAULT 0,
   line_total    BIGINT NOT NULL DEFAULT 0,
+  -- The commission rate this line was charged at. With per-product rates the
+  -- order total is a sum of lines, not one percentage over one number, and an
+  -- order has to stay readable after the rates change.
+  commission_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+  commission_amount  BIGINT       NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   KEY idx_oitems_order (order_id),
   CONSTRAINT fk_oitems_order FOREIGN KEY (order_id)
@@ -255,3 +260,22 @@ INSERT INTO settings (setting_key, setting_value) VALUES
   ('whatsapp_url',           ''),
   ('sale_mode',              '1')
 ON DUPLICATE KEY UPDATE setting_key = setting_key;
+
+
+-- --- Commission rate changes ------------------------------------------------
+-- The rate decides money moving between two parties, so a change to it is not
+-- an ordinary edit. Append-only, and deliberately without a foreign key so the
+-- record survives the product being deleted.
+CREATE TABLE IF NOT EXISTS commission_log (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  scope       VARCHAR(20)  NOT NULL,          -- 'shop' | 'product' | 'size'
+  scope_id    INT UNSIGNED NULL,
+  label       VARCHAR(200) NOT NULL DEFAULT '',
+  old_percent DECIMAL(5,2) NULL,
+  new_percent DECIMAL(5,2) NULL,
+  admin_id    INT UNSIGNED NULL,
+  admin_name  VARCHAR(120) NOT NULL DEFAULT '',
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_commission_log_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -126,6 +126,63 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     );
 
     step(
+        'per-product commission override',
+        static fn(): bool => column_exists('products', 'commission_percent'),
+        static function (): void {
+            /* NULL means "use the shop-wide rate". A per-product rate exists
+               only for the cases the shop-wide one genuinely cannot express —
+               a deliberate loss-leader, or a line negotiated separately. It is
+               not the normal way to price a product, and defaulting it to NULL
+               keeps it that way. */
+            db()->exec('ALTER TABLE products
+                ADD COLUMN commission_percent DECIMAL(5,2) NULL AFTER promo_toman');
+            db()->exec('ALTER TABLE product_sizes
+                ADD COLUMN commission_percent DECIMAL(5,2) NULL AFTER promo_toman');
+        },
+        $log
+    );
+
+    step(
+        'order_items commission snapshot',
+        static fn(): bool => column_exists('order_items', 'commission_percent'),
+        static function (): void {
+            /* With per-product rates the order total is a sum of lines, not one
+               percentage applied to one number. Each line therefore records the
+               rate it was charged at, exactly as it already records its price
+               and its cost — an order has to stay readable after the rates
+               change. */
+            db()->exec('ALTER TABLE order_items
+                ADD COLUMN commission_percent DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER line_profit,
+                ADD COLUMN commission_amount BIGINT NOT NULL DEFAULT 0 AFTER commission_percent');
+        },
+        $log
+    );
+
+    step(
+        'commission_log — every change to a rate, with who and when',
+        static fn(): bool => table_exists('commission_log'),
+        static function (): void {
+            /* The rate decides money moving between two parties, so a change to
+               it is not an ordinary edit. Append-only, and it survives the
+               product being deleted — which is why there is no foreign key. */
+            db()->exec('CREATE TABLE commission_log (
+                id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                scope       VARCHAR(20)  NOT NULL,
+                scope_id    INT UNSIGNED NULL,
+                label       VARCHAR(200) NOT NULL DEFAULT "",
+                old_percent DECIMAL(5,2) NULL,
+                new_percent DECIMAL(5,2) NULL,
+                admin_id    INT UNSIGNED NULL,
+                admin_name  VARCHAR(120) NOT NULL DEFAULT "",
+                created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_commission_log_created (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        },
+        $log
+    );
+
+    step(
         'orders.expires_at + the expired status — the price-hold window',
         static fn(): bool => column_exists('orders', 'expires_at'),
         static function (): void {
@@ -240,6 +297,9 @@ $pending = [
     'order_items.unit_cost'      => column_exists('order_items', 'unit_cost'),
     'orders.commission_basis'    => column_exists('orders', 'commission_basis'),
     'orders.expires_at'          => column_exists('orders', 'expires_at'),
+    'products.commission_percent'=> column_exists('products', 'commission_percent'),
+    'order_items.commission_percent' => column_exists('order_items', 'commission_percent'),
+    'commission_log'             => table_exists('commission_log'),
 ];
 $allDone = !in_array(false, $pending, true);
 ?><!doctype html>
