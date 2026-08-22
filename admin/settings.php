@@ -74,6 +74,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 'shop_phone'              => digits_only((string) ($_POST['shop_phone'] ?? '')),
                 'free_shipping_threshold' => parse_money($_POST['free_shipping_threshold'] ?? 0),
                 'shipping_flat_rate'      => parse_money($_POST['shipping_flat_rate'] ?? 0),
+                'order_hold_minutes'      => max(5, min((int) digits_only((string) ($_POST['order_hold_minutes'] ?? '30')), 180)),
                 'card_number'             => $card,
                 'card_holder'             => clean_text($_POST['card_holder'] ?? '', 120),
                 'bank_name'               => clean_text($_POST['bank_name'] ?? '', 80),
@@ -144,6 +145,18 @@ admin_head('تنظیمات', ['user' => $user]);
         <input type="text" id="free_shipping_threshold" name="free_shipping_threshold" inputmode="numeric"
                value="<?= e(s('free_shipping_threshold', '1500000')) ?>">
         <span class="hint">۰ یعنی ارسال رایگان هرگز اعمال نشود.</span>
+      </div>
+
+      <div class="field">
+        <label for="order_hold_minutes">مهلت پرداخت (دقیقه)</label>
+        <input type="text" id="order_hold_minutes" name="order_hold_minutes" inputmode="numeric"
+               value="<?= e(s('order_hold_minutes', '30')) ?>">
+        <span class="hint">
+          قیمت هر سفارش تا این مدت قفل می‌ماند؛ بعد از آن سفارش «منقضی» می‌شود.
+          بین ۵ تا ۱۸۰ دقیقه. پیشنهاد: ۳۰ دقیقه — برای مشتری کافی است
+          و آنقدر طولانی نیست که نرخ درهم جابه‌جا شود.
+          سفارش منقضی حذف نمی‌شود — از صفحه خودش قابل برگرداندن است.
+        </span>
       </div>
     </div>
   </div>

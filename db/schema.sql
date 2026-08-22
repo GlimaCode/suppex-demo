@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS product_sizes (
 CREATE TABLE IF NOT EXISTS orders (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   code          VARCHAR(20)  NOT NULL,     -- human-readable, e.g. SPX-250821-4F7A
-  status        ENUM('new','paid','shipped','done','cancelled') NOT NULL DEFAULT 'new',
+  status        ENUM('new','paid','shipped','done','cancelled','expired') NOT NULL DEFAULT 'new',
 
   customer_name VARCHAR(180) NOT NULL DEFAULT '',
   phone         VARCHAR(32)  NOT NULL DEFAULT '',
@@ -178,12 +178,17 @@ CREATE TABLE IF NOT EXISTS orders (
 
   receipt_note  TEXT     NULL,     -- what the admin typed when marking it paid
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- How long the quoted price stays good. A price derived from a dirham
+  -- rate cannot be open-ended; past this the order expires rather than
+  -- sitting in the list looking payable at a rate that has since moved.
+  expires_at    DATETIME NULL,
   paid_at       DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_orders_code (code),
   KEY idx_orders_status  (status, created_at),
   KEY idx_orders_created (created_at),
-  KEY idx_orders_phone   (phone)
+  KEY idx_orders_phone   (phone),
+  KEY idx_orders_expiry  (status, expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -244,6 +249,7 @@ INSERT INTO settings (setting_key, setting_value) VALUES
   ('card_holder',            ''),
   ('bank_name',              ''),
   ('commission_percent',     '0'),
+  ('order_hold_minutes',     '30'),
   ('telegram_url',           'https://t.me/ARSENX2003'),
   ('bale_url',               'https://ble.ir/ALIARSENX'),
   ('whatsapp_url',           ''),

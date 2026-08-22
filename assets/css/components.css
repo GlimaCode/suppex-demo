@@ -739,3 +739,35 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
   border-radius: var(--r-md);
 }
 .pay__code strong { color: var(--amber); letter-spacing: .06em; font-weight: 800; }
+
+/* --------------------------------------------------------------------------
+   Price-hold countdown
+   A quote derived from a moving exchange rate has to carry an end, and the
+   customer needs to see it before the amount rather than after — they are
+   about to transfer money by hand, with no authorisation to adjust later.
+   -------------------------------------------------------------------------- */
+.pay__hold {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  margin-block-end: var(--sp-3);
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-md);
+  font-size: var(--fs-xs);
+  line-height: 1.9;
+  color: var(--text-muted);
+}
+.pay__hold svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-dim); }
+.pay__hold strong {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  color: var(--text);
+}
+/* Under five minutes the tone changes — before that a colour shift would just
+   be noise on a countdown nobody is watching yet. */
+.pay__hold--soon { border-color: rgba(245,166,35,.45); color: var(--amber); }
+.pay__hold--soon svg, .pay__hold--soon strong { color: var(--amber); }
+.pay__hold--over { border-color: rgba(226,86,74,.45); color: #f2a29a; }
+.pay__hold--over svg, .pay__hold--over strong { color: #f2a29a; }

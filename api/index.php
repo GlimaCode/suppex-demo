@@ -123,6 +123,14 @@ try {
                 'ok'      => true,
                 'code'    => $order['code'],
                 'total'   => (int) $order['total'],
+                /* Milliseconds since the epoch, so the page can count down
+                   without parsing a date or guessing a timezone. The server's
+                   clock is the authority: a phone set an hour fast would
+                   otherwise show the quote as already dead. */
+                'expiresAt'  => $order['expires_at'] === null
+                    ? null : strtotime($order['expires_at']) * 1000,
+                'serverNow'  => time() * 1000,
+                'holdMinutes' => order_hold_minutes(),
                 'payment' => [
                     'cardNumber' => setting('card_number'),
                     'cardHolder' => setting('card_holder'),

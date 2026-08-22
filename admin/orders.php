@@ -10,6 +10,11 @@ require_once __DIR__ . '/partials/layout.php';
 
 $user = auth_require();
 
+/* Shared hosting has no cron worth relying on, so the sweep rides along with
+   the page that reads the list. Doing it here rather than on write means an
+   order expires on time even if nobody places another one. */
+orders_expire_due();
+
 $filters = [
     'status' => (string) ($_GET['status'] ?? ''),
     'q'      => (string) ($_GET['q'] ?? ''),

@@ -292,6 +292,7 @@ tbody tr:hover { background: var(--surface-2); }
 .pill--shipped   { background: rgba(245,166,35,.14);  color: #f0c473; border-color: rgba(245,166,35,.3); }
 .pill--done      { background: rgba(180,180,180,.12); color: #cfc9c1; border-color: rgba(180,180,180,.25); }
 .pill--cancelled { background: rgba(226,86,74,.14);   color: #f2a29a; border-color: rgba(226,86,74,.3); }
+.pill--expired   { background: rgba(133,126,117,.16); color: #b3aca2; border-color: rgba(133,126,117,.35); }
 .pill--off       { background: var(--surface-3); color: var(--text-dim); border-color: var(--line-mid); }
 
 /* --------------------------------------------------------------------------

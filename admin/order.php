@@ -10,6 +10,8 @@ require_once __DIR__ . '/partials/layout.php';
 
 $user = auth_require();
 
+orders_expire_due();
+
 $id    = (int) ($_GET['id'] ?? 0);
 $order = $id > 0 ? order_get($id) : null;
 
@@ -155,6 +157,26 @@ admin_head('سفارش ' . $order['code'], ['user' => $user]);
           <?= e(ORDER_STATUS_FA[$order['status']] ?? $order['status']) ?>
         </span>
       </p>
+
+      <?php if ($order['status'] === 'new' && $order['expires_at'] !== null): ?>
+        <?php $left = strtotime($order['expires_at']) - time(); ?>
+        <p class="hint" style="margin-block-end:16px">
+          مهلت پرداخت این سفارش
+          <?php if ($left > 0): ?>
+            تا <strong class="num"><?= e(date('H:i', strtotime($order['expires_at']))) ?></strong>
+            است (<span class="num"><?= (int) ceil($left / 60) ?></span> دقیقه دیگر).
+          <?php else: ?>
+            گذشته است و در بازدید بعدی منقضی می‌شود.
+          <?php endif; ?>
+        </p>
+      <?php elseif ($order['status'] === 'expired'): ?>
+        <div class="flash flash--info" style="margin-block-end:16px">
+          مشتری در مهلت تعیین‌شده پرداخت نکرد.
+          <strong>قیمت‌های این سفارش برای نرخ آن روز است</strong> —
+          اگر می‌خواهید دوباره فعالش کنید، اول قیمت‌ها را با نرخ امروز مقایسه کنید.
+          با انتخاب «ثبت شده» مهلت از نو شروع می‌شود.
+        </div>
+      <?php endif; ?>
 
       <form method="post" action="order.php?id=<?= (int) $order['id'] ?>">
         <?= csrf_field() ?>

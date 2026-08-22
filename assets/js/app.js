@@ -217,6 +217,46 @@ SUPPEX.app = (function () {
 
   /* Step 3: amount and card details. Told which app was used so it never
      names the wrong one. */
+  /* Ticks the price-hold countdown in the payment panel.
+
+     Driven off the SERVER's clock, not the phone's: a device an hour fast
+     would otherwise show a fresh quote as already dead, and one running slow
+     would promise time that no longer exists. Only one timer is ever alive —
+     re-rendering the panel clears the previous one, or a customer who reopened
+     the drawer twice would get two timers writing to the same element. */
+  var holdTimer = null;
+
+  function startHoldCountdown(root) {
+    if (holdTimer) { clearInterval(holdTimer); holdTimer = null; }
+
+    var box = root && root.querySelector('[data-expires]');
+    if (!box) { return; }
+
+    var expiresAt = Number(box.getAttribute('data-expires'));
+    var serverNow = Number(box.getAttribute('data-now')) || Date.now();
+    var skew      = Date.now() - serverNow;
+    var out       = box.querySelector('[data-hold-countdown]');
+    if (!expiresAt || !out) { return; }
+
+    function tick() {
+      var left = Math.round((expiresAt - (Date.now() - skew)) / 1000);
+      if (left <= 0) {
+        out.textContent = 'پایان یافته';
+        box.classList.add('pay__hold--over');
+        clearInterval(holdTimer);
+        holdTimer = null;
+        return;
+      }
+      var m = Math.floor(left / 60);
+      var s = left % 60;
+      out.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+      box.classList.toggle('pay__hold--soon', left <= 300);
+    }
+
+    tick();
+    holdTimer = setInterval(tick, 1000);
+  }
+
   function showPaymentStep(snapshot, channel, route, server) {
     var body = $('[data-cart-items]');
     var foot = $('[data-drawer] .drawer__foot');
@@ -224,6 +264,7 @@ SUPPEX.app = (function () {
     body.innerHTML = ui.paymentPanel(snapshot, channel, route, server);
     if (foot) { foot.hidden = true; }
     setDrawerBack(true);
+    startHoldCountdown(body);
   }
 
   /* A back arrow in the drawer header, shown only past the first step. */

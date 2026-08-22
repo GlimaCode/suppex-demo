@@ -19,7 +19,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/products.php';
 require_once __DIR__ . '/pricing.php';
 
-const ORDER_STATUSES = ['new', 'paid', 'shipped', 'done', 'cancelled'];
+const ORDER_STATUSES = ['new', 'paid', 'shipped', 'done', 'cancelled', 'expired'];
 
 const ORDER_STATUS_FA = [
     'new'       => 'ثبت شده',
@@ -27,7 +27,52 @@ const ORDER_STATUS_FA = [
     'shipped'   => 'ارسال شده',
     'done'      => 'تکمیل شده',
     'cancelled' => 'لغو شده',
+    'expired'   => 'منقضی شده',
 ];
+
+/* How long a quoted price stays good. Clamped rather than trusted: zero would
+   expire every order the instant it was placed, and a very long window
+   reintroduces the problem the window exists to solve — an order payable
+   tomorrow at a rate from today. */
+function order_hold_minutes(): int
+{
+    return max(5, min(setting_int('order_hold_minutes', 30), 180));
+}
+
+/**
+ * Expire orders whose hold window has passed.
+ *
+ * Called opportunistically from the pages that read orders, because shared
+ * hosting has no cron worth relying on. Only untouched "new" orders are
+ * affected — anything an admin has already acted on is left alone, and an
+ * order that was paid is never expired however late it was recorded.
+ *
+ * @return int how many were expired
+ */
+function orders_expire_due(): int
+{
+    $due = db_all(
+        'SELECT id FROM orders
+          WHERE status = "new" AND expires_at IS NOT NULL AND expires_at < NOW()
+          LIMIT 200'
+    );
+    if (!$due) {
+        return 0;
+    }
+
+    foreach ($due as $row) {
+        $id = (int) $row['id'];
+        /* The status guard repeats in the UPDATE so a payment confirmed between
+           the SELECT and here is not overwritten by the sweep. */
+        db_query('UPDATE orders SET status = "expired" WHERE id = ? AND status = "new"', [$id]);
+        db_query(
+            'INSERT INTO order_events (order_id, admin_name, from_status, to_status, note)
+             VALUES (?, "", "new", "expired", ?)',
+            [$id, 'مهلت پرداخت تمام شد']
+        );
+    }
+    return count($due);
+}
 
 /**
  * Resolve one posted line into a priced item, or null if it cannot be trusted.
@@ -204,6 +249,10 @@ function order_create(array $payload): array
 
     $channel = clean_text($payload['channel'] ?? '', 32);
 
+    /* The window starts now. This price was computed from a rate that will
+       move, so the quote has to carry an end. */
+    $expiresAt = date('Y-m-d H:i:s', time() + order_hold_minutes() * 60);
+
     /* --- Write ------------------------------------------------------------- */
     $pdo = db();
     $pdo->beginTransaction();
@@ -220,13 +269,13 @@ function order_create(array $payload): array
                         (code, status, customer_name, phone, address, postal, note,
                          subtotal, shipping, total, profit_total,
                          commission_percent, commission_amount, commission_basis, rate_at_order,
-                         channel, ip, user_agent)
-                     VALUES (?, "new", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                         expires_at, channel, ip, user_agent)
+                     VALUES (?, "new", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         $code, $name, $phone, $address, $postal, $note,
                         $subtotal, $shipping, $total, $profitTotal,
                         $commissionPercent, $commissionAmount, $basis, $rateAtOrder,
-                        $channel, client_ip_binary(),
+                        $expiresAt, $channel, client_ip_binary(),
                         mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
                     ]
                 );
@@ -298,11 +347,22 @@ function order_set_status(int $id, string $status, array $admin, string $note = 
         return false;
     }
 
-    $paidStamp = ($status !== 'new' && $status !== 'cancelled' && $current['paid_at'] === null)
+    $paidStamp = ($status !== 'new' && $status !== 'cancelled' && $status !== 'expired'
+                  && $current['paid_at'] === null)
         ? date('Y-m-d H:i:s')
         : $current['paid_at'];
 
-    db_query('UPDATE orders SET status = ?, paid_at = ? WHERE id = ?', [$status, $paidStamp, $id]);
+    /* Putting an expired order back on the board gives it a fresh window.
+       Without this the next page load would expire it again, which reads as
+       the panel ignoring the click. */
+    if ($status === 'new') {
+        db_query('UPDATE orders SET status = ?, paid_at = ?, expires_at = ? WHERE id = ?',
+            [$status, $paidStamp,
+             date('Y-m-d H:i:s', time() + order_hold_minutes() * 60), $id]);
+    } else {
+        db_query('UPDATE orders SET status = ?, paid_at = ? WHERE id = ?',
+            [$status, $paidStamp, $id]);
+    }
     db_query(
         'INSERT INTO order_events (order_id, admin_id, admin_name, from_status, to_status, note)
          VALUES (?, ?, ?, ?, ?, ?)',

@@ -83,6 +83,7 @@ SUPPEX.ui = (function () {
     play: '<rect x="3" y="5" width="18" height="14" rx="4"/><path d="M11 9.8l4 2.2-4 2.2z" fill="currentColor" stroke="none"/>',
     box: '<path d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/>',
     chat: '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 1.9"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.6"/>',
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
   };
@@ -360,6 +361,19 @@ SUPPEX.ui = (function () {
            and record another, and the mismatch surfaces later as a customer who
            paid "the wrong price" — with the receipt to prove the site told them
            to. */
+        /* The quote has a deadline, so say so before the amount rather than
+           after it. A customer who transfers an hour later at a rate that has
+           moved is a refund conversation neither side wants, and card-to-card
+           has no authorisation to adjust. */
+        (server && server.expiresAt
+          ? '<div class="pay__hold" data-expires="' + server.expiresAt + '"' +
+            (server.serverNow ? ' data-now="' + server.serverNow + '"' : '') + '>' +
+              icon('clock') +
+              '<span>این قیمت تا <strong data-hold-countdown>—</strong> دیگر معتبر است. ' +
+              'بعد از آن سفارش را دوباره ثبت کنید.</span>' +
+            '</div>'
+          : '') +
+
         '<div class="pay__amount">' +
           '<span class="u-sm u-muted">مبلغ قابل پرداخت</span>' +
           '<strong><span class="num">' +

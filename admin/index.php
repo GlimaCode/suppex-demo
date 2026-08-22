@@ -11,6 +11,8 @@ require_once __DIR__ . '/partials/layout.php';
 
 $user = auth_require();
 
+orders_expire_due();
+
 $today      = date('Y-m-d');
 $monthStart = date('Y-m-01');
 

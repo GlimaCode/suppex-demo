@@ -126,6 +126,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     );
 
     step(
+        'orders.expires_at + the expired status — the price-hold window',
+        static fn(): bool => column_exists('orders', 'expires_at'),
+        static function (): void {
+            /* A price quoted from a dirham rate cannot stay valid indefinitely.
+               The order holds its price for a fixed window; past that it
+               expires rather than sitting in the list looking payable at a
+               rate that has since moved. "expired" is its own status, not a
+               reuse of "cancelled", so a report can tell an order the customer
+               abandoned from one somebody actively called off. */
+            db()->exec("ALTER TABLE orders
+                MODIFY COLUMN status
+                    ENUM('new','paid','shipped','done','cancelled','expired')
+                    NOT NULL DEFAULT 'new',
+                ADD COLUMN expires_at DATETIME NULL AFTER created_at,
+                ADD KEY idx_orders_expiry (status, expires_at)");
+        },
+        $log
+    );
+
+    step(
         'rate_history — every exchange-rate change, who made it and when',
         static fn(): bool => table_exists('rate_history'),
         static function (): void {
@@ -185,6 +205,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 'aed_rate_updated_at'   => '',
                 'price_rounding_step'   => '10000', // toman
                 'price_max_age_days'    => '3',     // warn when the rate has not been refreshed for this long
+                'order_hold_minutes'    => '30',    // how long a quoted price stays valid
                 'commission_basis'      => 'goods', // 'goods' | 'profit'
             ];
             foreach ($defaults as $k => $v) {
@@ -218,6 +239,7 @@ $pending = [
     'rate_history'               => table_exists('rate_history'),
     'order_items.unit_cost'      => column_exists('order_items', 'unit_cost'),
     'orders.commission_basis'    => column_exists('orders', 'commission_basis'),
+    'orders.expires_at'          => column_exists('orders', 'expires_at'),
 ];
 $allDone = !in_array(false, $pending, true);
 ?><!doctype html>
