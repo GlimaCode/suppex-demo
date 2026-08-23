@@ -128,7 +128,7 @@ SUPPEX.ui = (function () {
   /* --- components ------------------------------------------------------- */
 
   function productCard(product) {
-    var href = 'product.html?p=' + encodeURIComponent(product.slug);
+    var href = (cfg.productPage || 'product.html') + '?p=' + encodeURIComponent(product.slug);
     var flags = '';
 
     var left = '';
@@ -396,7 +396,7 @@ SUPPEX.ui = (function () {
 
   function searchRow(product) {
     return '' +
-      '<a class="search__row" href="product.html?p=' + encodeURIComponent(product.slug) + '">' +
+      '<a class="search__row" href="' + (cfg.productPage || 'product.html') + '?p=' + encodeURIComponent(product.slug) + '">' +
         '<span class="media media--1x1"><img src="' + imgSrc(product.image) + '" alt="" width="52" height="52"></span>' +
         '<span style="flex:1;min-width:0">' +
           '<span style="font-weight:800;font-size:.9rem;display:block">' + esc(product.nameFa) + '</span>' +

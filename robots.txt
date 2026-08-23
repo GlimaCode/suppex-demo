@@ -1,0 +1,24 @@
+# ===========================================================================
+# SUPPEX
+# ===========================================================================
+
+User-agent: *
+
+# The admin panel, the installer and the include directories. None of these
+# are pages, and a crawler that finds them wastes budget at best.
+Disallow: /admin/
+Disallow: /setup.php
+Disallow: /lib/
+Disallow: /db/
+Disallow: /uploads/products/*.tmp
+
+# Search results are infinite and thin — every query string is a new URL with
+# content that already exists on the pages it links to.
+Disallow: /*?q=
+Disallow: /*&q=
+
+# Nothing else is restricted. In particular the product images MUST stay
+# crawlable: blocking /uploads/ would strip every product picture out of image
+# search and out of the link previews the shop depends on.
+
+Sitemap: /sitemap.xml

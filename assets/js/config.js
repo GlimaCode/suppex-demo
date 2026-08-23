@@ -175,6 +175,18 @@ SUPPEX.config = {
     showTestimonials: false,   // reviews section, press strip, headline rating
   },
 
+  /* Which page a product link points at.
+
+     'product.html' is the static demo: no server, so one hardcoded <title> and
+     og:image for every product. 'product.php' renders that per product, which
+     matters more than it sounds here — Telegram and Instagram preview bots read
+     og: tags and never run JavaScript, so on the .html page every shared
+     product link shows the same name and the same picture.
+
+     SUPPEX-local/router.php rewrites this for local runs; DEPLOY.md changes it
+     once on the host. */
+  productPage: 'product.html',
+
   /* --- Data source ----------------------------------------------------
      baseUrl === null  →  read from the bundled catalogue (assets/js/catalog.js)
      baseUrl === '...' →  SUPPEX.repo issues fetch() calls instead.

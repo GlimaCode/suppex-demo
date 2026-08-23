@@ -56,3 +56,22 @@ AddDefaultCharset UTF-8
 
 # --- Never list a directory -------------------------------------------------
 Options -Indexes
+
+
+# --- Pretty paths for the generated files -----------------------------------
+# The sitemap is PHP because it is built from the database, but crawlers look
+# for /sitemap.xml and robots.txt names it that way.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^sitemap\.xml$ sitemap.php [L]
+</IfModule>
+
+# --- Product pages ----------------------------------------------------------
+# product.html is the static demo page and keeps working for anyone who has the
+# old link; product.php is the real one, which renders per-product metadata into
+# the head. Redirect rather than rewrite, so search engines consolidate on one
+# URL instead of indexing the same product twice.
+<IfModule mod_rewrite.c>
+  RewriteCond %{QUERY_STRING} (^|&)p=([^&]+)
+  RewriteRule ^product\.html$ /product.php?p=%2 [R=301,L]
+</IfModule>
