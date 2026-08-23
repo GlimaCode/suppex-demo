@@ -64,6 +64,7 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteRule ^sitemap\.xml$ sitemap.php [L]
+  RewriteRule ^robots\.txt$  robots.php  [L]
 </IfModule>
 
 # --- Product pages ----------------------------------------------------------
@@ -74,4 +75,9 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteCond %{QUERY_STRING} (^|&)p=([^&]+)
   RewriteRule ^product\.html$ /product.php?p=%2 [R=301,L]
+
+  # Without this, product.html on its own still answers 200 carrying whichever
+  # product happens to be written into the static file — the exact duplicate
+  # the rule above exists to remove.
+  RewriteRule ^product\.html$ /product.php [R=301,L]
 </IfModule>

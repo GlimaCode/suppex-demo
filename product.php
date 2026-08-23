@@ -32,6 +32,27 @@ if ($product === null) {
 }
 
 $meta = seo_product_meta($product);
+
+/* The body below is server-rendered for the same reason the head is, and it is
+   a separate problem from the head.
+
+   Googlebot renders JavaScript, so for Google alone the hydrated page would be
+   enough. Nothing else is: Torob and Emalls — the price-comparison engines that
+   matter more than Google for this category — crawl raw HTML, and a product
+   page with no price in the markup cannot be listed on them at all. The AI
+   crawlers read raw text too. And a customer arriving from a Telegram link
+   would see the whey painted first, then swapped for the thing they clicked.
+
+   The JavaScript then hydrates over identical values, so this is not a second
+   source of truth — it is the same values, arriving early enough to be read. */
+$pName  = $product === null ? '' : (string) $product['nameFa'];
+$pLatin = $product === null ? '' : trim((string) ($product['name'] ?? ''));
+$pBrand = $product === null ? '' : (string) ($product['brand'] ?? '');
+$pImage = $product === null ? '' : (string) ($product['image'] ?? '');
+$pPrice = $product === null ? 0  : (int) $product['price'];
+$pWas   = ($product === null || empty($product['onSale'])) ? null : (int) $product['compareAt'];
+$pStock = $product !== null && !empty($product['inStock']);
+$unit   = 'تومان';
 ?>
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -67,6 +88,11 @@ $meta = seo_product_meta($product);
 <meta property="og:description" content="<?= e($meta['description']) ?>">
 <meta property="og:url" content="<?= e($meta['url']) ?>">
 <meta property="og:image" content="<?= e($meta['image']) ?>">
+<!-- Declared dimensions are what make Telegram and WhatsApp render the large
+     card rather than a thumbnail; without them the preview shrinks. -->
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="<?= e($meta['title']) ?>">
 <meta name="twitter:card" content="summary_large_image">
 
 <?php if ($meta['jsonld'] !== ''): ?>
@@ -152,7 +178,7 @@ $meta = seo_product_meta($product);
       <span aria-hidden="true">/</span>
       <a href="index.html#categories">محصولات</a>
       <span aria-hidden="true">/</span>
-      <span aria-current="page" data-p-breadcrumb>وی پروتئین اورجینال</span>
+      <span aria-current="page" data-p-breadcrumb><?= e($pName) ?></span>
     </nav>
 
     <!-- ═════════════════════════════════════ Product ═══ -->
@@ -161,7 +187,7 @@ $meta = seo_product_meta($product);
       <!-- Gallery -->
       <div class="pdp__gallery">
         <div class="gallery__main media media--1x1 media--lit" style="border-radius:var(--r-xl)">
-          <img data-p-image src="assets/images/products/whey-original.svg" alt="وی پروتئین اورجینال" width="640" height="640">
+          <img data-p-image src="<?= e($pImage) ?>" alt="<?= e(trim($pName . " " . $pLatin)) ?>" width="640" height="640">
           <div class="pcard__flags" data-p-flags style="inset-block-start:var(--sp-5);inset-inline:var(--sp-5)"></div>
         </div>
         <div class="gallery__thumbs" data-p-thumbs></div>
@@ -169,12 +195,23 @@ $meta = seo_product_meta($product);
 
       <!-- Buy box -->
       <div class="pdp__info">
-        <p class="u-eyebrow" data-p-eyebrow>SUPPEX</p>
-        <h1 class="u-h1" data-p-title>وی پروتئین اورجینال</h1>
+        <p class="u-eyebrow" data-p-eyebrow><?= e($pBrand !== '' ? $pBrand : setting('shop_name', 'SUPPEX')) ?></p>
+        <h1 class="u-h1" data-p-title><?= e($pName) ?></h1>
 
         <div class="row" style="gap:14px" data-p-rating></div>
 
-        <div class="price price--lg" data-p-price></div>
+        <div class="price price--lg" data-p-price>
+          <?php if ($pPrice > 0): ?>
+            <span class="price__now num"><?= money($pPrice) ?> <span class="price__unit"><?= e($unit) ?></span></span>
+            <?php if ($pWas !== null && $pWas > $pPrice): ?>
+              <span class="price__was num"><?= money($pWas) ?></span>
+            <?php endif; ?>
+          <?php endif; ?>
+        </div>
+        <!-- Stock state in the markup, not only as a disabled button: a crawler
+             reading text has no other way to tell a listable product from one
+             that is out of stock. -->
+        <p class="sr-only" data-p-stock><?= $pStock ? 'موجود در انبار' : 'ناموجود' ?></p>
 
         <p class="u-lead" data-p-desc></p>
 

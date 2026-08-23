@@ -109,10 +109,21 @@ function seo_product_meta(?array $product): array
         $desc = $name . ' — ' . $shop;
     }
 
-    $image = seo_absolute((string) ($product['image'] ?? ''));
-    if ($image === '') {
-        $image = seo_absolute('assets/images/og-cover.png');
-    }
+    /* Preview bots do not rasterise SVG. Telegram, WhatsApp and Instagram all
+       fetch og:image and render it as a bitmap or not at all, so a vector
+       placeholder produces a card with an empty picture — which looks worse
+       than a card with a generic one. The brand cover is the honest fallback
+       until a real photograph is uploaded.
+
+       This matters more than it sounds because WhatsApp caches a preview per
+       URL with no way to invalidate it: a link shared while the image is
+       broken keeps showing the broken card on that device. */
+    $raw   = (string) ($product['image'] ?? '');
+    $isSvg = $raw !== '' && preg_match('~\.svgz?($|\?)~i', $raw) === 1;
+
+    $image = ($raw === '' || $isSvg)
+        ? seo_absolute('assets/images/og-cover.png')
+        : seo_absolute($raw);
 
     /* --- JSON-LD ---------------------------------------------------------
        Deliberately NO aggregateRating or review. Rating markup that does not
@@ -120,10 +131,19 @@ function seo_product_meta(?array $product): array
        Google, and this shop has no reviews yet. The storefront already keeps
        ratings behind a flag for the same reason — inventing social proof is
        the one placeholder that costs more than it saves. */
+    /* Prices are stored in TOMAN, and schema.org wants an ISO 4217 code.
+       Iran's only ISO code is IRR (rial), and one toman is ten rial — so the
+       stored number has to be multiplied, not relabelled. Publishing the toman
+       figure as IRR advertises every product at a tenth of its price, which is
+       worse than publishing nothing: price-comparison engines rank on it.
+
+       "IRT" and "TOMAN" are not ISO 4217 codes. Google rejects them outright,
+       so relabelling is not an available shortcut. The visible page keeps
+       showing toman, which is what customers actually read. */
     $offer = [
         '@type'         => 'Offer',
         'url'           => seo_product_url((string) $product['slug']),
-        'price'         => (string) (int) $product['price'],
+        'price'         => (string) ((int) $product['price'] * 10),
         'priceCurrency' => 'IRR',
         'availability'  => !empty($product['inStock'])
             ? 'https://schema.org/InStock'

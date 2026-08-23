@@ -213,15 +213,13 @@
     </div>
   </div>
 
-  <div class="container">
-    <div class="press" data-social-proof>
-      <span>ایران‌ورزش</span>
-      <span class="serif" style="font-size:1.3rem">Fitness Journal</span>
-      <span>مجله بدنسازی</span>
-      <span class="lat" style="letter-spacing:.22em">DAILY LIFT</span>
-      <span>ورزش سه</span>
-    </div>
-  </div>
+  <!-- A press strip belongs here once there is press to name. It used to hold
+       invented publications, hidden at runtime by the showTestimonials flag —
+       but runtime removal is not removal: preview bots, AI crawlers and
+       Google's first pass all read the raw HTML before any script runs, so the
+       claim was still being made to everyone who mattered. Claiming coverage
+       you do not have is a licensing problem for a supplement seller, not an
+       SEO one. -->
 
   <!-- ═════════════════════════════════ Categories ═══ -->
   <section class="section" id="categories" aria-labelledby="cat-title">
@@ -390,8 +388,11 @@
             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9z"/></svg>
           </span>
           <div>
-            <div class="review__big num">4.9</div>
-            <p class="u-xs" style="color:rgba(22,19,14,.6);margin-top:6px">میانگین <span class="num">11,200</span> سفارش تأییدشده</p>
+            <!-- Not a number until there are orders behind it. The same
+                 reasoning as the ratings flag: an invented average is the one
+                 placeholder that costs more than it stands in for. -->
+            <div class="review__big num">—</div>
+            <p class="u-xs" style="color:rgba(22,19,14,.6);margin-top:6px">هنوز امتیازی ثبت نشده است</p>
           </div>
         </div>
       </div>
