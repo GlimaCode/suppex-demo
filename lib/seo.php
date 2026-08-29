@@ -21,6 +21,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/ogimage.php';
+
 /** Absolute site origin, e.g. https://example.ir — derived, never hardcoded. */
 function seo_origin(): string
 {
@@ -109,21 +111,20 @@ function seo_product_meta(?array $product): array
         $desc = $name . ' — ' . $shop;
     }
 
-    /* Preview bots do not rasterise SVG. Telegram, WhatsApp and Instagram all
-       fetch og:image and render it as a bitmap or not at all, so a vector
-       placeholder produces a card with an empty picture — which looks worse
-       than a card with a generic one. The brand cover is the honest fallback
-       until a real photograph is uploaded.
+    /* A card drawn for this product, not the brand cover.
 
-       This matters more than it sounds because WhatsApp caches a preview per
-       URL with no way to invalidate it: a link shared while the image is
-       broken keeps showing the broken card on that device. */
-    $raw   = (string) ($product['image'] ?? '');
-    $isSvg = $raw !== '' && preg_match('~\.svgz?($|\?)~i', $raw) === 1;
+       Preview bots do not rasterise SVG, so a vector placeholder produced a
+       card with an empty picture — and every product fell back to the same
+       cover, so fifteen different links produced fifteen identical previews.
+       For a shop whose distribution IS Telegram, the picture on that card is
+       the product listing.
 
-    $image = ($raw === '' || $isSvg)
-        ? seo_absolute('assets/images/og-cover.png')
-        : seo_absolute($raw);
+       og.php draws the name, the price and the saving over the photograph when
+       there is one, and over type when there is not. The URL carries a
+       fingerprint of everything it shows, because WhatsApp caches a preview
+       per URL with no way to invalidate it: a card whose price moved has to BE
+       a different URL, or the old one is what people keep seeing. */
+    $image = seo_absolute(og_url($product));
 
     /* --- JSON-LD ---------------------------------------------------------
        Deliberately NO aggregateRating or review. Rating markup that does not
