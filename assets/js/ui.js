@@ -226,8 +226,15 @@ SUPPEX.ui = (function () {
         '<div class="pcard__media">' +
           '<a href="' + href + '" class="media media--1x1 media--lit" aria-label="' + esc(product.nameFa) + '">' +
             '<img src="' + imgSrc(product.image) + '" alt="' + esc(product.nameFa + ' — ' + product.name) + '" loading="lazy" width="400" height="400">' +
+            /* Inside the link rather than beside it. .media is the box that
+               carries the rounded corner and the overflow: hidden, so putting
+               the panel in there makes one edge clip the image and the scrim
+               together - instead of a square panel over a curved image. The
+               link's accessible name is its aria-label, so nothing in here can
+               affect it, and the panel is inert: aria-hidden, no interactive
+               content, pointer-events off. */
+            quickSpec(product) +
           '</a>' +
-          quickSpec(product) +
           flags +
         '</div>' +
         '<div class="pcard__body">' +

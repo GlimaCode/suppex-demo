@@ -127,6 +127,15 @@
    the frame, ratio and radius stay identical.
    -------------------------------------------------------------------------- */
 .media {
+  /* Every declaration below is box-level, and none of them apply to an inline
+     box. On a product card this is an <a> wrapping a block <img>, so it
+     computed to display: inline and split into three boxes - 0x0, the image,
+     0x0 - with the whole rule landing on the empty ones. Painting the anchor
+     lime produced no lime: the well, the rounded clip and the overflow had
+     never once rendered there. Everywhere else a .media is already a block, a
+     flex item or a grid item, so this changes the product-card anchor and
+     nothing else - all seventeen were measured, every box the same size. */
+  display: block;
   position: relative;
   overflow: hidden;
   background: var(--surface-2);
@@ -944,7 +953,13 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
   z-index: 2;
   display: none;               /* pointer devices switch this on, see below */
   align-items: flex-end;
-  border-radius: inherit;
+  /* The image frame's own arc, written out rather than inherited. The panel
+     is inset: 0 on a box that is exactly the frame, so it has to be the same
+     number - and inherit only reached it while it sat inside a.media. It was
+     a sibling of that anchor until recently, and there it quietly resolved to
+     0 and painted a hard square over a rounded image. Same token as .media;
+     move the two together. */
+  border-radius: var(--r-md);
   /* Backstop under the three-item budget in quickSpec(): the panel is anchored
      to the foot, so anything taller than the image would grow up over the
      badges. Clipping a word is the lesser fault. */
@@ -974,8 +989,13 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
 
 .spec-list {
   list-style: none;
-  margin: 0 0 var(--sp-3);
-  padding: 0;
+  margin: 0;
+  /* The rule between the bullets and the rows belongs to the bullets. On a
+     narrow card the container query hides this list, and a border owned by
+     the first row would stay behind as a hairline with nothing above it -
+     which :first-child cannot catch, because the hidden <ul> is still there. */
+  padding: 0 0 var(--sp-3);
+  border-block-end: 1px solid var(--line);
   display: grid;
   gap: 6px;
 }
@@ -1009,9 +1029,13 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
   gap: var(--sp-2);
   font-size: var(--fs-xs);
   line-height: 1.65;
-  border-block-start: 1px solid var(--line);
-  padding-block-start: 5px;
   margin-block-start: 5px;
+}
+
+/* Rows are always last inside the panel, so the last one closes it. */
+.spec-row:not(:last-child) {
+  padding-block-end: 5px;
+  border-block-end: 1px solid var(--line);
 }
 
 .spec-row__k { color: var(--text-dim); white-space: nowrap; }
@@ -1039,18 +1063,21 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
 @media (hover: hover) and (pointer: fine) {
   .pcard__spec { display: flex; }
 
+  /* focus-within on the media box rather than the whole card. The card also
+     holds the add-to-cart button, and clicking it with a mouse leaves it
+     focused - app.js only swaps its icon - which pinned the panel open over
+     the product just added, on a card that had otherwise dropped its hover.
+     .pcard__media holds nothing but the image link, which is the element the
+     keyboard was meant to raise the panel from in the first place. */
   .pcard:hover .pcard__spec,
-  .pcard:focus-within .pcard__spec {
+  .pcard__media:focus-within .pcard__spec {
     opacity: 1;
   }
 
   .pcard:hover .pcard__spec-in,
-  .pcard:focus-within .pcard__spec-in {
+  .pcard__media:focus-within .pcard__spec-in {
     transform: translateY(0);
   }
-
-  /* focus-within covers the keyboard: tabbing to the card's link shows the
-     same panel a mouse would. */
 }
 
 @media (prefers-reduced-motion: reduce) {
