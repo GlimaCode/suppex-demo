@@ -226,7 +226,12 @@ $unit   = 'تومان';
 
         <div class="price price--lg" data-p-price>
           <?php if ($pPrice > 0): ?>
-            <span class="price__now num"><?= money($pPrice) ?> <span class="price__unit"><?= e($unit) ?></span></span>
+            <?php /* The isolate belongs on the digits alone. On the whole
+                     price .num pins the run LTR and تومان lands to the
+                     right of the number - the first thing a Persian
+                     reader meets. Server-rendered, so this is also what
+                     a Telegram preview and Torob read. */ ?>
+            <span class="price__now"><span class="num"><?= money($pPrice) ?></span>&nbsp;<span class="price__unit"><?= e($unit) ?></span></span>
             <?php if ($pWas !== null && $pWas > $pPrice): ?>
               <span class="price__was num"><?= money($pWas) ?></span>
             <?php endif; ?>
