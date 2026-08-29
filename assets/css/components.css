@@ -801,3 +801,48 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
   color: var(--text-muted);
   line-height: 1.95;
 }
+
+
+/* ── Not found ────────────────────────────────────────────────────────────
+   Used by product.php when a slug no longer resolves, and by 404.html for
+   every other wrong URL. Deliberately short: the useful thing on a dead page
+   is the way out of it, and a long apology only delays finding it. */
+.notfound {
+  padding-block: clamp(56px, 12vw, 120px);
+  max-width: 46ch;
+  margin-inline: auto;
+  text-align: center;
+}
+
+/* Large enough to explain itself at a glance, faint enough not to be the
+   thing being read. */
+.notfound__code {
+  font-family: var(--font-display);
+  font-size: clamp(64px, 16vw, 132px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  opacity: 0.22;
+  margin: 0;
+}
+
+.notfound__title {
+  font-size: clamp(21px, 4.4vw, 30px);
+  font-weight: 700;
+  margin-block: var(--sp-4) var(--sp-3);
+}
+
+.notfound__text {
+  color: var(--text-muted);
+  line-height: 2.1;
+  margin: 0;
+}
+
+.notfound__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  justify-content: center;
+  margin-block-start: var(--sp-6);
+}

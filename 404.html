@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>صفحه پیدا نشد | SUPPEX</title>
+<meta name="description" content="این نشانی روی سایت وجود ندارد.">
+<!-- A wrong URL must never be indexed: a soft 404 fills the index with pages
+     that hold nothing. -->
+<meta name="robots" content="noindex, follow">
+<meta name="theme-color" content="#131210">
+
+<link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&family=Archivo:wght@400;600;700;800&family=Archivo+Black&display=swap" rel="stylesheet">
+
+<!-- Absolute paths, not relative.
+
+     Apache serves this same file for /anything/deep/that/does-not-exist, and a
+     relative stylesheet would then be looked for under that imaginary
+     directory - so the error page itself would arrive unstyled, which reads as
+     a broken server rather than a wrong address. -->
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/layout.css">
+</head>
+
+<body>
+<a class="skip-link" href="#main">پرش به محتوای اصلی</a>
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="logo" href="/" aria-label="SUPPEX — صفحه اصلی">SUPPEX<span class="logo__mark">®</span></a>
+  </div>
+</header>
+
+<main id="main">
+  <div class="container">
+    <section class="notfound">
+      <p class="notfound__code">۴۰۴</p>
+      <h1 class="notfound__title">این صفحه پیدا نشد</h1>
+      <p class="notfound__text">
+        شاید نشانی ناقص کپی شده باشد، یا صفحه‌ای که دنبالش بودید جابه‌جا شده.
+        از اینجا می‌توانید ادامه بدهید.
+      </p>
+      <div class="notfound__actions">
+        <a class="btn btn--primary" href="/#categories">دیدن محصولات</a>
+        <a class="btn btn--ghost" href="/">صفحه اصلی</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <p class="footer__legal">© SUPPEX</p>
+  </div>
+</footer>
+
+</body>
+</html>

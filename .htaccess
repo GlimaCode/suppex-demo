@@ -54,6 +54,13 @@ AddDefaultCharset UTF-8
 #   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 # </IfModule>
 
+# --- The wrong address ------------------------------------------------------
+# Without this, a mistyped URL gets Apache's own page: English, left-to-right,
+# and carrying the server version. The path is absolute because Apache serves
+# this file for /any/deep/path too, and a relative one would resolve against
+# that imaginary directory.
+ErrorDocument 404 /404.html
+
 # --- Never list a directory -------------------------------------------------
 Options -Indexes
 

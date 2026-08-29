@@ -640,26 +640,35 @@ function import_apply(array $products, array $admin): array
 
             /* Sizes are replaced wholesale — the sheet is the source of truth,
                and a size dropped from it should disappear rather than linger. */
-            /* Same rule as the parent row one level up: a file with no
-               commission column says nothing about the rates on the sizes
-               either, and sizes are replaced wholesale. Carried across the
-               rebuild by ext_id, the only stable handle a size has - which is
-               exactly what admin/product-edit.php does on its own replace. */
+            /* What the existing size rows carry, keyed by label - the one
+               thing the sheet and the shop both name a size by.
+
+               ext_id matters most: it is what a shopper's cart stores, and
+               regenerating it from the label on every import ('900' becoming
+               '900-گرم') detaches every cart holding that size.
+               order_price_line() then finds no matching row and prices from the
+               parent, so a 2270g tub in somebody's basket quietly becomes a
+               900g one at checkout.
+
+               The rate rides along for the same reason as the parent row one
+               level up: a file with no commission column says nothing about
+               the rates on the sizes either. */
+            $keptExt   = [];
             $keptRates = [];
-            if (!($p['has_commission_column'] ?? true)) {
-                foreach (db_all('SELECT ext_id, commission_percent
-                                   FROM product_sizes WHERE product_id = ?', [$id]) as $old) {
-                    $keptRates[(string) $old['ext_id']] = $old['commission_percent'] === null
-                        ? null : (float) $old['commission_percent'];
-                }
+            foreach (db_all('SELECT ext_id, label, commission_percent
+                               FROM product_sizes WHERE product_id = ?', [$id]) as $old) {
+                $key = (string) $old['label'];
+                $keptExt[$key]   = (string) $old['ext_id'];
+                $keptRates[$key] = $old['commission_percent'] === null
+                    ? null : (float) $old['commission_percent'];
             }
 
             db_query('DELETE FROM product_sizes WHERE product_id = ?', [$id]);
             foreach ($p['sizes'] as $i => $s) {
-                $ext  = slugify($s['label']) ?: 's' . $i;
+                $ext  = $keptExt[$s['label']] ?? (slugify($s['label']) ?: 's' . $i);
                 $rate = ($p['has_commission_column'] ?? true)
                     ? $s['commission']
-                    : ($keptRates[$ext] ?? null);
+                    : ($keptRates[$s['label']] ?? null);
 
                 db_query(
                     'INSERT INTO product_sizes

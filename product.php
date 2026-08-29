@@ -170,8 +170,32 @@ $unit   = 'تومان';
   </div>
 </header>
 
-<main id="main" data-product-page>
+<main id="main"<?= $product === null ? '' : ' data-product-page' ?>>
   <div class="container">
+
+<?php if ($product === null): ?>
+    <?php /* No product, so nothing below applies: the add-to-cart button, the
+             batch certificate, the shipping terms all belong to a thing that is
+             not here. Saying so and pointing onward is the whole page. */ ?>
+    <nav class="breadcrumb" aria-label="مسیر صفحه">
+      <a href="index.html">خانه</a>
+      <span aria-hidden="true">/</span>
+      <a href="index.html#categories">محصولات</a>
+    </nav>
+
+    <section class="notfound">
+      <p class="notfound__code">۴۰۴</p>
+      <h1 class="notfound__title">این محصول دیگر نیست</h1>
+      <p class="notfound__text">
+        شاید از فهرست برداشته شده باشد، یا لینک ناقص کپی شده باشد.
+        همین جنس را می‌خواهید؟ در فهرست محصولات پیدایش کنید یا به ما پیام بدهید.
+      </p>
+      <div class="notfound__actions">
+        <a class="btn btn--primary" href="index.html#categories">دیدن محصولات</a>
+        <a class="btn btn--ghost" href="index.html">صفحه اصلی</a>
+      </div>
+    </section>
+<?php else: ?>
 
     <nav class="breadcrumb" aria-label="مسیر صفحه">
       <a href="index.html">خانه</a>
@@ -313,6 +337,7 @@ $unit   = 'تومان';
       </div>
       <div class="grid grid--products" data-related></div>
     </section>
+<?php endif; ?>
 
   </div>
 </main>
