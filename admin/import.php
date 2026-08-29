@@ -69,8 +69,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 $result = import_apply($products, $user);
                 unset($_SESSION['import_plan']);
                 flash('ok', sprintf(
-                    '%d محصول جدید، %d محصول به‌روزرسانی، و %d اندازه ثبت شد.',
-                    $result['created'], $result['updated'], $result['sizes']
+                    '%d محصول جدید، %d محصول به‌روزرسانی، %d اندازه، و %d درصد همکاری ثبت شد.',
+                    $result['created'], $result['updated'], $result['sizes'],
+                    $result['rates'] ?? 0
                 ));
                 header('Location: products.php');
                 exit;
@@ -109,6 +110,38 @@ admin_head('ورود گروهی محصولات', ['user' => $user]);
   </p>
   <p style="color:var(--text-muted);line-height:2.1;margin-block-start:10px">
     اگر محصولی فقط یک اندازه دارد، ستون اندازه را خالی بگذارید.
+  </p>
+
+  <div class="table-wrap" style="border:0;margin-block-start:18px">
+    <table style="min-width:0">
+      <thead><tr><th>ستون</th><th>چه چیزی بنویسیم</th></tr></thead>
+      <tbody>
+        <tr><td class="t-title">قیمت خرید (درهم)</td>
+            <td class="t-sub">عدد درهمی که برای خرید همان قوطی داده‌اید — مثلاً <span class="num">40</span>.
+              اگر محصولی را به تومان می‌خرید، این را خالی بگذارید و
+              فقط «قیمت فروش» را پر کنید.</td></tr>
+        <tr><td class="t-title">سود (تومان)</td>
+            <td class="t-sub">سودی که روی همان قوطی می‌خواهید. قیمت فروش از روی
+              این دو ستون و نرخ روز درهم ساخته می‌شود.</td></tr>
+        <tr><td class="t-title">درصد همکاری</td>
+            <td class="t-sub"><strong>خالی = درصد پیش‌فرض فروشگاه.</strong>
+              فقط برای محصولی عدد بنویسید که جداگانه توافق شده —
+              مثلاً قلمی که رقیب زیاد دارد و حاشیه سودش کم است.
+              صفر یعنی «روی این قلم سهمی برداشته نشود» و با خالی یکی نیست.</td></tr>
+        <tr><td class="t-title">تخفیف (تومان)</td>
+            <td class="t-sub">مقداری که از قیمت کم می‌شود، نه قیمت دوم. بیشتر از نیمی
+              از سود قبول نمی‌شود.</td></tr>
+        <tr><td class="t-title">طعم‌ها</td>
+            <td class="t-sub">با ویرگول جدا کنید: شکلاتی، وانیلی، توت فرنگی</td></tr>
+        <tr><td class="t-title">موجود</td>
+            <td class="t-sub">«بله» یا «خیر». خالی یعنی موجود.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="color:var(--text-muted);line-height:2.1;margin-block-start:14px">
+    عکس محصولات از این فایل خوانده نمی‌شود — بعد از ورود،
+    از صفحه هر محصول آپلود می‌شود.
   </p>
   <div style="margin-block-start:16px">
     <a class="btn btn--ghost" href="?template=1">دانلود فایل نمونه (CSV)</a>
@@ -169,12 +202,31 @@ admin_head('ورود گروهی محصولات', ['user' => $user]);
     <?php if (!$plan['products']): ?>
       <div class="empty">هیچ محصول معتبری در فایل نبود.</div>
     <?php else: ?>
+      <?php
+        /* Only show the columns this sheet actually used. The number the
+           operator is checking is the final price, and with eight columns it
+           is the one that scrolls off the edge — which defeats the point of
+           having a preview at all. Most sheets set neither a discount nor a
+           per-product share, so most previews are two columns narrower. */
+        $anyPromo = false;
+        $anyRate  = false;
+        foreach ($plan['products'] as $pp) {
+            foreach (($pp['sizes'] ?: [$pp['single'] ?? null]) as $uu) {
+                if (!is_array($uu)) { continue; }
+                if (!empty($uu['promo_toman'])) { $anyPromo = true; }
+                if (($uu['commission'] ?? null) !== null) { $anyRate = true; }
+            }
+        }
+      ?>
       <div class="table-wrap" style="border:0">
         <table>
           <thead>
             <tr>
               <th>محصول</th><th>دسته</th><th>اندازه</th>
-              <th>خرید (درهم)</th><th>سود</th><th class="u-right">قیمت فروش</th>
+              <th>خرید (درهم)</th><th>سود</th>
+              <?php if ($anyPromo): ?><th>تخفیف</th><?php endif; ?>
+              <?php if ($anyRate): ?><th>سهم ما</th><?php endif; ?>
+              <th class="u-right">قیمت فروش</th>
             </tr>
           </thead>
           <tbody>
@@ -206,6 +258,20 @@ admin_head('ورود گروهی محصولات', ['user' => $user]);
                   <td class="num u-nowrap u-dim">
                     <?= $u['profit_toman'] === null ? '—' : money((int) $u['profit_toman']) ?>
                   </td>
+                  <?php if ($anyPromo): ?>
+                    <td class="num u-nowrap u-dim">
+                      <?= empty($u['promo_toman']) ? '—' : money((int) $u['promo_toman']) ?>
+                    </td>
+                  <?php endif; ?>
+                  <?php if ($anyRate): ?>
+                    <td class="u-nowrap">
+                      <?php if (($u['commission'] ?? null) === null): ?>
+                        <span class="u-dim">پیش‌فرض</span>
+                      <?php else: ?>
+                        <span class="num"><?= e(rtrim(rtrim(number_format((float) $u['commission'], 2), '0'), '.')) ?></span>٪
+                      <?php endif; ?>
+                    </td>
+                  <?php endif; ?>
                   <td class="num u-nowrap u-right">
                     <strong><?= (int) $u['price'] > 0 ? money((int) $u['price']) : '—' ?></strong>
                   </td>

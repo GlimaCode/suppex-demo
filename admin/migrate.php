@@ -126,6 +126,42 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     );
 
     step(
+        'products.promo_toman — a discount as an amount off, not a second price',
+        static fn(): bool => column_exists('products', 'promo_toman'),
+        static function (): void {
+            /* Stored as an amount off rather than as a second price, so the
+               strikethrough keeps tracking the rate. A compare_at typed
+               directly would shrink the advertised saving on its own every time
+               the dirham rose, and would vanish entirely once price overtook
+               it. */
+            db()->exec('ALTER TABLE products
+                ADD COLUMN promo_toman BIGINT NULL AFTER profit_toman');
+        },
+        $log
+    );
+
+    step(
+        'product_sizes — dirham cost, profit and promo per size',
+        static fn(): bool => column_exists('product_sizes', 'cost_aed'),
+        static function (): void {
+            /* A 900g tub and a 2270g tub are bought separately at different
+               dirham prices and sold at different toman prices. Pricing only
+               the parent would leave every size frozen at an old price while
+               reporting success, and would record the parent's cost against a
+               variant's revenue — which is the number the partnership share
+               is computed from. */
+            db()->exec('ALTER TABLE product_sizes
+                ADD COLUMN cost_aed DECIMAL(12,2) NULL AFTER compare_at,
+                ADD COLUMN profit_toman BIGINT NULL AFTER cost_aed,
+                ADD COLUMN promo_toman BIGINT NULL AFTER profit_toman,
+                ADD COLUMN cost_toman BIGINT NULL AFTER promo_toman,
+                ADD COLUMN price_applied_rate DECIMAL(14,2) NULL AFTER cost_toman,
+                ADD COLUMN price_applied_at DATETIME NULL AFTER price_applied_rate');
+        },
+        $log
+    );
+
+    step(
         'per-product commission override',
         static fn(): bool => column_exists('products', 'commission_percent'),
         static function (): void {
@@ -318,6 +354,19 @@ $allDone = !in_array(false, $pending, true);
     <p class="login__sub">به‌روزرسانی ساختار دیتابیس</p>
 
     <?php if ($ran): ?>
+      <?php if (!$allDone): ?>
+        <?php /* A step can fail because an earlier one did, and the fix is
+                 simply to run again — every step is idempotent. Saying so
+                 here matters: without it the page shows one red line among a
+                 dozen green ones and a friendly button onward, and the shop
+                 goes live on a half-built schema. */ ?>
+        <div class="flash flash--error">
+          <strong>به‌روزرسانی کامل نشد.</strong>
+          دکمه پایین را دوباره بزنید. اجرای دوباره بی‌خطر است و فقط چیزهایی را
+          می‌سازد که هنوز ساخته نشده‌اند. اگر بار دوم هم کامل نشد، متن قرمز
+          زیر را بفرستید.
+        </div>
+      <?php endif; ?>
       <?php foreach ($log as [$state, $label]): ?>
         <div class="flash flash--<?= $state === 'fail' ? 'error' : ($state === 'skip' ? 'info' : 'ok') ?>">
           <?= $state === 'done' ? '✓ ' : ($state === 'skip' ? '— ' : '✕ ') ?><?= e($label) ?>
@@ -326,9 +375,17 @@ $allDone = !in_array(false, $pending, true);
       <?php if (!$log): ?>
         <div class="flash flash--info">چیزی برای به‌روزرسانی نبود.</div>
       <?php endif; ?>
-      <a class="btn btn--primary btn--block" href="pricing.php" style="margin-block-start:16px">
-        رفتن به صفحه قیمت‌گذاری
-      </a>
+      <?php if ($allDone): ?>
+        <a class="btn btn--primary btn--block" href="pricing.php" style="margin-block-start:16px">
+          رفتن به صفحه قیمت‌گذاری
+        </a>
+      <?php else: ?>
+        <form method="post" action="migrate.php">
+          <button class="btn btn--primary btn--block" type="submit" style="margin-block-start:16px">
+            اجرای دوباره
+          </button>
+        </form>
+      <?php endif; ?>
 
     <?php else: ?>
       <div class="flash flash--<?= $allDone ? 'ok' : 'info' ?>">
