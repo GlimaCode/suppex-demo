@@ -161,7 +161,10 @@ SUPPEX.ui = (function () {
        already reads «وانیل · 900 گرم» or «60 قرص · 60 روز». */
     var sizes = (product.sizes || []).filter(function (s) { return s && s.label; });
     if (sizes.length > 1) {
-      rows.push({ k: 'حجم‌های موجود', v: specList(sizes.map(function (s) { return s.label; })) });
+      /* «حجم‌ها», not «حجم‌های موجود»: the key is nowrap, so on a narrow card
+         the longer label took half the row and pushed the sizes themselves
+         onto a third line. */
+      rows.push({ k: 'حجم‌ها', v: specList(sizes.map(function (s) { return s.label; })) });
     }
 
     /* Servings only when it is not already in the size line. */

@@ -866,7 +866,12 @@ SUPPEX.app = (function () {
 
   function renderProduct(product) {
     /* --- state local to this page --- */
-    var sizes = product.sizes || [{
+    /* An empty array is not a size list, and `[] || fallback` keeps the empty
+       array. The API returns sizes: [] for a single-price product, so sizes[0]
+       was undefined and paintPrice() threw on it - taking the quantity
+       stepper, the nutrition table and the add-to-cart button with it, on all
+       fourteen products that have one price. */
+    var sizes = (product.sizes && product.sizes.length) ? product.sizes : [{
       id: 'default', label: product.variantLabel || '—',
       price: product.price, compareAt: product.compareAt, servings: null,
     }];

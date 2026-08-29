@@ -172,7 +172,11 @@
 }
 .pcard:hover .media img { transform: scale(1.05); }
 
-.pcard__media { position: relative; }
+.pcard__media {
+  /* The hover panel drops its feature bullets when this box gets too
+     narrow to hold them; inline-size containment is what lets it ask.
+     Inline axis only - the aspect ratio still sets the height. */
+  container-type: inline-size; position: relative; }
 
 .pcard__flags {
   position: absolute;
@@ -960,7 +964,10 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
 
 .pcard__spec-in {
   width: 100%;
-  padding: var(--sp-5);
+  /* One step down from the card's own padding: the panel is a dense block of
+     small facts, and at a narrow card width every pixel here is a wrapped
+     line below. */
+  padding: var(--sp-4);
   transform: translateY(8px);
   transition: transform var(--dur) var(--ease);
 }
@@ -977,7 +984,9 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
   position: relative;
   padding-inline-start: 15px;
   font-size: var(--fs-xs);
-  line-height: 1.75;
+  /* Tighter than running Persian, which is set at 1.9 elsewhere: these are
+     labels, read one at a time, not a paragraph read through. */
+  line-height: 1.6;
   color: var(--text);
 }
 
@@ -997,9 +1006,9 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
 .spec-row {
   display: flex;
   justify-content: space-between;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   font-size: var(--fs-xs);
-  line-height: 1.9;
+  line-height: 1.65;
   border-block-start: 1px solid var(--line);
   padding-block-start: 5px;
   margin-block-start: 5px;
@@ -1007,6 +1016,23 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
 
 .spec-row__k { color: var(--text-dim); white-space: nowrap; }
 .spec-row__v { color: var(--text); text-align: end; }
+
+/* Below about 215px the card cannot afford all three items: measured at a
+   1024 viewport the image is 198px and the whey panel had 2px to spare, which
+   is not spare. The rows are what the shopper is choosing between, so the
+   argument is what goes - never the facts.
+
+   Keyed to the card, not the viewport, because the grid is 4-up in one place
+   and 3-up in another and the viewport does not say which. Where @container is
+   unsupported the bullets simply stay and overflow: hidden trims them, which
+   is what happened before this rule existed. */
+@container (max-width: 215px) {
+  /* Only where there are rows to fall back on. A product with features and no
+     variants has nothing else in the panel, and dropping its bullets would
+     leave an empty dark square over the image - worse than the overflow this
+     rule exists to prevent. Its three bullets fit at this width anyway. */
+  .pcard__spec:has(.spec-row) .spec-list { display: none; }
+}
 
 /* Only where a pointer can actually hover. On touch this panel never exists,
    so it cannot swallow the tap that was meant to open the product. */
