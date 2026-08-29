@@ -92,10 +92,20 @@ function db_value(string $sql, array $params = [])
    --------------------------------------------------------------------------- */
 function db_sql_statements(string $sql): array
 {
+    /* Real line terminators only.
+
+       PCRE's \R also matches the single byte 0x85 - NEL - when the pattern is
+       not in UTF-8 mode. The Persian letter م is D9 85 in UTF-8, so \R cut
+       it in half: the D9 was orphaned at the end of one line, the halves were
+       rejoined with a newline, and every م in a restored backup became a
+       question mark followed by a line break. db/schema.sql happens to contain
+       no م, which is the only reason this went unnoticed. */
+    $eol = '(?:\r\n|\n|\r)';
+
     $out = [];
-    foreach (preg_split('/;\s*\R/', $sql) ?: [] as $chunk) {
+    foreach (preg_split('/;[ \t]*' . $eol . '/', $sql) ?: [] as $chunk) {
         $lines = [];
-        foreach (preg_split('/\R/', $chunk) ?: [] as $line) {
+        foreach (preg_split('/' . $eol . '/', $chunk) ?: [] as $line) {
             if (!str_starts_with(ltrim($line), '--')) {
                 $lines[] = $line;
             }

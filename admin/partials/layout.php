@@ -38,6 +38,7 @@ function admin_nav_items(): array
         ['href' => 'margins.php',  'label' => 'حاشیه سود',  'icon' => 'scale'],
         ['href' => 'report.php',   'label' => 'گزارش مالی', 'icon' => 'chart'],
         ['href' => 'settings.php', 'label' => 'تنظیمات',  'icon' => 'gear'],
+        ['href' => 'backup.php',   'label' => 'پشتیبان‌گیری', 'icon' => 'save'],
         ['href' => 'preflight.php','label' => 'آمادگی راه‌اندازی', 'icon' => 'check'],
     ];
 }
@@ -45,6 +46,9 @@ function admin_nav_items(): array
 function admin_icon(string $name): string
 {
     $paths = [
+        /* A floppy disk: still the one shape everybody reads as "save a
+           copy", whatever their age. */
+        'save'   => '<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3"/><rect x="8" y="13" width="8" height="6"/>',
         'grid'   => '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
         'box'    => '<path d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/>',
         'tag'    => '<path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.4"/>',
