@@ -106,7 +106,7 @@ SUPPEX.app = (function () {
 
     if (nav) { nav.classList.toggle('is-open', name === 'nav'); }
     if (drawer) {
-      if (name === 'cart') { resetPaymentStep(); }
+      if (name === 'cart') { resetPaymentStep(); refreshCartPrices(); }
       drawer.classList.toggle('is-open', name === 'cart');
     }
     if (search) { search.classList.toggle('is-open', name === 'search'); }
@@ -122,6 +122,44 @@ SUPPEX.app = (function () {
   /* ====================================================================
      Cart rendering
      ==================================================================== */
+  /* Prices the cart is showing that the shop no longer charges. Rendered above
+     the line items, and deliberately not cleared on the next render — the
+     shopper has to see it at least until they close the drawer. */
+  var priceChanges = [];
+
+  /* Reconcile the cart against the live catalogue whenever the drawer opens.
+
+     The cart keeps whatever price it saw when the item was added, and with a
+     dirham-linked catalogue that goes stale within days. The order message the
+     customer pastes into chat is built from those stored numbers, so without
+     this they would send one figure while the server recorded another — and
+     card-to-card has no authorisation step in which to correct the difference.
+
+     Fire-and-forget: a failed refresh must not block checkout. The server
+     recomputes every price when the order is placed regardless, so the worst
+     case is the message quoting a stale figure, which is where things stood
+     before this existed. */
+  function refreshCartPrices() {
+    var snapshot = store.snapshot();
+    if (!snapshot.items.length) { priceChanges = []; return; }
+
+    var slugs = [];
+    snapshot.items.forEach(function (i) {
+      if (slugs.indexOf(i.slug) === -1) { slugs.push(i.slug); }
+    });
+
+    repo.getPrices(slugs).then(function (list) {
+      if (!list) { return; }
+      var changed = store.syncPrices(list);
+      if (changed.length) {
+        priceChanges = changed;
+        /* syncPrices emits, so the cart has already re-rendered by now with
+           the new prices but without the notice — render once more to show it. */
+        renderCart(store.snapshot());
+      }
+    });
+  }
+
   function renderCart(snapshot) {
     var count = $('[data-cart-count]');
     if (count) {
@@ -140,7 +178,8 @@ SUPPEX.app = (function () {
         '<p style="font-weight:800;margin-bottom:6px">سبد خرید خالی است</p>' +
         '<p class="u-sm">هنوز محصولی اضافه نکرده‌اید.</p></div>';
     } else {
-      body.innerHTML = snapshot.items.map(ui.lineItem).join('');
+      body.innerHTML = ui.priceChangeNotice(priceChanges) +
+                       snapshot.items.map(ui.lineItem).join('');
     }
 
     var sub = $('[data-cart-subtotal]');

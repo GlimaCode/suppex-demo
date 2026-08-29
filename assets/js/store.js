@@ -92,6 +92,58 @@ SUPPEX.store = (function () {
 
     keyOf: keyOf,
 
+    /* Reconcile stored cart prices against what the shop charges now.
+
+       The cart keeps the price it saw when the item was added, and with a
+       dirham-linked catalogue that is stale within days. The order message the
+       customer pastes into chat is built from these numbers, so left alone they
+       would send one figure while the server recorded another — and with
+       card-to-card there is no authorisation to correct the difference
+       afterwards.
+
+       Returns what changed so the drawer can say so. Silently correcting a
+       price the shopper already read is its own kind of dishonest.
+
+       @param list  [{slug, price, available, sizes:[{id, price}]}]
+       @return [{nameFa, from, to, gone}]                                    */
+    syncPrices: function (list) {
+      if (!Array.isArray(list) || !list.length) { return []; }
+
+      var bySlug = {};
+      list.forEach(function (p) { bySlug[p.slug] = p; });
+
+      var changes = [];
+
+      state.items = state.items.map(function (item) {
+        var fresh = bySlug[item.slug];
+        if (!fresh) { return item; }
+
+        if (!fresh.available) {
+          changes.push({ nameFa: item.nameFa, from: item.price, to: null, gone: true });
+          return Object.assign({}, item, { unavailable: true });
+        }
+
+        /* A size carries its own price, so resolve the same way the server
+           does rather than falling back to the parent's. */
+        var price = fresh.price;
+        if (item.sizeId && Array.isArray(fresh.sizes)) {
+          for (var i = 0; i < fresh.sizes.length; i++) {
+            if (fresh.sizes[i].id === item.sizeId) { price = fresh.sizes[i].price; break; }
+          }
+        }
+
+        if (typeof price !== 'number' || price <= 0 || price === item.price) {
+          return Object.assign({}, item, { unavailable: false });
+        }
+
+        changes.push({ nameFa: item.nameFa, from: item.price, to: price, gone: false });
+        return Object.assign({}, item, { price: price, unavailable: false });
+      });
+
+      if (changes.length) { emit(); }
+      return changes;
+    },
+
     /* Persisted with the cart so a returning shopper does not retype their
        address. It never leaves the browser except inside the order message. */
     setCustomer: function (fields) {

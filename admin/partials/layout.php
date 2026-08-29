@@ -38,6 +38,7 @@ function admin_nav_items(): array
         ['href' => 'margins.php',  'label' => 'حاشیه سود',  'icon' => 'scale'],
         ['href' => 'report.php',   'label' => 'گزارش مالی', 'icon' => 'chart'],
         ['href' => 'settings.php', 'label' => 'تنظیمات',  'icon' => 'gear'],
+        ['href' => 'preflight.php','label' => 'آمادگی راه‌اندازی', 'icon' => 'check'],
     ];
 }
 

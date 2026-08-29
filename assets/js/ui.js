@@ -280,6 +280,41 @@ SUPPEX.ui = (function () {
      have to. Left unexplained, an empty chat box reads as "the site is
      broken", and the order is simply abandoned. Saying it up front costs one
      short paragraph and removes that whole failure. */
+  /* Prices that moved since the shopper added the item.
+
+     Shown rather than silently corrected. The cart is the last place someone
+     reads a number before they transfer it by hand, and quietly swapping it
+     for a different one is how a customer ends up feeling misled by a shop
+     that did nothing wrong. Naming the old and the new figure costs one line
+     and removes the whole argument. */
+  function priceChangeNotice(changes) {
+    if (!changes || !changes.length) { return ''; }
+
+    var rows = changes.map(function (c) {
+      if (c.gone) {
+        return '<li><strong>' + esc(c.nameFa) + '</strong> — ' +
+               'دیگر موجود نیست و در سفارش حساب نمی‌شود.</li>';
+      }
+      var up = c.to > c.from;
+      return '<li><strong>' + esc(c.nameFa) + '</strong> — ' +
+             '<span class="num">' + money(c.from) + '</span> ' +
+             (up ? '↑' : '↓') +
+             ' <span class="num">' + money(c.to) + '</span></li>';
+    }).join('');
+
+    return '<div class="cart-notice">' +
+      icon('info') +
+      '<div>' +
+        '<strong>قیمت‌ها به‌روز شد</strong>' +
+        '<ul>' + rows + '</ul>' +
+        '<span class="cart-notice__why">' +
+          'قیمت این محصولات به نرخ ارز بسته است و از زمانی که به سبد اضافه کردید تغییر کرده. ' +
+          'مبلغی که پرداخت می‌کنید همین عدد جدید است.' +
+        '</span>' +
+      '</div>' +
+    '</div>';
+  }
+
   function orderHelpNote() {
     return '<div class="order-help">' +
       icon('info') +
@@ -419,6 +454,7 @@ SUPPEX.ui = (function () {
     journalCard: journalCard,
     lineItem: lineItem,
     customerForm: customerForm,
+    priceChangeNotice: priceChangeNotice,
     orderHelpNote: orderHelpNote,
     channelButtons: channelButtons,
     paymentPanel: paymentPanel,

@@ -138,6 +138,22 @@ SUPPEX.repo = (function () {
        Resolves to null when there is no backend configured, which is what the
        file:// prototype does — the caller falls back to the message-only flow
        and nothing breaks. */
+    /* Current prices for the slugs in a cart.
+
+       Resolves to null with no backend configured, which is what the static
+       demo does — the caller then leaves the cart alone rather than wiping it. */
+    getPrices: function (slugs) {
+      if (!isRemote() || !slugs || !slugs.length) { return local(null); }
+      return remote(cfg.api.endpoints.prices || 'prices', { slugs: slugs.join(',') })
+        .catch(function () {
+          /* A failed refresh must not block checkout. The server recomputes
+             every price when the order is placed regardless, so the worst case
+             is the message showing a stale figure — which is exactly the state
+             we were in before, not a regression. */
+          return null;
+        });
+    },
+
     createOrder: function (payload) {
       if (!isRemote()) { return local(null); }
       return fetch(apiUrl('order'), {

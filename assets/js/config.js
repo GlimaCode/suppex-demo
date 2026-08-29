@@ -206,6 +206,7 @@ SUPPEX.config = {
     /* Route names for the ?r= front controller, not URL paths. */
     endpoints: {
       products: 'products',
+      prices: 'prices',
       product: 'product',
       categories: 'categories',
       search: 'search',

@@ -12,6 +12,7 @@
        GET  ?r=product&slug=…
        GET  ?r=categories
        GET  ?r=search&q=…
+       GET  ?r=prices&slugs=a,b,c   current prices, to refresh a stale cart
        GET  ?r=config          storefront settings (card details excluded)
        POST ?r=order           create an order, returns code + payment details
 
@@ -104,6 +105,56 @@ try {
                         'url' => setting('whatsapp_url'), 'prefillParam' => 'text'] : null,
                 ])),
             ], 200, 60);
+
+        /* Current prices for what is sitting in someone's cart.
+
+           The cart lives in localStorage and keeps the price it saw when the
+           item was added. With a dirham-linked catalogue that price is stale
+           within days, and the order message the customer pastes into chat is
+           built from it — so they would send one figure while the server
+           recorded another. One request, keyed by slug, is enough to
+           reconcile the whole cart before checkout. */
+        case 'prices':
+            $slugs = array_slice(array_filter(array_map(
+                static fn($s) => clean_text($s, 120),
+                explode(',', (string) ($_GET['slugs'] ?? ''))
+            )), 0, 50);
+
+            if (!$slugs) {
+                api_send([], 200, 0);
+            }
+
+            $in   = implode(',', array_fill(0, count($slugs), '?'));
+            $rows = db_all(
+                'SELECT id, slug, price, compare_at, in_stock, is_active
+                   FROM products WHERE slug IN (' . $in . ')',
+                $slugs
+            );
+
+            $out = [];
+            foreach ($rows as $r) {
+                $sizes = [];
+                foreach (db_all('SELECT ext_id, price, compare_at FROM product_sizes
+                                  WHERE product_id = ? ORDER BY sort_order, id',
+                                [(int) $r['id']]) as $sz) {
+                    $sizes[] = [
+                        'id'        => $sz['ext_id'],
+                        'price'     => (int) $sz['price'],
+                        'compareAt' => $sz['compare_at'] === null ? null : (int) $sz['compare_at'],
+                    ];
+                }
+                $out[] = [
+                    'slug'      => $r['slug'],
+                    'price'     => (int) $r['price'],
+                    'compareAt' => $r['compare_at'] === null ? null : (int) $r['compare_at'],
+                    /* A product hidden since the item was added is treated as
+                       unavailable rather than omitted, so the cart can say so
+                       instead of silently dropping a line. */
+                    'available' => ((int) $r['is_active'] === 1 && (int) $r['in_stock'] === 1),
+                    'sizes'     => $sizes,
+                ];
+            }
+            api_send($out, 200, 0);
 
         case 'order':
             if ($method !== 'POST') {
