@@ -73,7 +73,7 @@ function import_read_csv(string $path): array
 {
     $fh = @fopen($path, 'r');
     if ($fh === false) {
-        return ['rows' => [], 'error' => 'فایل خوانده نشد.'];
+        return ['rows' => [], 'error' => 'فایل خوانده نشد.', 'columns' => []];
     }
 
     /* Seek PAST the BOM rather than stripping it from the parsed field.
@@ -91,7 +91,7 @@ function import_read_csv(string $path): array
     $first = fgets($fh);
     if ($first === false) {
         fclose($fh);
-        return ['rows' => [], 'error' => 'فایل خالی است.'];
+        return ['rows' => [], 'error' => 'فایل خالی است.', 'columns' => []];
     }
 
     /* Whichever separator appears more often in the header line is the one in
@@ -102,7 +102,7 @@ function import_read_csv(string $path): array
     $header = fgetcsv($fh, 0, $delimiter);
     if ($header === false) {
         fclose($fh);
-        return ['rows' => [], 'error' => 'سطر عنوان خوانده نشد.'];
+        return ['rows' => [], 'error' => 'سطر عنوان خوانده نشد.', 'columns' => []];
     }
 
     /* Map the sheet's header labels onto our keys. Matching on the Persian
@@ -119,7 +119,7 @@ function import_read_csv(string $path): array
 
     if (!in_array('name_fa', $map, true)) {
         fclose($fh);
-        return ['rows' => [], 'error' =>
+        return ['rows' => [], 'columns' => [], 'error' =>
             'ستون «' . IMPORT_COLUMNS['name_fa'] . '» در فایل پیدا نشد. ' .
             'از همان فایل نمونه استفاده کنید و عنوان ستون‌ها را عوض نکنید.'];
     }
@@ -140,7 +140,11 @@ function import_read_csv(string $path): array
     }
     fclose($fh);
 
-    return ['rows' => $rows, 'error' => null];
+    /* Which columns the file actually carried. A column that is absent is
+       not the same as a column left blank: a sheet without a commission column
+       says nothing about commission, and must not clear the rates already
+       agreed. */
+    return ['rows' => $rows, 'error' => null, 'columns' => array_values($map)];
 }
 
 /**
@@ -151,11 +155,15 @@ function import_read_csv(string $path): array
  *
  * @return array{products:array,errors:array<int,string>,warnings:array<int,string>}
  */
-function import_plan(array $rows): array
+function import_plan(array $rows, array $columns = []): array
 {
     $products = [];
     $errors   = [];
     $warnings = [];
+
+    /* An empty list means "assume the file could speak about everything",
+       which is what every caller predating this argument intended. */
+    $has = static fn(string $key): bool => $columns === [] || in_array($key, $columns, true);
 
     $rate = pricing_rate();
 
@@ -243,6 +251,17 @@ function import_plan(array $rows): array
             continue;
         }
 
+        /* A discount in this system is an amount off the margin, and the cap
+           that stops it eating the margin needs a margin to measure. On a typed
+           price with no cost there is none, so the discount was being capped to
+           zero and silently dropped while the preview still showed it. Refused
+           instead: one more cell makes the number mean something. */
+        if ($promo > 0 && $costAed === null && $costToman <= 0) {
+            $errors[] = 'سطر ' . $line . ': برای تخفیف، قیمت خرید لازم است — ' .
+                'بدون آن معلوم نیست تخفیف از چه چیزی کم می‌شود.';
+            continue;
+        }
+
         /* pricing_compute() caps a promo at half the profit rather than
            refusing it, so an over-large discount would quietly become a
            smaller one. Say so here instead — a discount the operator typed
@@ -274,6 +293,13 @@ function import_plan(array $rows): array
                 'description' => clean_text($row['description'] ?? '', 4000),
                 'flavors'  => import_flavors($row['flavors'] ?? ''),
                 'in_stock' => import_truthy($row['in_stock'] ?? '1'),
+                /* Distinguished from its value: "in stock" is what a blank
+                   cell means on a NEW product, but on an existing one a blank
+                   cell must not overrule someone who marked it unavailable an
+                   hour ago. */
+                'in_stock_given' => $has('in_stock')
+                    && trim((string) ($row['in_stock'] ?? '')) !== '',
+                'has_commission_column' => $has('commission'),
                 'sizes'    => [],
                 'lines'    => [],
             ];
@@ -331,8 +357,15 @@ function import_plan(array $rows): array
            a catalogue that has been imported but not yet repriced would
            otherwise book every sale as pure profit — which is the number the
            partnership share is computed from. */
-        $costInToman = $costToman > 0 ? $costToman
-            : ($computed !== null ? (int) $computed['cost'] : null);
+        /* Only a cost the row actually stated. On the typed-price route with
+           no cost, pricing_from_cost() is handed the price itself as the cost,
+           so $computed['cost'] there is the shelf price wearing a cost's name -
+           and storing it made every order book zero profit on a line the shop
+           genuinely earns on. Unknown has to stay NULL: order_price_line()
+           already treats a missing cost as unknown rather than as zero. */
+        $costInToman = $costToman > 0
+            ? $costToman
+            : (($costAed !== null && $computed !== null) ? (int) $computed['cost'] : null);
 
         $products[$key]['sizes'][] = [
             'label'        => $sizeLabel,
@@ -347,6 +380,33 @@ function import_plan(array $rows): array
             'compare_at'   => $computed !== null ? $computed['compare_at'] : null,
             'line'         => $line,
         ];
+    }
+
+    /* A sheet row with no size, for a product that already has sizes, is the
+       quietest destructive act available: apply replaces sizes wholesale, so
+       the variants and every cost and rate on them would vanish, and the
+       success message would say one product updated.
+
+       Refused rather than skipped. The operator either lists the sizes or
+       takes the product out of the sheet - both are ten seconds, and both are
+       a decision somebody made. */
+    foreach ($products as $p) {
+        $unnamed = count($p['sizes']) === 1 && $p['sizes'][0]['label'] === '';
+        if (!$unnamed) {
+            continue;
+        }
+        $existingId = db_value('SELECT id FROM products WHERE name_fa = ?', [$p['name_fa']]);
+        if ($existingId === null) {
+            continue;
+        }
+        $existingSizes = (int) db_value(
+            'SELECT COUNT(*) FROM product_sizes WHERE product_id = ?', [(int) $existingId]);
+        if ($existingSizes > 0) {
+            $errors[] = 'سطر ' . $p['sizes'][0]['line'] . ': «' . $p['name_fa'] .
+                '» در فروشگاه ' . $existingSizes . ' اندازه دارد، ' .
+                'ولی در فایل یک سطر بدون اندازه آمده است. ' .
+                'یا همه اندازه‌ها را در فایل بنویسید، یا این سطر را بردارید.';
+        }
     }
 
     /* A product with exactly one unnamed size is a single-price product, not a
@@ -420,7 +480,13 @@ function import_flavors($raw): array
 function import_truthy(string $v): bool
 {
     $v = mb_strtolower(trim(to_latin_digits($v)));
-    return !in_array($v, ['0', 'no', 'false', 'خیر', 'ناموجود', 'نه', ''], true);
+    /* A blank cell is not a "no". The sheet's own instructions say an empty
+       stock column means the product is available, and the empty string sitting
+       in this list meant every row that left it blank imported as out of stock -
+       invisible on the shop, with nothing saying why. On an UPDATE a blank cell
+       is handled a level up, by in_stock_given, which leaves the column alone
+       rather than asserting either answer. */
+    return !in_array($v, ['0', 'no', 'false', 'خیر', 'ناموجود', 'نه'], true);
 }
 
 /**
@@ -501,14 +567,48 @@ function import_apply(array $products, array $admin): array
 
             if ($existing !== null) {
                 $id = (int) $existing;
-                $was = db_value('SELECT commission_percent FROM products WHERE id = ?', [$id]);
-                $was = $was === null ? null : (float) $was;
-                if ($was !== $parentRate) {
-                    $rateLog[] = ['product', $id, $p['name_fa'], $was, $parentRate];
+
+                /* Only what the sheet actually said. A blank cell in a
+                   sixteen-column file is not an instruction to erase a
+                   two-dozen-column product: it is a column the person filling
+                   the sheet had no opinion about. */
+                $update = $fields;
+                foreach (['name_en', 'brand', 'short', 'description', 'category_id'] as $soft) {
+                    if (($update[$soft] ?? null) === null || $update[$soft] === '') {
+                        unset($update[$soft]);
+                    }
                 }
-                $set = implode(', ', array_map(static fn($c) => $c . ' = ?', array_keys($fields)));
+
+                /* Never on an update. A product taken off the shop on purpose -
+                   out of stock for a month, a supplier dispute - must not come
+                   back because somebody re-imported a price list. */
+                unset($update['is_active']);
+
+                /* Same reasoning one level down: a blank stock cell means "not
+                   my department", and a file with no stock column at all says
+                   nothing whatsoever about it. */
+                if (empty($p['in_stock_given'])) {
+                    unset($update['in_stock']);
+                }
+
+                /* A file without a commission column - the copy handed to
+                   whoever types the catalogue in - must not clear the rates
+                   the two parties agreed on the copy that had one. */
+                if (!($p['has_commission_column'] ?? true)) {
+                    unset($update['commission_percent']);
+                }
+
+                if (array_key_exists('commission_percent', $update)) {
+                    $was = db_value('SELECT commission_percent FROM products WHERE id = ?', [$id]);
+                    $was = $was === null ? null : (float) $was;
+                    if ($was !== $parentRate) {
+                        $rateLog[] = ['product', $id, $p['name_fa'], $was, $parentRate];
+                    }
+                }
+
+                $set = implode(', ', array_map(static fn($c) => $c . ' = ?', array_keys($update)));
                 db_query('UPDATE products SET ' . $set . ' WHERE id = ?',
-                    array_merge(array_values($fields), [$id]));
+                    array_merge(array_values($update), [$id]));
                 $updated++;
             } else {
                 $fields['slug'] = unique_slug(
@@ -540,18 +640,37 @@ function import_apply(array $products, array $admin): array
 
             /* Sizes are replaced wholesale — the sheet is the source of truth,
                and a size dropped from it should disappear rather than linger. */
+            /* Same rule as the parent row one level up: a file with no
+               commission column says nothing about the rates on the sizes
+               either, and sizes are replaced wholesale. Carried across the
+               rebuild by ext_id, the only stable handle a size has - which is
+               exactly what admin/product-edit.php does on its own replace. */
+            $keptRates = [];
+            if (!($p['has_commission_column'] ?? true)) {
+                foreach (db_all('SELECT ext_id, commission_percent
+                                   FROM product_sizes WHERE product_id = ?', [$id]) as $old) {
+                    $keptRates[(string) $old['ext_id']] = $old['commission_percent'] === null
+                        ? null : (float) $old['commission_percent'];
+                }
+            }
+
             db_query('DELETE FROM product_sizes WHERE product_id = ?', [$id]);
             foreach ($p['sizes'] as $i => $s) {
+                $ext  = slugify($s['label']) ?: 's' . $i;
+                $rate = ($p['has_commission_column'] ?? true)
+                    ? $s['commission']
+                    : ($keptRates[$ext] ?? null);
+
                 db_query(
                     'INSERT INTO product_sizes
                         (product_id, ext_id, label, servings, price, compare_at,
                          cost_aed, cost_toman, profit_toman, promo_toman,
                          price_applied_rate, commission_percent, sort_order)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [$id, slugify($s['label']) ?: 's' . $i, $s['label'], $s['servings'],
+                    [$id, $ext, $s['label'], $s['servings'],
                      (int) $s['price'], $s['compare_at'],
                      $s['cost_aed'], $s['cost_toman'], $s['profit_toman'], $s['promo_toman'],
-                     $s['applied_rate'], $s['commission'], $i]
+                     $s['applied_rate'], $rate, $i]
                 );
                 $sizes++;
                 if ($s['commission'] !== null && $s['commission'] !== $parentRate) {
@@ -561,6 +680,20 @@ function import_apply(array $products, array $admin): array
             }
 
             if ($p['sizes']) {
+                /* Decided for every sized product, not only for priced ones.
+                   admin/import.php invites importing before a dirham rate
+                   exists, and then every size prices at zero - so this block's
+                   old home inside the cheapest-size guard never ran, the
+                   product stayed 'manual', and pricing_units() (which selects
+                   only price_mode = "aed") could never reprice it. The
+                   catalogue would sit at zero with the pricing page reporting
+                   nothing to do. */
+                $anyAed = (int) db_value(
+                    'SELECT COUNT(*) FROM product_sizes
+                      WHERE product_id = ? AND cost_aed IS NOT NULL', [$id]) > 0;
+                db_query('UPDATE products SET price_mode = ? WHERE id = ?',
+                    [$anyAed ? 'aed' : 'manual', $id]);
+
                 /* The card price tracks the cheapest size, same rule the
                    pricing page uses. */
                 $cheapest = db_one(
@@ -578,18 +711,14 @@ function import_apply(array $products, array $admin): array
                        "aed" — a catalogue bought in toman is not repriced when
                        the dirham moves, and marking it dirham-linked would put
                        it in the pricing preview asking to be changed. */
-                    $anyAed = (int) db_value(
-                        'SELECT COUNT(*) FROM product_sizes
-                          WHERE product_id = ? AND cost_aed IS NOT NULL', [$id]) > 0;
                     db_query('UPDATE products
                                  SET price = ?, compare_at = ?, cost_toman = ?,
-                                     price_applied_rate = ?, price_mode = ?
+                                     price_applied_rate = ?
                                WHERE id = ?',
                         [(int) $cheapest['price'],
                          $cheapest['compare_at'] === null ? null : (int) $cheapest['compare_at'],
                          $cheapest['cost_toman'] === null ? null : (int) $cheapest['cost_toman'],
-                         $cheapest['price_applied_rate'],
-                         $anyAed ? 'aed' : 'manual', $id]);
+                         $cheapest['price_applied_rate'], $id]);
                 }
             }
         }

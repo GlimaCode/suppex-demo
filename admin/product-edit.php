@@ -147,6 +147,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     $slugBase  = $slugInput !== '' ? slugify($slugInput) : slugify($nameEn !== '' ? $nameEn : $nameFa);
 
     if (!$errors) {
+        $costTomanRaw = trim(to_latin_digits((string) ($_POST['cost_toman'] ?? '')));
+        $costToman    = $costTomanRaw === '' ? null : parse_money($costTomanRaw);
+        $existingCostToman = $isNew ? null
+            : db_value('SELECT cost_toman FROM products WHERE id = ?', [$id]);
+        $existingCostToman = $existingCostToman === null ? null : (int) $existingCostToman;
+
         $fields = [
             'slug'              => unique_slug($slugBase, 'products', $isNew ? null : $id),
             'name_fa'           => $nameFa,
@@ -172,6 +178,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                and rounding that to 42 loses about 1% of the cost basis on
                every single unit. */
             'cost_aed'          => $costAed,
+            /* What the unit cost in toman. For a dirham purchase this is
+               derived - cost_aed times the rate the price was applied at - and
+               the typed value is ignored, because two costs for one purchase
+               is two different claims. For a purchase made inside Iran it is
+               the only cost there is, and without it every order books the
+               whole price as profit. */
+            'cost_toman'        => $costAed !== null ? $existingCostToman : $costToman,
             'profit_toman'      => $profitToman,
             'price_mode'        => $priceMode,
             'commission_percent' => $commissionOverride,
@@ -229,13 +242,33 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 );
             }
 
+            /* Sizes are replaced wholesale so a row dropped from the form
+               disappears. But replacing a row is not the same as forgetting
+               what was on it: the agreed commission rate, the discount, and
+               the cost the price was built from are all set elsewhere - by the
+               catalogue import and the pricing page - and this form has no
+               input for any of them. Until they were carried across, opening a
+               product and pressing save without changing anything silently
+               erased five values, including a rate that decides money moving
+               between two parties.
+
+               Keyed by ext_id, the only stable handle a size has. */
+            $keep = [];
+            foreach (db_all('SELECT ext_id, cost_toman, promo_toman, commission_percent,
+                                    price_applied_rate, price_applied_at
+                               FROM product_sizes WHERE product_id = ?', [$id]) as $old) {
+                $keep[(string) $old['ext_id']] = $old;
+            }
+
             db_query('DELETE FROM product_sizes WHERE product_id = ?', [$id]);
             $sIds      = (array) ($_POST['size_id'] ?? []);
+            $sPrevIds  = (array) ($_POST['size_prev_id'] ?? []);
             $sLabels   = (array) ($_POST['size_label'] ?? []);
             $sServings = (array) ($_POST['size_servings'] ?? []);
             $sPrices   = (array) ($_POST['size_price'] ?? []);
             $sCompares = (array) ($_POST['size_compare'] ?? []);
             $sCostAed  = (array) ($_POST['size_cost_aed'] ?? []);
+            $sCostTom  = (array) ($_POST['size_cost_toman'] ?? []);
             $sProfit   = (array) ($_POST['size_profit'] ?? []);
             foreach ($sLabels as $i => $label) {
                 $label = clean_text((string) $label, 120);
@@ -253,17 +286,40 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 $sAed     = $sAedRaw === '' ? null : round((float) str_replace(',', '', $sAedRaw), 2);
                 $sProfitT = parse_money($sProfit[$i] ?? '');
 
+                $extFinal = $ext !== '' ? $ext : slugify($label);
+
+                /* Matched on the id the row arrived with, falling back to the
+                   one it is being saved under. Renaming a size must not quietly
+                   drop the rate agreed on it. */
+                $prevId = clean_text((string) ($sPrevIds[$i] ?? ''), 60);
+                $prev   = $keep[$prevId] ?? ($keep[$extFinal] ?? null);
+
+                /* Same rule as the product row: a dirham cost derives the toman
+                   one, so the derived figure is kept rather than overwritten by
+                   whatever is in a field that does not apply. */
+                $sCostTomRaw = trim(to_latin_digits((string) ($sCostTom[$i] ?? '')));
+                $sCostToman  = ($sAed !== null && $sAed > 0)
+                    ? ($prev['cost_toman'] ?? null)
+                    : ($sCostTomRaw === '' ? ($prev['cost_toman'] ?? null) : parse_money($sCostTomRaw));
+
                 db_query(
                     'INSERT INTO product_sizes
                         (product_id, ext_id, label, servings, price, compare_at,
-                         cost_aed, profit_toman, sort_order)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [$id, $ext !== '' ? $ext : slugify($label), $label,
+                         cost_aed, cost_toman, profit_toman, promo_toman,
+                         commission_percent, price_applied_rate, price_applied_at,
+                         sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [$id, $extFinal, $label,
                      $serv > 0 ? $serv : null,
                      $sPrice > 0 ? $sPrice : $price,
                      ($sComp !== null && $sComp > 0) ? $sComp : null,
                      ($sAed !== null && $sAed > 0) ? $sAed : null,
+                     $sCostToman,
                      $sProfitT > 0 ? $sProfitT : null,
+                     $prev['promo_toman'] ?? null,
+                     $prev['commission_percent'] ?? null,
+                     $prev['price_applied_rate'] ?? null,
+                     $prev['price_applied_at'] ?? null,
                      $i]
                 );
             }
@@ -461,6 +517,17 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
       </div>
 
       <div class="field">
+        <label for="cost_toman">قیمت خرید به تومان</label>
+        <input type="text" id="cost_toman" name="cost_toman" inputmode="numeric"
+               placeholder="650000" value="<?= e(v($product, 'cost_toman')) ?>">
+        <span class="hint">
+          فقط برای قلمی که داخل ایران خریده می‌شود. اگر خرید
+          درهمی است خالی بگذارید — خودش از نرخ روز حساب می‌شود.
+          بدون قیمت خرید، سود این قلم در گزارش‌ها صفر دیده می‌شود.
+        </span>
+      </div>
+
+      <div class="field">
         <label for="profit_toman">سود شما روی این محصول (تومان)</label>
         <input type="text" id="profit_toman" name="profit_toman" inputmode="numeric"
                placeholder="1750000" value="<?= e(v($product, 'profit_toman')) ?>">
@@ -539,7 +606,7 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
       <div class="gallery">
         <?php foreach ($images as $img): ?>
           <div class="gallery__item">
-            <img src="<?= e($img['path']) ?>" alt="" loading="lazy">
+            <img src="<?= e(admin_img($img['path'])) ?>" alt="" loading="lazy">
             <?php if ($img['path'] === v($product, 'image')): ?>
               <span class="gallery__main">اصلی</span>
             <?php endif; ?>
@@ -610,11 +677,13 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
     <div class="rows" data-repeat="size">
       <div class="rows__row rows__row--5 rows__head">
         <span>شناسه</span><span>عنوان</span><span>سروینگ</span>
-        <span>خرید (درهم)</span><span>سود (تومان)</span><span>قیمت فروش</span><span></span>
+        <span>خرید (درهم)</span><span>خرید (تومان)</span>
+        <span>سود (تومان)</span><span>قیمت فروش</span><span></span>
       </div>
       <?php
       $sizeRows = $sizes ?: [['ext_id' => '', 'label' => '', 'servings' => '', 'price' => '',
-                             'compare_at' => '', 'cost_aed' => '', 'profit_toman' => '']];
+                             'compare_at' => '', 'cost_aed' => '', 'cost_toman' => '',
+                             'profit_toman' => '']];
       foreach ($sizeRows as $s): ?>
         <div class="rows__row rows__row--5" data-row>
           <input type="text" name="size_id[]" dir="ltr" placeholder="900" value="<?= e($s['ext_id']) ?>">
@@ -622,10 +691,19 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
           <input type="text" name="size_servings[]" inputmode="numeric" value="<?= e((string) $s['servings']) ?>">
           <input type="text" name="size_cost_aed[]" dir="ltr" inputmode="decimal"
                  placeholder="42.50" value="<?= e((string) ($s['cost_aed'] ?? '')) ?>">
+          <input type="text" name="size_cost_toman[]" inputmode="numeric"
+                 placeholder="650000" value="<?= e((string) ($s['cost_toman'] ?? '')) ?>">
           <input type="text" name="size_profit[]" inputmode="numeric"
                  placeholder="1750000" value="<?= e((string) ($s['profit_toman'] ?? '')) ?>">
           <input type="text" name="size_price[]" inputmode="numeric" value="<?= e((string) $s['price']) ?>">
           <input type="hidden" name="size_compare[]" value="<?= e((string) $s['compare_at']) ?>">
+          <?php /* What this row was called when the page was rendered. The
+                   visible شناسه is editable and the label can be renamed, so
+                   the values this form has no input for - the commission rate,
+                   the discount, the cost - are matched on this instead. A row
+                   the operator adds by hand sends an empty one and correctly
+                   inherits nothing. */ ?>
+          <input type="hidden" name="size_prev_id[]" value="<?= e((string) $s['ext_id']) ?>">
           <button class="rows__del" type="button" data-del aria-label="حذف">×</button>
         </div>
       <?php endforeach; ?>
@@ -635,6 +713,9 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
     </button>
     <p class="hint" style="margin-block-start:10px">
       اگر محصول فقط یک اندازه دارد، این بخش را خالی بگذارید — قیمت اصلی محصول استفاده می‌شود.
+      <br>
+      برای هر اندازه فقط یکی از دو ستون خرید را پر کنید: درهم برای جنس
+      وارداتی، تومان برای جنسی که داخل ایران خریده می‌شود.
       <br>
       در حالت درهمی، قیمت فروش هر اندازه از قیمت خرید و سود همان اندازه
       ساخته می‌شود — دستی واردش نکنید.
@@ -690,7 +771,7 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
     <div class="gallery">
       <?php foreach ($images as $img): ?>
         <div class="gallery__item">
-          <img src="<?= e($img['path']) ?>" alt="" loading="lazy">
+          <img src="<?= e(admin_img($img['path'])) ?>" alt="" loading="lazy">
           <form method="post" action="product-edit.php?id=<?= $id ?>">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="del_image">

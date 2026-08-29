@@ -118,7 +118,7 @@ admin_head('محصولات', [
           <tr>
             <td>
               <?php if ($p['image'] !== ''): ?>
-                <img class="t-thumb" src="<?= e($p['image']) ?>" alt="" loading="lazy">
+                <img class="t-thumb" src="<?= e(admin_img($p['image'])) ?>" alt="" loading="lazy">
               <?php else: ?>
                 <div class="t-thumb"></div>
               <?php endif; ?>

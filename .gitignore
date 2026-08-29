@@ -1,3 +1,6 @@
 
 # Excel's lock file for a workbook someone has open.
 ~$*
+
+# Editor tooling, not part of the site.
+.claude/

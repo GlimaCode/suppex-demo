@@ -440,7 +440,7 @@ select {
   align-items: center;
 }
 .rows__row--3 { grid-template-columns: 1fr 1fr auto; }
-.rows__row--5 { grid-template-columns: .7fr 1fr .6fr .8fr 1fr 1fr auto; }
+.rows__row--5 { grid-template-columns: .7fr 1fr .55fr .7fr .9fr .9fr .9fr auto; }
 .rows__del {
   width: 34px; height: 34px;
   display: grid; place-items: center;

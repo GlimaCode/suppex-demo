@@ -54,8 +54,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             } elseif (!$read['rows']) {
                 $errors[] = 'هیچ سطر داده‌ای در فایل نبود.';
             } else {
-                $plan = import_plan($read['rows']);
-                $_SESSION['import_plan'] = $plan['products'];
+                /* The column list travels with the rows: a column absent
+                   from the file must not be cleared on an update. */
+                $plan = import_plan($read['rows'], $read['columns'] ?? []);
+
+                /* Only a clean plan is parked for the apply step, and a
+                   refused one clears whatever was there.
+
+                   The errors were being shown on screen while the products
+                   went into the session regardless, so the apply form of an
+                   earlier, clean preview would write a plan the validator had
+                   since rejected - which made every check in import_plan() a
+                   suggestion rather than a rule. */
+                if ($plan['errors']) {
+                    unset($_SESSION['import_plan']);
+                } else {
+                    $_SESSION['import_plan'] = $plan['products'];
+                }
             }
         }
     }

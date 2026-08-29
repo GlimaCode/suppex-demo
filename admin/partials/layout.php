@@ -66,6 +66,25 @@ function admin_icon(string $name): string
          . $body . '</svg>';
 }
 
+/**
+ * A product image path, resolvable from anywhere under /admin/.
+ *
+ * Uploads are stored absolute; the seeded catalogue is stored relative to the
+ * site root, which the admin is not. Left alone, a relative path resolves
+ * against /admin/ and 404s.
+ */
+function admin_img(?string $path): string
+{
+    $path = trim((string) $path);
+    if ($path === '') {
+        return '';
+    }
+    if ($path[0] === '/' || preg_match('~^(https?:)?//~', $path) === 1) {
+        return $path;
+    }
+    return '../' . $path;
+}
+
 function admin_head(string $title, array $opts = []): void
 {
     $user    = $opts['user'] ?? auth_user();
