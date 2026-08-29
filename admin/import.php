@@ -118,11 +118,19 @@ admin_head('ورود گروهی محصولات', ['user' => $user]);
       <tbody>
         <tr><td class="t-title">قیمت خرید (درهم)</td>
             <td class="t-sub">عدد درهمی که برای خرید همان قوطی داده‌اید — مثلاً <span class="num">40</span>.
-              اگر محصولی را به تومان می‌خرید، این را خالی بگذارید و
-              فقط «قیمت فروش» را پر کنید.</td></tr>
+              قیمت این قلم با نرخ روز درهم خودش به‌روز می‌شود.</td></tr>
+        <tr><td class="t-title">قیمت خرید (تومان)</td>
+            <td class="t-sub">برای قلمی که داخل ایران خریده می‌شود.
+              <strong>فقط یکی از این دو ستون را پر کنید، نه هر دو را.</strong>
+              قیمت این قلم ثابت می‌ماند و با نرخ درهم تکان نمی‌خورد.</td></tr>
         <tr><td class="t-title">سود (تومان)</td>
-            <td class="t-sub">سودی که روی همان قوطی می‌خواهید. قیمت فروش از روی
-              این دو ستون و نرخ روز درهم ساخته می‌شود.</td></tr>
+            <td class="t-sub">سودی که روی همان قوطی می‌خواهید. قیمت فروش
+              از قیمت خرید + همین عدد ساخته می‌شود.</td></tr>
+        <tr><td class="t-title">قیمت فروش (تومان)</td>
+            <td class="t-sub">فقط وقتی قیمت را بازار تعیین کرده، نه حاشیه سود شما.
+              در این حالت ستون سود را خالی بگذارید ولی
+              <strong>قیمت خرید را حتماً بنویسید</strong> — بدون آن،
+              سود این قلم در گزارش‌ها صفر دیده می‌شود.</td></tr>
         <tr><td class="t-title">درصد همکاری</td>
             <td class="t-sub"><strong>خالی = درصد پیش‌فرض فروشگاه.</strong>
               فقط برای محصولی عدد بنویسید که جداگانه توافق شده —
@@ -210,11 +218,15 @@ admin_head('ورود گروهی محصولات', ['user' => $user]);
            per-product share, so most previews are two columns narrower. */
         $anyPromo = false;
         $anyRate  = false;
+        $anyAed   = false;
+        $anyToman = false;
         foreach ($plan['products'] as $pp) {
             foreach (($pp['sizes'] ?: [$pp['single'] ?? null]) as $uu) {
                 if (!is_array($uu)) { continue; }
                 if (!empty($uu['promo_toman'])) { $anyPromo = true; }
                 if (($uu['commission'] ?? null) !== null) { $anyRate = true; }
+                if (($uu['cost_aed'] ?? null) !== null) { $anyAed = true; }
+                if (!empty($uu['cost_toman'])) { $anyToman = true; }
             }
         }
       ?>
@@ -223,7 +235,9 @@ admin_head('ورود گروهی محصولات', ['user' => $user]);
           <thead>
             <tr>
               <th>محصول</th><th>دسته</th><th>اندازه</th>
-              <th>خرید (درهم)</th><th>سود</th>
+              <?php if ($anyAed): ?><th>خرید (درهم)</th><?php endif; ?>
+              <?php if ($anyToman): ?><th>هزینه به تومان</th><?php endif; ?>
+              <th>سود</th>
               <?php if ($anyPromo): ?><th>تخفیف</th><?php endif; ?>
               <?php if ($anyRate): ?><th>سهم ما</th><?php endif; ?>
               <th class="u-right">قیمت فروش</th>
@@ -251,10 +265,17 @@ admin_head('ورود گروهی محصولات', ['user' => $user]);
                     <td rowspan="<?= count($units) ?>" class="u-dim"><?= e($p['category'] ?: '—') ?></td>
                   <?php endif; ?>
                   <td><?= e($u['label'] !== '' ? $u['label'] : '—') ?></td>
-                  <td class="num u-nowrap">
-                    <?= $u['cost_aed'] === null ? '—'
-                        : e(rtrim(rtrim(number_format((float) $u['cost_aed'], 2), '0'), '.')) ?>
-                  </td>
+                  <?php if ($anyAed): ?>
+                    <td class="num u-nowrap">
+                      <?= $u['cost_aed'] === null ? '—'
+                          : e(rtrim(rtrim(number_format((float) $u['cost_aed'], 2), '0'), '.')) ?>
+                    </td>
+                  <?php endif; ?>
+                  <?php if ($anyToman): ?>
+                    <td class="num u-nowrap">
+                      <?= empty($u['cost_toman']) ? '—' : money((int) $u['cost_toman']) ?>
+                    </td>
+                  <?php endif; ?>
                   <td class="num u-nowrap u-dim">
                     <?= $u['profit_toman'] === null ? '—' : money((int) $u['profit_toman']) ?>
                   </td>

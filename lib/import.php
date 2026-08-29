@@ -35,6 +35,7 @@ const IMPORT_COLUMNS = [
     'category'     => 'دسته',
     'size_label'   => 'اندازه',
     'cost_aed'     => 'قیمت خرید (درهم)',
+    'cost_toman'   => 'قیمت خرید (تومان)',
     'profit_toman' => 'سود (تومان)',
     'price_toman'  => 'قیمت فروش (تومان)',
     'promo_toman'  => 'تخفیف (تومان)',
@@ -50,9 +51,14 @@ const IMPORT_COLUMNS = [
    safe default; this list exists so the preview can say which blanks were
    deliberate rather than making the operator diff two spreadsheets. */
 const IMPORT_OPTIONAL = [
-    'name_en', 'brand', 'category', 'size_label', 'price_toman', 'promo_toman',
+    'name_en', 'brand', 'category', 'size_label', 'cost_toman', 'price_toman', 'promo_toman',
     'commission', 'in_stock', 'flavors', 'servings', 'short', 'description',
 ];
+
+/* A purchase price in toman below this is a dirham figure typed into the
+   toman column — the mirror of the twenty-thousand guard on the dirham one.
+   No supplement the shop resells is bought for less. */
+const IMPORT_MIN_COST_TOMAN = 10000;
 
 /**
  * Read a CSV into rows keyed by our column names.
@@ -170,6 +176,7 @@ function import_plan(array $rows): array
 
         $costAedRaw = trim(to_latin_digits((string) ($row['cost_aed'] ?? '')));
         $costAed    = $costAedRaw === '' ? null : (float) str_replace(',', '', $costAedRaw);
+        $costToman  = parse_money($row['cost_toman'] ?? '');
         $profit     = parse_money($row['profit_toman'] ?? '');
         $price      = parse_money($row['price_toman'] ?? '');
         $promo      = parse_money($row['promo_toman'] ?? '');
@@ -190,13 +197,49 @@ function import_plan(array $rows): array
             continue;
         }
 
-        if ($costAed === null && $price <= 0) {
-            $errors[] = 'سطر ' . $line . ': یا قیمت خرید به درهم لازم است، یا قیمت فروش به تومان.';
+        /* One purchase price per row. Both filled is not a richer answer, it
+           is two different claims about what the tub cost, and nothing in the
+           file says which one the shop actually paid. */
+        if ($costAed !== null && $costToman > 0) {
+            $errors[] = 'سطر ' . $line . ': فقط یکی از دو ستون قیمت خرید ' .
+                '(درهم یا تومان) را پر کنید، نه هر دو را.';
+            continue;
+        }
+
+        /* The mirror of the dirham guard: a supplement is not bought for a few
+           thousand toman, so a small number here is a dirham figure that
+           landed in the wrong column. */
+        if ($costToman > 0 && $costToman < IMPORT_MIN_COST_TOMAN) {
+            $errors[] = 'سطر ' . $line . ': قیمت خرید ' . number_format($costToman) .
+                ' تومان غیرواقعی است — احتمالاً به درهم وارد شده.';
+            continue;
+        }
+
+        if ($costAed === null && $costToman <= 0 && $price <= 0) {
+            $errors[] = 'سطر ' . $line . ': یکی از این سه لازم است: ' .
+                'قیمت خرید به درهم، قیمت خرید به تومان، یا قیمت فروش.';
             continue;
         }
 
         if ($costAed !== null && $profit <= 0) {
             $errors[] = 'سطر ' . $line . ': برای قیمت‌گذاری درهمی، مقدار سود لازم است.';
+            continue;
+        }
+
+        /* A toman cost with neither a profit nor a price says what the tub
+           cost and nothing about what it sells for. */
+        if ($costToman > 0 && $profit <= 0 && $price <= 0) {
+            $errors[] = 'سطر ' . $line . ': با قیمت خرید تومانی، یا سود لازم است ' .
+                'یا قیمت فروش.';
+            continue;
+        }
+
+        /* A cost that is not below the price is a transposition, and it would
+           publish a product the shop loses money on every time it sells. */
+        if ($costToman > 0 && $price > 0 && $price <= $costToman) {
+            $errors[] = 'سطر ' . $line . ': قیمت فروش (' . number_format($price) .
+                ') از قیمت خرید (' . number_format($costToman) .
+                ') بیشتر نیست — احتمالاً جابه‌جا شده‌اند.';
             continue;
         }
 
@@ -253,19 +296,42 @@ function import_plan(array $rows): array
         $products[$key]['lines'][] = $line;
 
         $sizeLabel = clean_text($row['size_label'] ?? '', 120);
-        $computed  = ($costAed !== null && $rate !== null)
-            ? pricing_compute([
+        /* Three ways to reach a shelf price, in the order the shop thinks:
+
+           dirham cost + profit  — tracks the rate, repriced from the pricing page
+           toman cost  + profit  — fixed; bought inside Iran, so nothing to track
+           a typed price          — the market set it, not the markup
+
+           The third is the crowded-shelf case the shop described: where a
+           competitor decides the price, the cost is still worth recording,
+           because the profit on that line is exactly what the share is
+           computed from. */
+        $computed = null;
+        if ($costAed !== null && $rate !== null) {
+            $computed = pricing_compute([
                 'cost_aed'     => $costAed,
                 'profit_toman' => $profit,
                 'promo_toman'  => $promo,
-              ], $rate)
-            : null;
+            ], $rate);
+        } elseif ($costToman > 0 && $profit > 0) {
+            $computed = pricing_from_cost($costToman, $profit, $promo);
+        }
+
+        /* Whichever route was taken, the cost in toman is known now, so it is
+           recorded now. Orders read cost_toman to snapshot cost and profit, and
+           a catalogue that has been imported but not yet repriced would
+           otherwise book every sale as pure profit — which is the number the
+           partnership share is computed from. */
+        $costInToman = $costToman > 0 ? $costToman
+            : ($computed !== null ? (int) $computed['cost'] : null);
 
         $products[$key]['sizes'][] = [
             'label'        => $sizeLabel,
             'cost_aed'     => $costAed,
+            'cost_toman'   => $costInToman,
             'profit_toman' => $profit > 0 ? $profit : null,
             'promo_toman'  => $promo > 0 ? $promo : null,
+            'applied_rate' => ($costAed !== null && $computed !== null) ? $rate : null,
             'commission'   => $commission,
             'servings'     => $servings > 0 ? $servings : null,
             'price'        => $computed !== null ? $computed['price'] : $price,
@@ -405,9 +471,17 @@ function import_apply(array $products, array $admin): array
                 'price'        => $single !== null ? (int) $single['price'] : 0,
                 'compare_at'   => $single !== null ? $single['compare_at'] : null,
                 'cost_aed'     => $single !== null ? $single['cost_aed'] : null,
+                /* Written straight through for a toman purchase. Orders read
+                   cost_toman to snapshot their cost and profit, so a product
+                   without it books its whole price as profit — which is the
+                   number the partnership share is computed from. */
+                'cost_toman'   => $single !== null ? $single['cost_toman'] : null,
+                'price_applied_rate' => $single !== null ? $single['applied_rate'] : null,
                 'profit_toman' => $single !== null ? $single['profit_toman'] : null,
                 'promo_toman'  => $single !== null ? $single['promo_toman'] : null,
                 'commission_percent' => $parentRate,
+                /* Only a dirham cost makes a price worth re-deriving when the
+                   rate moves. A toman-bought line stays where it was put. */
                 'price_mode'   => ($single !== null && $single['cost_aed'] !== null) ? 'aed' : 'manual',
             ];
 
@@ -462,12 +536,13 @@ function import_apply(array $products, array $admin): array
                 db_query(
                     'INSERT INTO product_sizes
                         (product_id, ext_id, label, servings, price, compare_at,
-                         cost_aed, profit_toman, promo_toman, commission_percent, sort_order)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                         cost_aed, cost_toman, profit_toman, promo_toman,
+                         price_applied_rate, commission_percent, sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [$id, slugify($s['label']) ?: 's' . $i, $s['label'], $s['servings'],
                      (int) $s['price'], $s['compare_at'],
-                     $s['cost_aed'], $s['profit_toman'], $s['promo_toman'],
-                     $s['commission'], $i]
+                     $s['cost_aed'], $s['cost_toman'], $s['profit_toman'], $s['promo_toman'],
+                     $s['applied_rate'], $s['commission'], $i]
                 );
                 $sizes++;
                 if ($s['commission'] !== null && $s['commission'] !== $parentRate) {
@@ -479,11 +554,33 @@ function import_apply(array $products, array $admin): array
             if ($p['sizes']) {
                 /* The card price tracks the cheapest size, same rule the
                    pricing page uses. */
-                $cheapest = db_value(
-                    'SELECT MIN(price) FROM product_sizes WHERE product_id = ? AND price > 0', [$id]);
+                $cheapest = db_one(
+                    'SELECT price, compare_at, cost_toman, price_applied_rate
+                       FROM product_sizes
+                      WHERE product_id = ? AND price > 0
+                      ORDER BY price LIMIT 1', [$id]);
                 if ($cheapest !== null) {
-                    db_query('UPDATE products SET price = ?, price_mode = "aed" WHERE id = ?',
-                        [(int) $cheapest, $id]);
+                    /* The card tracks the cheapest size, and it has to carry
+                       that size's cost too: a product row showing one size's
+                       price against another size's cost is the mismatch that
+                       corrupted the commission ledger once already.
+
+                       price_mode follows the sizes rather than being forced to
+                       "aed" — a catalogue bought in toman is not repriced when
+                       the dirham moves, and marking it dirham-linked would put
+                       it in the pricing preview asking to be changed. */
+                    $anyAed = (int) db_value(
+                        'SELECT COUNT(*) FROM product_sizes
+                          WHERE product_id = ? AND cost_aed IS NOT NULL', [$id]) > 0;
+                    db_query('UPDATE products
+                                 SET price = ?, compare_at = ?, cost_toman = ?,
+                                     price_applied_rate = ?, price_mode = ?
+                               WHERE id = ?',
+                        [(int) $cheapest['price'],
+                         $cheapest['compare_at'] === null ? null : (int) $cheapest['compare_at'],
+                         $cheapest['cost_toman'] === null ? null : (int) $cheapest['cost_toman'],
+                         $cheapest['price_applied_rate'],
+                         $anyAed ? 'aed' : 'manual', $id]);
                 }
             }
         }
@@ -540,19 +637,24 @@ function import_template_csv(): string
         array_values(IMPORT_COLUMNS),
         /* Two rows, one product: this is the pattern to copy. */
         ['وی پروتئین اورجینال', 'Whey Original', 'SUPPEX', 'پروتئین',
-         '900 گرم', '40', '1500000', '', '', '', 'بله',
+         '900 گرم', '40', '', '1500000', '', '', '', 'بله',
          'شکلاتی، وانیلی، توت فرنگی', '30',
          'وی کنسانتره و ایزوله میکروفیلتر شده',
          'هر وعده ۲۴ گرم پروتئین دارد. بعد از تمرین با آب یا شیر مصرف شود.'],
         ['وی پروتئین اورجینال', 'Whey Original', 'SUPPEX', 'پروتئین',
-         '2270 گرم', '95', '2000000', '', '', '', 'بله', '', '76', '', ''],
+         '2270 گرم', '95', '', '2000000', '', '', '', 'بله', '', '76', '', ''],
         /* One size, so the size column stays empty. */
         ['کراتین مونوهیدرات', 'Creatine Monohydrate', 'SUPPEX', 'کراتین',
-         '', '18', '900000', '', '', '', 'بله', '', '100',
+         '', '18', '', '900000', '', '', '', 'بله', '', '100',
          'کراتین میکرونایز خالص', ''],
-        /* A crowded line: thin margin, and a lower share agreed on it. */
-        ['بی سی آمینو', 'BCAA 2:1:1', 'SUPPEX', 'آمینو',
-         '', '22', '700000', '', '50000', '8', 'بله', 'هندوانه، لیمو', '40',
+        /* Bought inside Iran: the toman column instead of the dirham one. */
+        ['مولتی ویتامین روزانه', 'Daily Multivitamin', 'SUPPEX', 'ویتامین و مکمل',
+         '', '', '650000', '600000', '', '', '', 'بله', '', '60',
+         'مولتی ویتامین کامل روزانه', ''],
+        /* A crowded line: the market sets the price, so it is typed in and the
+           cost is recorded beside it. */
+        ['بی سی آمینو', 'BCAA 2:1:1', 'SUPPEX', 'آمینو و BCAA',
+         '', '', '820000', '', '1150000', '50000', '8', 'بله', 'هندوانه، لیمو', '40',
          'آمینو شاخه‌دار با نسبت ۲:۱:۱', ''],
     ];
 

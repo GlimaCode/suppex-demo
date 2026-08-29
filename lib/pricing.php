@@ -93,8 +93,28 @@ function pricing_compute(array $unit, float $rate): ?array
         return null;
     }
 
-    $profit = max(0, (int) ($unit['profit_toman'] ?? 0));
-    $promo  = max(0, (int) ($unit['promo_toman'] ?? 0));
+    return pricing_from_cost(
+        (int) round($costAed * $rate),
+        (int) ($unit['profit_toman'] ?? 0),
+        (int) ($unit['promo_toman'] ?? 0)
+    );
+}
+
+/**
+ * Price one unit from a cost already in toman.
+ *
+ * The shop buys most things in dirham, but not everything: some lines are
+ * bought inside Iran and priced in toman from the start. Those follow exactly
+ * the same rounding and the same discount rule — the only difference is that
+ * their cost is not multiplied by anything, so their shelf price does not move
+ * when the dirham does.
+ *
+ * @return array{cost:int,price:int,compare_at:?int}
+ */
+function pricing_from_cost(int $cost, int $profit, int $promo): array
+{
+    $profit = max(0, $profit);
+    $promo  = max(0, $promo);
 
     /* A promo bigger than the profit sells at a loss, and one that eats most of
        it turns a 1,750,000-toman margin into pocket change without anybody
@@ -102,7 +122,6 @@ function pricing_compute(array $unit, float $rate): ?array
        sale" — is still honoured, just not to the point of self-harm. */
     $promo = min($promo, (int) floor($profit * PRICING_MAX_PROMO_SHARE));
 
-    $cost = (int) round($costAed * $rate);
     $full = pricing_round_up($cost + $profit);
     $now  = $promo > 0 ? pricing_round_up($cost + $profit - $promo) : $full;
 
