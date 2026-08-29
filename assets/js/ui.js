@@ -49,8 +49,14 @@ SUPPEX.ui = (function () {
     opts = opts || {};
     var cls = 'price' + (opts.large ? ' price--lg' : '');
     var html = '<div class="' + cls + '">';
-    html += '<span class="price__now num">' + money(product.price) +
-            ' <span class="price__unit">' + esc(cfg.currency.label) + '</span></span>';
+    /* The isolate goes on the digits, not on the whole price. With .num on
+       the outer span the run lays out LTR and تومان lands to the RIGHT of the
+       number - the first thing a Persian reader meets. The space is
+       non-breaking because it was the only break opportunity in the string,
+       which is how the price came to stack across three lines at 375px. */
+    html += '<span class="price__now"><span class="num">' + money(product.price) +
+            '</span>\u00a0<span class="price__unit">' + esc(cfg.currency.label) +
+            '</span></span>';
     if (product.onSale) {
       html += '<span class="price__was num">' + money(product.compareAt) + '</span>';
     }
@@ -138,7 +144,10 @@ SUPPEX.ui = (function () {
     if (!product.inStock) { left += '<span class="badge badge--outline">ناموجود</span>'; }
 
     var right = product.onSale
-      ? '<span class="badge badge--accent num">' + product.discountPercent + '%-</span>'
+      ? /* The minus was written last so that RTL reordering would carry it
+             to the front - but .num pins this run LTR, so it rendered as
+             "18%-". Written in the order it is meant to be read. */
+          '<span class="badge badge--accent num">\u2212' + product.discountPercent + '%</span>'
       : '';
 
     if (left || right) {
@@ -180,7 +189,10 @@ SUPPEX.ui = (function () {
         '<span class="ccard__label">' +
           '<span>' +
             '<span class="ccard__name">' + esc(cat.name) + '</span><br>' +
-            '<span class="ccard__count num">' + cat.count + ' محصول</span>' +
+            /* .num isolates LTR, so it belongs on the digit alone - around
+               the whole run it puts محصول to the right of the number. */
+            '<span class="ccard__count"><span class="num">' + cat.count +
+            '</span>\u00a0محصول</span>' +
           '</span>' +
           '<span class="ccard__go">' + icon('arrow') + '</span>' +
         '</span>' +

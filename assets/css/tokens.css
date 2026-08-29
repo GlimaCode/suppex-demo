@@ -34,8 +34,13 @@
   /* --- Text ------------------------------------------------------------- */
   --text:            #F2EDE3;
   --text-muted:      rgba(242, 237, 227, 0.62);
-  --text-dim:        rgba(242, 237, 227, 0.45);
-  --text-faint:      rgba(242, 237, 227, 0.28);
+  /* 0.50 is the lowest opacity that clears 4.5:1 on every ground this
+     theme uses. It was 0.45, which measured 4.0. */
+  --text-dim:        rgba(242, 237, 227, 0.50);
+  /* For incidental marks only, where 3:1 is the floor - reached at 0.37.
+     It was 0.28, which measured 2.3. Anything a customer needs to read
+     belongs on --text-dim instead. */
+  --text-faint:      rgba(242, 237, 227, 0.38);
 
   /* --- Lines ------------------------------------------------------------ */
   --line:            rgba(242, 237, 227, 0.11);

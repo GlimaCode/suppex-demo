@@ -675,3 +675,94 @@
   .scroll-x::-webkit-scrollbar { display: none; }
   .scroll-x > * { flex: 0 0 78%; scroll-snap-align: start; }
 }
+
+
+/* ── Touch targets ────────────────────────────────────────────────────────
+   Measured at 375px on the running site: these were the remaining controls
+   under the 44px floor. Each is given height through padding rather than a
+   fixed size, so the text inside still sets the width and nothing reflows. */
+
+/* Category filter chips: were 113x41. */
+.chip {
+  min-height: 44px;
+}
+
+/* "See all products": was 159x30. */
+.link-more {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The phone number in the footer is a tel: link on a phone - 93x22 is a
+   mis-tap, and the thing being mis-tapped is a call. */
+.footer a[href^="tel:"],
+.footer a[href^="mailto:"] {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* Footer navigation columns: 32x38 links stacked close together. Padding
+   rather than min-height so the list rhythm is not disturbed. */
+.footer__col a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding-block: 2px;
+}
+
+/* ── Tracking belongs to the Latin face ───────────────────────────────────
+   Persian is a joined script: letter-spacing pulls the joins apart, turning
+   «دسته‌بندی» into a row of separate glyphs. It is not a stylistic dial the
+   way it is in Latin.
+
+   These classes carry both scripts - a section eyebrow reads «پرفروش‌ترین‌ها»
+   here and "BESTSELLERS" elsewhere - so the tracking is not deleted, it is
+   moved onto the Latin runs, which .lat and .num already mark. */
+.u-display,
+.u-h1,
+.u-h2,
+.u-h3,
+.u-eyebrow,
+.section-head__eyebrow,
+.announce__item,
+.badge,
+.footer__col h3,
+.chip,
+.price__now,
+.price__unit {
+  letter-spacing: 0;
+}
+
+/* Latin inside those same components keeps the tracking it was designed with.
+   Archivo is not a joined script and reads better with a little air. */
+.u-eyebrow .lat,
+.section-head__eyebrow .lat,
+.announce__item .lat,
+.badge .lat,
+.footer__col h3 .lat,
+.chip .lat {
+  letter-spacing: var(--ls-eyebrow);
+}
+
+.u-display .lat,
+.u-h1 .lat,
+.u-h2 .lat {
+  letter-spacing: -0.02em;
+}
+
+/* Only the price numerals. .num is also used on mixed runs like «3 محصول»,
+   where tracking it would track the Persian half too. */
+.price__now,
+.price__was {
+  letter-spacing: -0.01em;
+}
+
+/* Persian paragraphs need more leading than a Latin face: the descenders and
+   the dots below ب پ ج collide at Latin values. Measured at 1.4 on the 11px
+   runs, which is tight even for Latin. */
+p:lang(fa),
+li:lang(fa) {
+  line-height: 1.9;
+}

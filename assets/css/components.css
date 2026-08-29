@@ -47,7 +47,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px; height: 42px;
+  /* 44 is the floor, and flex-shrink is what breaks it: in the 375px header
+     row the menu button was being compressed to 27px wide while its six
+     siblings stayed at their declared size. A 27px tap target beside the cart
+     is a mis-tap waiting to happen. */
+  width: 44px; height: 44px;
+  flex-shrink: 0;
   border-radius: var(--r-pill);
   color: var(--text);
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
@@ -223,7 +228,9 @@
 
 .price { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; }
 .price__now { font-size: 1.0625rem; font-weight: 900; letter-spacing: -0.01em; }
-.price__was { font-size: var(--fs-xs); color: var(--text-faint); text-decoration: line-through; }
+/* The struck price is not decoration: it is the number that makes the
+   discount mean something. On --text-faint it measured 2.3:1. */
+.price__was { font-size: var(--fs-xs); color: var(--text-dim); text-decoration: line-through; }
 .price__unit { font-size: var(--fs-xs); color: var(--text-dim); font-weight: 600; }
 .price--lg .price__now { font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.1rem); }
 .price--lg .price__was { font-size: 1rem; }
@@ -231,7 +238,8 @@
 /* Round add-to-cart button on the card */
 .add-btn {
   display: grid; place-items: center;
-  width: 40px; height: 40px;
+  /* The money button on every card. It was 40. */
+  width: 44px; height: 44px;
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--text);
@@ -873,29 +881,44 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
   gap: var(--sp-2);
   justify-content: center;
   align-items: center;
-  margin-block-start: var(--sp-4);
+  /* The buttons now carry 20px of their own padding, so the gap above them
+     comes almost entirely from that. */
+  margin-block-start: 0;
 }
 
+/* The mark is a 4px bar; the target is the whole 52x44 button.
+
+   Painted as a centred gradient rather than sized as a box, because the two
+   are different things: shrinking the button to the size of the bar is how a
+   4px tap target happens, and growing the bar to the size of the button loses
+   the mark. */
 .stage__dot {
-  width: 30px;
-  height: 4px;
+  width: 52px;
+  height: 44px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
-  background: rgba(242, 237, 227, 0.22);
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 30px 4px;
+  background-image: linear-gradient(rgba(242, 237, 227, 0.22), rgba(242, 237, 227, 0.22));
+  border-radius: var(--r-sm);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), width var(--dur-fast) var(--ease);
+  transition: background-size var(--dur-fast) var(--ease),
+              background-image var(--dur-fast) var(--ease);
 }
 
-/* A bar rather than a circle, and the active one grows: at this size a filled
-   dot and an empty one are the same smudge on a phone. */
 .stage__dot.is-on {
-  width: 52px;
-  background: var(--accent);
+  background-size: 52px 4px;
+  background-image: linear-gradient(var(--accent), var(--accent));
 }
 
-.stage__dot:hover { background: rgba(242, 237, 227, 0.45); }
-.stage__dot.is-on:hover { background: var(--accent); }
+.stage__dot:hover {
+  background-image: linear-gradient(rgba(242, 237, 227, 0.45), rgba(242, 237, 227, 0.45));
+}
+.stage__dot.is-on:hover {
+  background-image: linear-gradient(var(--accent), var(--accent));
+}
 
 .stage__dot:focus-visible {
   outline: 2px solid var(--accent);

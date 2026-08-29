@@ -933,7 +933,7 @@ SUPPEX.app = (function () {
       if ((product.badges || []).indexOf('bestseller') !== -1) { html += '<span class="badge badge--light">پرفروش</span>'; }
       if ((product.badges || []).indexOf('new') !== -1) { html += '<span class="badge badge--light">جدید</span>'; }
       flagWrap.innerHTML = '<div class="row" style="gap:6px">' + html + '</div>' +
-        (product.onSale ? '<span class="badge badge--accent num">' + product.discountPercent + '%-</span>' : '');
+        (product.onSale ? '<span class="badge badge--accent num">\u2212' + product.discountPercent + '%</span>' : '');
     }
 
     /* --- options --- */
@@ -985,8 +985,10 @@ SUPPEX.app = (function () {
       var s = selected.size;
       var onSale = cfg.flags.saleMode && s.compareAt && s.compareAt > s.price;
       set('[data-p-price]',
-        '<span class="price__now num">' + ui.money(s.price) +
-        ' <span class="price__unit">' + ui.esc(cfg.currency.label) + '</span></span>' +
+        /* Isolate the digits, not the price. See priceHtml() in ui.js. */
+        '<span class="price__now"><span class="num">' + ui.money(s.price) +
+        '</span>\u00a0<span class="price__unit">' + ui.esc(cfg.currency.label) +
+        '</span></span>' +
         (onSale ? '<span class="price__was num">' + ui.money(s.compareAt) + '</span>' : '') +
         '<span class="price__unit">شامل مالیات · ارسال رایگان بالای <span class="num">' +
           ui.money(cfg.freeShippingThreshold) + '</span></span>');
