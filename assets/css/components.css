@@ -846,3 +846,62 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
   justify-content: center;
   margin-block-start: var(--sp-6);
 }
+
+
+/* ── The tub as a discount shelf ──────────────────────────────────────────
+   The 3D tub cycles through whatever is on offer. The dots switch it by hand,
+   and the whole tub is a link to whichever product is showing. */
+
+/* Over the canvas, under the hint and the sticker. The canvas itself cannot
+   be a link, so this sits on top of it and carries the href. */
+.stage__link {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  /* No visible treatment of its own: the tub is the affordance. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stage__link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.stage__dots {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: center;
+  align-items: center;
+  margin-block-start: var(--sp-4);
+}
+
+.stage__dot {
+  width: 30px;
+  height: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(242, 237, 227, 0.22);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), width var(--dur-fast) var(--ease);
+}
+
+/* A bar rather than a circle, and the active one grows: at this size a filled
+   dot and an empty one are the same smudge on a phone. */
+.stage__dot.is-on {
+  width: 52px;
+  background: var(--accent);
+}
+
+.stage__dot:hover { background: rgba(242, 237, 227, 0.45); }
+.stage__dot.is-on:hover { background: var(--accent); }
+
+.stage__dot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage__dot { transition: none; }
+}

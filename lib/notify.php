@@ -127,8 +127,22 @@ function notify_post(string $url, array $payload, array $headers = [], bool $asJ
 
     $response = curl_exec($ch);
     $status   = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
     if ($response === false || $status >= 400) {
-        error_log('[suppex] notification failed (' . $status . '): ' . curl_error($ch));
+        /* The provider's own reason, not just the status. Telegram answers a
+           dead chat_id with 400 and "group chat was upgraded to a supergroup
+           chat" - which is the failure that will actually happen, because
+           converting a group changes its id and nothing here would otherwise
+           say so. A bare "400" sends whoever reads the log looking at the
+           token instead. */
+        $why = curl_error($ch);
+        if ($why === '' && is_string($response)) {
+            $body = json_decode($response, true);
+            $why  = is_array($body) && isset($body['description'])
+                ? (string) $body['description']
+                : mb_substr((string) $response, 0, 200);
+        }
+        error_log('[suppex] notification failed (' . $status . '): ' . $why);
     }
     curl_close($ch);
 }

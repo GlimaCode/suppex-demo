@@ -249,6 +249,100 @@ SUPPEX.hero3d = (function () {
     return out;
   }
 
+  /* --- the discount shelf ------------------------------------------------
+     The tub cycles through whatever is actually on offer, drawn as labels by
+     assets/js/hero-labels.js. Everything here is defensive: if the products
+     never arrive, or the label drawer is not on the page, the baked artwork
+     simply stays and nothing on screen is worse than it was. */
+
+  function startRotation(THREE, material, stage) {
+    var labels = SUPPEX.heroLabels;
+    var repo   = SUPPEX.repo;
+    if (!labels || !repo || !repo.getProducts) { return; }
+
+    repo.getProducts({ limit: 24 }).then(function (list) {
+      var deals = labels.pick(list);
+      if (deals.length === 0) { return; }
+
+      var textures = deals.map(function (p) {
+        var tex = new THREE.CanvasTexture(labels.draw(p));
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 8;
+        /* The drawn canvas has its origin top-left and the mesh's UVs grow
+           upward, the same mismatch the baked texture was flipped for. */
+        tex.flipY = true;
+        tex.needsUpdate = true;
+        return tex;
+      });
+
+      var at = 0;
+      var link = document.createElement('a');
+      link.className = 'stage__link';
+      link.setAttribute('aria-label', 'رفتن به این محصول');
+      stage.appendChild(link);
+
+      var dots = document.createElement('div');
+      dots.className = 'stage__dots';
+      dots.setAttribute('role', 'tablist');
+      dots.setAttribute('aria-label', 'محصولات تخفیف‌دار');
+
+      function show(i, viaUser) {
+        at = (i + deals.length) % deals.length;
+        material.map = textures[at];
+        material.needsUpdate = true;
+
+        var p = deals[at];
+        var page = (SUPPEX.config && SUPPEX.config.productPage) || 'product.html';
+        link.href = page + '?p=' + encodeURIComponent(p.slug);
+        link.title = p.nameFa || p.name || '';
+
+        Array.prototype.forEach.call(dots.children, function (b, n) {
+          b.classList.toggle('is-on', n === at);
+          b.setAttribute('aria-selected', n === at ? 'true' : 'false');
+          b.tabIndex = n === at ? 0 : -1;
+        });
+        if (viaUser) { hold = HOLD_AFTER_TOUCH; }
+      }
+
+      deals.forEach(function (p, i) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'stage__dot';
+        b.setAttribute('role', 'tab');
+        /* Named, not "slide 3": a screen reader should hear the product. */
+        b.setAttribute('aria-label', p.nameFa || p.name || ('محصول ' + (i + 1)));
+        b.addEventListener('click', function () { show(i, true); });
+        dots.appendChild(b);
+      });
+      if (deals.length > 1) {
+        stage.parentNode.appendChild(dots);
+      }
+
+      /* Advancing on a timer alone means the thing a visitor is reading can
+         vanish mid-sentence, so any deliberate interaction buys a longer
+         pause before the carousel takes over again. */
+      var EVERY = 5200;
+      var HOLD_AFTER_TOUCH = 14000;
+      var hold = 0;
+      var last = 0;
+
+      show(0, false);
+
+      if (deals.length > 1 && !prefersReducedMotion()) {
+        setInterval(function () {
+          if (document.hidden) { return; }
+          var now = Date.now();
+          if (hold > 0) { hold -= (now - last) || 0; last = now; return; }
+          last = now;
+          show(at + 1, false);
+        }, EVERY);
+      }
+    }).catch(function () {
+      /* The baked artwork is already on the tub; a failed fetch changes
+         nothing the visitor can see. */
+    });
+  }
+
   /* --- the scene --------------------------------------------------------- */
 
   function build(stage) {
@@ -272,6 +366,12 @@ SUPPEX.hero3d = (function () {
       geometry.addGroup(grp.start, grp.count, slot);
     });
     var materialList = order.map(function (name) { return materials[name]; });
+
+    /* The label material is the one thing the rotator needs; everything else
+       about the tub stays as modelled. */
+    if (materials['label-print']) {
+      startRotation(THREE, materials['label-print'], stage);
+    }
 
     var scene = new THREE.Scene();
     var env = buildEnvironment(THREE);
