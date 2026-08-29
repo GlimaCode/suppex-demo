@@ -316,6 +316,55 @@ function backup_uploads_summary(): array
     return ['path' => $dir, 'files' => $files, 'bytes' => $bytes, 'readable' => true];
 }
 
+
+/**
+ * Read the export back through the importer that will consume it.
+ *
+ * A backup file nobody has ever read is a hope, not a backup. This one has
+ * exactly one consumer, so the honest check is to hand the bytes to that
+ * consumer and report what it says - including the case that matters most,
+ * where the shop holds a value the importer refuses and the file therefore
+ * rebuilds fewer products than it was asked to carry.
+ *
+ * @return array{rows:int,products:int,expected:int,errors:array,warnings:array,error:?string}
+ */
+function backup_catalogue_check(): array
+{
+    $expected = (int) db_value('SELECT COUNT(*) FROM products');
+    $blank    = ['rows' => 0, 'products' => 0, 'expected' => $expected,
+                 'errors' => [], 'warnings' => [], 'error' => null];
+
+    /* A temp file, not the web root: import_read_csv() reads a path, and the
+       one place a file holding the catalogue must never land is next to the
+       pages that serve it. */
+    $tmp = tempnam(sys_get_temp_dir(), 'suppex-check-');
+    if ($tmp === false) {
+        return $blank;
+    }
+
+    try {
+        file_put_contents($tmp, backup_catalogue_csv());
+        $read = import_read_csv($tmp);
+        if ($read['error'] !== null) {
+            return array_merge($blank, ['error' => $read['error']]);
+        }
+        $plan = import_plan($read['rows'], $read['columns'] ?? []);
+        return [
+            'rows'     => count($read['rows']),
+            'products' => count($plan['products']),
+            'expected' => $expected,
+            'errors'   => $plan['errors'],
+            'warnings' => $plan['warnings'],
+            'error'    => null,
+        ];
+    } catch (Throwable $e) {
+        error_log('[suppex] catalogue self-check failed: ' . $e->getMessage());
+        return array_merge($blank, ['error' => 'بررسی فایل با خطا مواجه شد.']);
+    } finally {
+        @unlink($tmp);
+    }
+}
+
 /** A filename nobody has to think about, sortable by date. */
 function backup_filename(string $suffix, string $ext): string
 {

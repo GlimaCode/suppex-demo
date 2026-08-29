@@ -52,6 +52,9 @@ if ($want === 'sql' || $want === 'catalogue') {
 }
 
 $uploads  = backup_uploads_summary();
+/* Read the export back before offering it. A backup that cannot be
+   restored is worse than none, because it is believed. */
+$check    = backup_catalogue_check();
 $tables   = backup_tables();
 $orders   = (int) db_value('SELECT COUNT(*) FROM orders');
 $products = (int) db_value('SELECT COUNT(*) FROM products');
@@ -95,6 +98,34 @@ admin_head('پشتیبان‌گیری', ['user' => $user]);
     بارگذاری کرد — پس برای جابه‌جا کردن کاتالوگ بین دو سایت،
     یا برای ویرایش گروهی قیمت‌ها در اکسل، همین کافی است.
   </p>
+  <?php if ($check['error'] !== null): ?>
+    <div class="flash flash--error" style="margin-block-start:14px">
+      فایل خودش خوانده نشد: <?= e($check['error']) ?>
+    </div>
+  <?php elseif ($check['errors']): ?>
+    <div class="flash flash--error" style="margin-block-start:14px">
+      <strong>این فایل کامل برنمی‌گردد.</strong>
+      از <span class="num"><?= $check['expected'] ?></span> محصول فروشگاه،
+      <span class="num"><?= $check['products'] ?></span> تا قابل ورود دوباره‌اند.
+      دلیلش داده‌های خود محصول است، نه فایل:
+      <ul style="padding-inline-start:20px;line-height:2;margin-block-start:8px">
+        <?php foreach (array_slice($check['errors'], 0, 8) as $msg): ?>
+          <li><?= e($msg) ?></li>
+        <?php endforeach; ?>
+      </ul>
+      <?php if (count($check['errors']) > 8): ?>
+        <span class="num"><?= count($check['errors']) - 8 ?></span> مورد دیگر.
+      <?php endif; ?>
+      پشتیبان کامل (SQL) این مشکل را ندارد — همه چیز را عیناً می‌برد.
+    </div>
+  <?php else: ?>
+    <div class="flash flash--ok" style="margin-block-start:14px">
+      بررسی شد: هر
+      <span class="num"><?= $check['expected'] ?></span> محصول از روی همین فایل دوباره ساخته می‌شود
+      (<span class="num"><?= $check['rows'] ?></span> سطر).
+    </div>
+  <?php endif; ?>
+
   <div style="margin-block-start:16px">
     <a class="btn btn--ghost" href="?download=catalogue">دانلود محصولات (CSV)</a>
   </div>
