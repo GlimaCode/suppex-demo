@@ -315,6 +315,15 @@ function import_plan(array $rows): array
             ], $rate);
         } elseif ($costToman > 0 && $profit > 0) {
             $computed = pricing_from_cost($costToman, $profit, $promo);
+        } elseif ($price > 0) {
+            /* A typed price is the normal price, so a discount beside it still
+               has to come off. Without this the promo was stored and never
+               applied: the row showed no saving, no strikethrough, and nothing
+               anywhere said why. The margin it is capped against is the one
+               this route actually has — price minus cost — rather than a
+               profit column that is deliberately empty here. */
+            $margin   = $costToman > 0 ? max(0, $price - $costToman) : 0;
+            $computed = pricing_from_cost(max(0, $price - $margin), $margin, $promo);
         }
 
         /* Whichever route was taken, the cost in toman is known now, so it is
