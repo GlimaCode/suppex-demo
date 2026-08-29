@@ -45,10 +45,52 @@ function product_row_to_api(array $r): array
     ]);
 }
 
+/**
+ * Add the few extra fields the listing card's hover panel reads.
+ *
+ * Kept separate from product_row_to_api() because product_get() fills the same
+ * keys from the real rows straight after, and would otherwise overwrite these
+ * summaries with the full ones - which is what it should do.
+ *
+ * The size and flavour lists arrive pre-joined from SQL: the panel shows them
+ * as one line each, so fetching the rows to re-join them here would be work
+ * for nothing.
+ */
+function product_row_add_spec(array $p, array $r): array
+{
+    $p['features'] = json_decode_array($r['features'] ?? null);
+
+    $sizes = trim((string) ($r['size_labels'] ?? ''));
+    $p['sizes'] = $sizes === '' ? [] : array_map(
+        static fn(string $label): array => ['label' => $label, 'servings' => null],
+        explode(chr(0x1f), $sizes)
+    );
+    /* One size carries its serving count; several do not, because the panel
+       shows the labels themselves in that case. */
+    if (count($p['sizes']) === 1 && ($r['size_servings'] ?? null) !== null) {
+        $p['sizes'][0]['servings'] = (int) $r['size_servings'];
+    }
+
+    $flav = trim((string) ($r['flavor_names'] ?? ''));
+    $p['flavors'] = $flav === '' ? [] : array_map(
+        static fn(string $name): array => ['id' => '', 'name' => $name],
+        explode(chr(0x1f), $flav)
+    );
+
+    return $p;
+}
+
+/* The trailing three feed the card's hover panel. Joined with U+001F rather
+   than a comma because a size label may legitimately contain one. */
 const PRODUCT_LIST_COLUMNS = '
     p.id, p.slug, p.name_fa, p.name_en, p.brand, p.price, p.compare_at,
-    p.in_stock, p.badges, p.image, p.variant_label, p.short,
-    c.slug AS category_slug';
+    p.in_stock, p.badges, p.image, p.variant_label, p.short, p.features,
+    c.slug AS category_slug,
+    (SELECT GROUP_CONCAT(s.label ORDER BY s.sort_order, s.id SEPARATOR 0x1f)
+       FROM product_sizes s WHERE s.product_id = p.id) AS size_labels,
+    (SELECT MIN(s.servings) FROM product_sizes s WHERE s.product_id = p.id) AS size_servings,
+    (SELECT GROUP_CONCAT(f.name ORDER BY f.sort_order, f.id SEPARATOR 0x1f)
+       FROM product_flavors f WHERE f.product_id = p.id) AS flavor_names';
 
 /**
  * @param array{category?:string,notCategory?:string,badge?:string,
@@ -90,7 +132,12 @@ function products_list(array $opts = []): array
         $sql .= ' LIMIT ' . min($limit, 200);
     }
 
-    return array_map('product_row_to_api', db_all($sql, $params));
+    /* The listing card carries a hover panel, so the list shape gains the few
+       fields it reads. product_get() overwrites them with the full rows. */
+    return array_map(
+        static fn(array $r): array => product_row_add_spec(product_row_to_api($r), $r),
+        db_all($sql, $params)
+    );
 }
 
 /** The full product, with gallery, flavours, sizes and nutrition. */

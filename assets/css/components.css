@@ -928,3 +928,107 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
 @media (prefers-reduced-motion: reduce) {
   .stage__dot { transition: none; }
 }
+
+/* ── Quick spec on hover ──────────────────────────────────────────────────
+   The three or four facts worth having before a click, over the product
+   image. Everything below the image - title, price, add button - is outside
+   this panel and stays clickable throughout. */
+
+.pcard__spec {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: none;               /* pointer devices switch this on, see below */
+  align-items: flex-end;
+  border-radius: inherit;
+  /* Backstop under the three-item budget in quickSpec(): the panel is anchored
+     to the foot, so anything taller than the image would grow up over the
+     badges. Clipping a word is the lesser fault. */
+  overflow: hidden;
+  /* Opaque enough at the foot to carry small text, clear at the top so the
+     product is still recognisable behind it. */
+  background: linear-gradient(to top,
+              rgba(13, 12, 10, 0.97) 0%,
+              rgba(13, 12, 10, 0.93) 46%,
+              rgba(13, 12, 10, 0.55) 78%,
+              rgba(13, 12, 10, 0) 100%);
+  opacity: 0;
+  /* Never intercepts: the whole media area is a link to the product. */
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease);
+}
+
+.pcard__spec-in {
+  width: 100%;
+  padding: var(--sp-5);
+  transform: translateY(8px);
+  transition: transform var(--dur) var(--ease);
+}
+
+.spec-list {
+  list-style: none;
+  margin: 0 0 var(--sp-3);
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.spec-list li {
+  position: relative;
+  padding-inline-start: 15px;
+  font-size: var(--fs-xs);
+  line-height: 1.75;
+  color: var(--text);
+}
+
+/* A rule rather than a bullet: at this size a disc reads as a smudge, and the
+   list is short enough that the marks are alignment, not enumeration. */
+.spec-list li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 0.72em;
+  width: 7px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.spec-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--fs-xs);
+  line-height: 1.9;
+  border-block-start: 1px solid var(--line);
+  padding-block-start: 5px;
+  margin-block-start: 5px;
+}
+
+.spec-row__k { color: var(--text-dim); white-space: nowrap; }
+.spec-row__v { color: var(--text); text-align: end; }
+
+/* Only where a pointer can actually hover. On touch this panel never exists,
+   so it cannot swallow the tap that was meant to open the product. */
+@media (hover: hover) and (pointer: fine) {
+  .pcard__spec { display: flex; }
+
+  .pcard:hover .pcard__spec,
+  .pcard:focus-within .pcard__spec {
+    opacity: 1;
+  }
+
+  .pcard:hover .pcard__spec-in,
+  .pcard:focus-within .pcard__spec-in {
+    transform: translateY(0);
+  }
+
+  /* focus-within covers the keyboard: tabbing to the card's link shows the
+     same panel a mouse would. */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcard__spec,
+  .pcard__spec-in { transition: none; }
+  .pcard__spec-in { transform: none; }
+}

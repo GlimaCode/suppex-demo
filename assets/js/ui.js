@@ -133,6 +133,70 @@ SUPPEX.ui = (function () {
 
   /* --- components ------------------------------------------------------- */
 
+  /* The three or four facts worth showing before a click.
+
+     Drawn from `features`, which the catalogue already writes as the headline
+     spec per product, plus what is actually being bought - the sizes, the
+     serving count, the flavours. Nothing is invented: a product with no
+     features shows only what it has, and one with nothing at all gets no
+     panel rather than an empty box. */
+  /* Three items, no more: the panel is anchored to the foot of the image, so
+     anything over that budget grows upwards and prints over the badges. */
+  var SPEC_MAX_ROWS = 3;
+  /* And no row may run past four values, or one six-flavour product wraps to a
+     third line and spends the slack the cap just bought. */
+  var SPEC_MAX_VALUES = 4;
+
+  function specList(values) {
+    var rest = values.length - SPEC_MAX_VALUES;
+    if (rest <= 0) { return values.join(' · '); }
+    return values.slice(0, SPEC_MAX_VALUES).join(' · ') + ' +' + rest;
+  }
+
+  function quickSpec(product) {
+    var rows = [];
+
+    /* Sizes when the product has several - that is the question a shopper
+       actually has on a listing page - otherwise the variant line, which
+       already reads «وانیل · 900 گرم» or «60 قرص · 60 روز». */
+    var sizes = (product.sizes || []).filter(function (s) { return s && s.label; });
+    if (sizes.length > 1) {
+      rows.push({ k: 'حجم‌های موجود', v: specList(sizes.map(function (s) { return s.label; })) });
+    }
+
+    /* Servings only when it is not already in the size line. */
+    var serv = sizes.length === 1 && sizes[0].servings ? sizes[0].servings : null;
+    if (serv) { rows.push({ k: 'تعداد وعده', v: String(serv) }); }
+
+    var flav = (product.flavors || []).filter(function (f) { return f && f.name; });
+    if (flav.length > 1) {
+      rows.push({ k: 'طعم‌ها', v: specList(flav.map(function (f) { return f.name; })) });
+    }
+
+    /* The rows are the concrete choice, so they take the budget first and the
+       features fill what is left. The catalogue writes features headline-first,
+       so the one that survives on a crowded card is «۲۴ گرم پروتئین در هر
+       پیمانه» - the number the shopper came for. */
+    var feats = (product.features || []).filter(function (f) {
+      return typeof f === 'string' && f.trim() !== '';
+    }).slice(0, Math.max(0, SPEC_MAX_ROWS - rows.length));
+
+    if (!feats.length && !rows.length) { return ''; }
+
+    var html = '<div class="pcard__spec" aria-hidden="true"><div class="pcard__spec-in">';
+    if (feats.length) {
+      html += '<ul class="spec-list">';
+      feats.forEach(function (f) { html += '<li>' + esc(f) + '</li>'; });
+      html += '</ul>';
+    }
+    rows.forEach(function (r) {
+      html += '<div class="spec-row"><span class="spec-row__k">' + esc(r.k) + '</span>' +
+              '<span class="spec-row__v">' + esc(r.v) + '</span></div>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
   function productCard(product) {
     var href = (cfg.productPage || 'product.html') + '?p=' + encodeURIComponent(product.slug);
     var flags = '';
@@ -160,6 +224,7 @@ SUPPEX.ui = (function () {
           '<a href="' + href + '" class="media media--1x1 media--lit" aria-label="' + esc(product.nameFa) + '">' +
             '<img src="' + imgSrc(product.image) + '" alt="' + esc(product.nameFa + ' — ' + product.name) + '" loading="lazy" width="400" height="400">' +
           '</a>' +
+          quickSpec(product) +
           flags +
         '</div>' +
         '<div class="pcard__body">' +
