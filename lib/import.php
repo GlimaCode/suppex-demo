@@ -43,6 +43,7 @@ const IMPORT_COLUMNS = [
     'in_stock'     => 'موجود',
     'flavors'      => 'طعم‌ها',
     'servings'     => 'تعداد وعده',
+    'features'     => 'مشخصات کلیدی',
     'short'        => 'توضیح کوتاه',
     'description'  => 'توضیح کامل',
 ];
@@ -52,7 +53,7 @@ const IMPORT_COLUMNS = [
    deliberate rather than making the operator diff two spreadsheets. */
 const IMPORT_OPTIONAL = [
     'name_en', 'brand', 'category', 'size_label', 'cost_toman', 'price_toman', 'promo_toman',
-    'commission', 'in_stock', 'flavors', 'servings', 'short', 'description',
+    'commission', 'in_stock', 'flavors', 'servings', 'features', 'short', 'description',
 ];
 
 /* A purchase price in toman below this is a dirham figure typed into the
@@ -292,6 +293,7 @@ function import_plan(array $rows, array $columns = []): array
                 'short'    => clean_text($row['short'] ?? '', 500),
                 'description' => clean_text($row['description'] ?? '', 4000),
                 'flavors'  => import_flavors($row['flavors'] ?? ''),
+                'features' => import_features($row['features'] ?? ''),
                 'in_stock' => import_truthy($row['in_stock'] ?? '1'),
                 /* Distinguished from its value: "in stock" is what a blank
                    cell means on a NEW product, but on an existing one a blank
@@ -314,6 +316,9 @@ function import_plan(array $rows, array $columns = []): array
         }
         if (!$products[$key]['flavors']) {
             $products[$key]['flavors'] = import_flavors($row['flavors'] ?? '');
+        }
+        if (!$products[$key]['features']) {
+            $products[$key]['features'] = import_features($row['features'] ?? '');
         }
         if ($products[$key]['short'] === '') {
             $products[$key]['short'] = clean_text($row['short'] ?? '', 500);
@@ -463,6 +468,30 @@ function import_percent($raw)
  *
  * @return array<int,string>
  */
+/**
+ * The handful of facts the listing card shows on hover, one per line.
+ *
+ * Split on line breaks and semicolons but never on «،»: a feature is a
+ * sentence - «ترکیب کنسانتره و ایزوله، با فیلتراسیون سرد» - and Persian
+ * sentences are full of commas. The panel's own editor is a textarea taking
+ * one per line, so a feature typed in either place reads the same.
+ *
+ * Three is what the card can show; a couple more are kept because the product
+ * page lists them all.
+ */
+function import_features($raw): array
+{
+    $parts = preg_split("~[;؛|\r\n]+~u", (string) $raw) ?: [];
+    $out   = [];
+    foreach ($parts as $p) {
+        $p = clean_text($p, 300);
+        if ($p !== '' && !in_array($p, $out, true)) {
+            $out[] = $p;
+        }
+    }
+    return array_slice($out, 0, 8);
+}
+
 function import_flavors($raw): array
 {
     $parts = preg_split("~[,،؛;/|\r\n]+~u", (string) $raw) ?: [];
@@ -541,6 +570,9 @@ function import_apply(array $products, array $admin): array
                 'category_id'  => $categoryId,
                 'short'        => $p['short'],
                 'description'  => $p['description'] !== '' ? $p['description'] : null,
+                /* Same JSON shape the panel's textarea writes, so a product can
+                   be started in the sheet and finished in the panel. */
+                'features'     => $p['features'] ? json_encode_pretty($p['features']) : null,
                 'in_stock'     => $p['in_stock'] ? 1 : 0,
                 'is_active'    => 1,
                 'price'        => $single !== null ? (int) $single['price'] : 0,
@@ -573,7 +605,8 @@ function import_apply(array $products, array $admin): array
                    two-dozen-column product: it is a column the person filling
                    the sheet had no opinion about. */
                 $update = $fields;
-                foreach (['name_en', 'brand', 'short', 'description', 'category_id'] as $soft) {
+                foreach (['name_en', 'brand', 'short', 'description', 'category_id',
+                          'features'] as $soft) {
                     if (($update[$soft] ?? null) === null || $update[$soft] === '') {
                         unset($update[$soft]);
                     }
@@ -780,30 +813,58 @@ function import_category_id(string $name): int
  */
 function import_template_csv(): string
 {
-    $rows = [
-        array_values(IMPORT_COLUMNS),
+    /* Keyed, never positional. Sixteen values under a seventeen-column header
+       is how the short description ended up in the مشخصات کلیدی column the
+       first time the sheet grew one - silently, because the file still parsed.
+       A key that does not exist now raises instead. */
+    $examples = [
         /* Two rows, one product: this is the pattern to copy. */
-        ['وی پروتئین اورجینال', 'Whey Original', 'SUPPEX', 'پروتئین',
-         '900 گرم', '40', '', '1500000', '', '', '', 'بله',
-         'شکلاتی، وانیلی، توت فرنگی', '30',
-         'وی کنسانتره و ایزوله میکروفیلتر شده',
-         'هر وعده ۲۴ گرم پروتئین دارد. بعد از تمرین با آب یا شیر مصرف شود.'],
-        ['وی پروتئین اورجینال', 'Whey Original', 'SUPPEX', 'پروتئین',
-         '2270 گرم', '95', '', '2000000', '', '', '', 'بله', '', '76', '', ''],
+        ['name_fa' => 'وی پروتئین اورجینال', 'name_en' => 'Whey Original',
+         'brand' => 'SUPPEX', 'category' => 'پروتئین', 'size_label' => '900 گرم',
+         'cost_aed' => '40', 'profit_toman' => '1500000', 'in_stock' => 'بله',
+         'flavors' => 'شکلاتی، وانیلی، توت فرنگی', 'servings' => '30',
+         'features' => "۲۴ گرم پروتئین در هر پیمانه\nبدون قند افزوده، بدون رنگ مصنوعی",
+         'short' => 'وی کنسانتره و ایزوله میکروفیلتر شده',
+         'description' => 'هر وعده ۲۴ گرم پروتئین دارد. بعد از تمرین با آب یا شیر مصرف شود.'],
+        ['name_fa' => 'وی پروتئین اورجینال', 'name_en' => 'Whey Original',
+         'brand' => 'SUPPEX', 'category' => 'پروتئین', 'size_label' => '2270 گرم',
+         'cost_aed' => '95', 'profit_toman' => '2000000', 'in_stock' => 'بله',
+         'servings' => '76'],
         /* One size, so the size column stays empty. */
-        ['کراتین مونوهیدرات', 'Creatine Monohydrate', 'SUPPEX', 'کراتین',
-         '', '18', '', '900000', '', '', '', 'بله', '', '100',
-         'کراتین میکرونایز خالص', ''],
+        ['name_fa' => 'کراتین مونوهیدرات', 'name_en' => 'Creatine Monohydrate',
+         'brand' => 'SUPPEX', 'category' => 'کراتین',
+         'cost_aed' => '18', 'profit_toman' => '900000', 'in_stock' => 'بله',
+         'servings' => '100',
+         'features' => "۵ گرم کراتین خالص در هر وعده\nبدون نیاز به دوره بارگیری",
+         'short' => 'کراتین میکرونایز خالص'],
         /* Bought inside Iran: the toman column instead of the dirham one. */
-        ['مولتی ویتامین روزانه', 'Daily Multivitamin', 'SUPPEX', 'ویتامین و مکمل',
-         '', '', '650000', '600000', '', '', '', 'بله', '', '60',
-         'مولتی ویتامین کامل روزانه', ''],
+        ['name_fa' => 'مولتی ویتامین روزانه', 'name_en' => 'Daily Multivitamin',
+         'brand' => 'SUPPEX', 'category' => 'ویتامین و مکمل',
+         'cost_toman' => '650000', 'profit_toman' => '600000', 'in_stock' => 'بله',
+         'servings' => '60', 'short' => 'مولتی ویتامین کامل روزانه'],
         /* A crowded line: the market sets the price, so it is typed in and the
            cost is recorded beside it. */
-        ['بی سی آمینو', 'BCAA 2:1:1', 'SUPPEX', 'آمینو و BCAA',
-         '', '', '820000', '', '1150000', '50000', '8', 'بله', 'هندوانه، لیمو', '40',
-         'آمینو شاخه‌دار با نسبت ۲:۱:۱', ''],
+        ['name_fa' => 'بی سی آمینو', 'name_en' => 'BCAA 2:1:1',
+         'brand' => 'SUPPEX', 'category' => 'آمینو و BCAA',
+         'cost_toman' => '820000', 'price_toman' => '1150000',
+         'promo_toman' => '50000', 'commission' => '8', 'in_stock' => 'بله',
+         'flavors' => 'هندوانه، لیمو', 'servings' => '40',
+         'short' => 'آمینو شاخه‌دار با نسبت ۲:۱:۱'],
     ];
+
+    $rows = [array_values(IMPORT_COLUMNS)];
+    foreach ($examples as $ex) {
+        foreach (array_keys($ex) as $k) {
+            if (!isset(IMPORT_COLUMNS[$k])) {
+                throw new RuntimeException('template uses an unknown column: ' . $k);
+            }
+        }
+        $line = [];
+        foreach (array_keys(IMPORT_COLUMNS) as $k) {
+            $line[] = (string) ($ex[$k] ?? '');
+        }
+        $rows[] = $line;
+    }
 
     $out = fopen('php://temp', 'r+');
     /* A BOM, so Excel on a Persian Windows opens it as UTF-8 instead of

@@ -180,6 +180,9 @@ function backup_catalogue_csv(): string
                 $row['flavors']     = $flavours;
                 $row['short']       = (string) $p['short'];
                 $row['description'] = (string) ($p['description'] ?? '');
+                /* One per line, which is how the panel shows them and how
+                   import_features() reads them back. */
+                $row['features']    = implode("\n", json_decode_array($p['features'] ?? null));
             }
 
             $line = [];
