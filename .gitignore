@@ -4,3 +4,6 @@
 
 # Editor tooling, not part of the site.
 .claude/
+
+# Test scratch: throwaway uploads and the last run report.
+tests/tmp/

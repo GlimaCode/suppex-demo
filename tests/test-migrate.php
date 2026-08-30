@@ -1,0 +1,158 @@
+<?php
+/* ===========================================================================
+   Fresh-install test.
+   ---------------------------------------------------------------------------
+   Every other suite runs against a database that development BUILT, one ALTER
+   at a time over weeks. The client gets a database that db/schema.sql plus
+   admin/migrate.php CREATE, in one go, on an empty MySQL. Those are not the
+   same database, and the difference stays invisible until launch day.
+
+   So this suite throws the database away and rebuilds it the way the client
+   will, then runs the features that matter through it. It was written after
+   products.promo_toman and the entire product_sizes pricing block turned out
+   to be missing from the migration while 317 other checks were passing.
+   =========================================================================== */
+
+$_SERVER["REMOTE_ADDR"]    = "127.0.0.1";
+$_SERVER["HTTP_HOST"]      = "suppex.ir";
+$_SERVER["REQUEST_METHOD"] = "POST";
+$_SERVER["REQUEST_URI"]    = "/admin/migrate.php";
+$_SERVER["SCRIPT_NAME"]    = "/admin/migrate.php";
+
+$pass = 0; $fail = 0; $out = [];
+function ok(string $l, bool $c, ?string $x = ""): void {
+    global $pass, $fail, $out;
+    if ($c) { $pass++; $out[] = "  ok   $l"; }
+    else { $fail++; $out[] = "  FAIL $l" . ($x ? "  --  $x" : ""); }
+}
+function head(string $t): void { global $out; $out[] = "\n== $t =="; }
+
+/* --- Rebuild from nothing, before a byte of output ----------------------- */
+$pdo = new PDO("mysql:host=127.0.0.1;port=3399;charset=utf8mb4", "root", "",
+               [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+$pdo->exec("DROP DATABASE IF EXISTS suppex_fresh");
+$pdo->exec("CREATE DATABASE suppex_fresh DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
+require __DIR__ . '/../lib/bootstrap.php';
+require_once SUPPEX_ROOT . "/lib/auth.php";
+require_once SUPPEX_ROOT . "/lib/pricing.php";
+require_once SUPPEX_ROOT . "/lib/import.php";
+require_once SUPPEX_ROOT . "/lib/orders.php";
+
+head("db/schema.sql loads on an empty database");
+$n = 0; $schemaErr = "";
+try { $n = db_run_sql_file(SUPPEX_ROOT . "/db/schema.sql"); }
+catch (Throwable $e) { $schemaErr = $e->getMessage(); }
+ok("schema.sql runs", $n > 10, $schemaErr ?: "$n statements");
+
+db_query("INSERT INTO admins (id, username, password_hash, name, role)
+          VALUES (1, ?, ?, ?, ?)", ["tester", password_hash("x", PASSWORD_DEFAULT), "tester", "owner"]);
+auth_start_session();
+$_SESSION["admin_id"] = 1; $_SESSION["admin_name"] = "tester"; $_SESSION["admin_role"] = "owner";
+
+head("admin/migrate.php completes in ONE run");
+ob_start();
+include SUPPEX_ROOT . "/admin/migrate.php";
+ob_get_clean();
+
+$failed = array_values(array_filter($log, static fn($e) => $e[0] === "fail"));
+ok("no step failed", $failed === [],
+   implode(" | ", array_map(static fn($e) => $e[1], $failed)));
+ok("nothing left pending", $allDone,
+   implode(", ", array_keys(array_filter($pending, static fn($v) => !$v))));
+
+head("the schema supports what the code queries");
+$need = [
+    "products"      => ["cost_aed", "profit_toman", "promo_toman", "price_mode",
+                        "cost_toman", "price_applied_rate", "price_applied_at",
+                        "commission_percent"],
+    "product_sizes" => ["cost_aed", "profit_toman", "promo_toman", "cost_toman",
+                        "price_applied_rate", "price_applied_at", "commission_percent"],
+    "orders"        => ["expires_at", "profit_total", "commission_basis",
+                        "commission_percent", "commission_amount", "rate_at_order"],
+    "order_items"   => ["unit_cost", "unit_profit", "line_profit",
+                        "commission_percent", "commission_amount"],
+];
+foreach ($need as $table => $cols) {
+    $have = array_column(db_all("SHOW COLUMNS FROM " . $table), "Field");
+    $missing = array_values(array_diff($cols, $have));
+    ok("$table has every pricing column", $missing === [], implode(", ", $missing));
+}
+foreach (["rate_history", "commission_log", "order_events", "product_sizes",
+          "product_flavors", "product_images"] as $t) {
+    ok("table $t exists",
+       db_value("SELECT 1 FROM information_schema.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?", [$t]) !== null);
+}
+
+head("and the features actually run on it");
+settings_save(["aed_rate" => "25000", "commission_percent" => "10",
+               "card_number" => "6104337600000002", "card_holder" => "tester",
+               "shipping_flat_rate" => "0", "free_shipping_over" => "0"]);
+
+/* Importing the sheet is the client-s real first act on this database. */
+$csv = sys_get_temp_dir() . "/suppex-fresh-import.csv";
+file_put_contents($csv, import_template_csv());
+$read = import_read_csv($csv);
+ok("the template imports into a fresh database", $read["error"] === null, (string) $read["error"]);
+$plan = import_plan($read["rows"]);
+ok("with no errors", $plan["errors"] === [], implode(" | ", $plan["errors"]));
+$res = import_apply($plan["products"], ["id" => 1, "name" => "tester"]);
+ok("products created", $res["created"] > 0, json_encode($res));
+ok("sizes created", $res["sizes"] > 0, json_encode($res));
+
+/* Pricing must see those size rows as buyable units. The bug this suite
+   exists for left pricing blind to every variant. */
+$units = pricing_units(25000.0);
+ok("pricing sees the size rows",
+   count(array_filter($units, static fn($u) => ($u["kind"] ?? "") === "size")) > 0,
+   (string) count($units));
+$preview = pricing_preview(25000.0);
+ok("preview prices every unit", count($preview) === count($units),
+   count($preview) . " of " . count($units));
+
+/* And an order has to land, with a commission line, on the fresh schema. */
+$p = db_one("SELECT id, slug FROM products WHERE price > 0 AND
+             (SELECT COUNT(*) FROM product_sizes s WHERE s.product_id = products.id) = 0
+             LIMIT 1");
+ok("an imported product is orderable", $p !== null);
+if ($p !== null) {
+    $r = order_create([
+        "items"    => [["slug" => $p["slug"], "qty" => 1]],
+        "customer" => ["name" => "\u0639\u0644\u06cc \u0631\u0636\u0627\u06cc\u06cc",
+                       "phone" => "09123456789",
+                       "address" => "\u062a\u0647\u0631\u0627\u0646\u060c \u062e\u06cc\u0627\u0628\u0627\u0646 \u0648\u0644\u06cc\u0639\u0635\u0631\u060c \u067e\u0644\u0627\u06a9 \u06f2\u06f4\u06f1",
+                       "postal" => "1967713111"],
+        "channel"  => "telegram",
+    ]);
+    ok("an order can be placed", ($r["ok"] ?? false) === true,
+       json_encode($r["errors"] ?? [], JSON_UNESCAPED_UNICODE));
+    if ($r["ok"] ?? false) {
+        $line = db_one("SELECT commission_percent, commission_amount
+                          FROM order_items WHERE order_id = ?", [(int) $r["order"]["id"]]);
+        ok("the line carries the shop commission rate",
+           $line !== null && (float) $line["commission_percent"] === 10.0,
+           json_encode($line));
+        ok("and a commission amount was computed",
+           $line !== null && (int) $line["commission_amount"] > 0, json_encode($line));
+    }
+}
+
+head("running it a second time changes nothing");
+/* In its own process: including migrate.php twice redeclares its helpers. */
+$before = count(db_all("SHOW COLUMNS FROM products"));
+$raw = shell_exec(escapeshellarg(PHP_BINARY) . " " . escapeshellarg(__DIR__ . "/migrate-once.php"));
+$second = json_decode((string) $raw, true);
+ok("the second run reports back", is_array($second), trim((string) $raw));
+if (is_array($second)) {
+    ok("every step skipped",
+       count(array_filter($second["states"], static fn($s) => $s !== "skip")) === 0,
+       implode(" | ", $second["labels"]));
+    ok("no column added", (int) $second["columns"] === $before,
+       $before . " -> " . $second["columns"]);
+    ok("still reports done", $second["allDone"] === true);
+}
+
+echo implode("\n", $out), "\n";
+echo "\n----------------------------------------\npassed: $pass    failed: $fail\n";
+exit($fail > 0 ? 1 : 0);
