@@ -788,16 +788,74 @@ SUPPEX.app = (function () {
     }
 
     initCountdown();
+    initAnnounce();
   }
 
-  /* Campaign countdown — always ends at the next midnight so the banner never
-     shows an expired timer during a demo. */
+  /* The announcement bar's three messages, taking turns on a narrow screen.
+
+     Only one fits on a phone line, and the old rule simply hid two of them -
+     which happened to be the free-shipping threshold and the order channel,
+     the two that move money. Rotating shows all three.
+
+     Runs only where the CSS actually hides them, so on a wide screen this does
+     nothing and all three stay visible side by side. Nothing moves: the message
+     is swapped, not animated, which keeps it readable and keeps it honest under
+     prefers-reduced-motion without a second code path. */
+  function initAnnounce() {
+    var bar = $('.announce__inner');
+    if (!bar) { return; }
+    var items = $$('.announce__item', bar);
+    if (items.length < 2) { return; }
+
+    var narrow = window.matchMedia('(max-width: 759px)');
+    var at = 0;
+    var timer = null;
+
+    function show(i) {
+      items.forEach(function (el, n) { el.classList.toggle('is-on', n === i); });
+    }
+
+    function start() {
+      if (timer) { return; }
+      bar.setAttribute('data-rotating', '');
+      show(at);
+      timer = setInterval(function () {
+        at = (at + 1) % items.length;
+        show(at);
+      }, 4200);
+    }
+
+    function stop() {
+      if (timer) { clearInterval(timer); timer = null; }
+      bar.removeAttribute('data-rotating');
+      items.forEach(function (el) { el.classList.remove('is-on'); });
+    }
+
+    function sync() { if (narrow.matches) { start(); } else { stop(); } }
+
+    sync();
+    if (narrow.addEventListener) { narrow.addEventListener('change', sync); }
+    else if (narrow.addListener) { narrow.addListener(sync); }
+  }
+
+  /* Campaign countdown.
+
+     It used to end at the next midnight - every night, forever - so the clock
+     reset itself and the deadline was never real. A deadline a shop does not
+     mean is worse than no deadline: the second visit teaches the customer that
+     the first one was theatre. It now reads cfg.campaignEndsAt, and when there
+     is no campaign, or the campaign is over, the whole block is removed rather
+     than shown at zero. */
   function initCountdown() {
     var root = $('[data-countdown]');
     if (!root) { return; }
 
-    var end = new Date();
-    end.setHours(24, 0, 0, 0);
+    var end = cfg.campaignEndsAt ? new Date(cfg.campaignEndsAt) : null;
+    if (!end || isNaN(end.getTime()) || end <= new Date()) {
+      var block = root.closest('[data-countdown-block]') || root;
+      block.remove();
+      return;
+    }
 
     var slots = {
       h: $('[data-cd="h"]', root),

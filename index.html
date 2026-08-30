@@ -312,7 +312,9 @@
           </div>
         </div>
 
-        <div>
+        <!-- Removed wholesale when no campaign is running: an expired or
+             invented deadline is worse than no deadline. See initCountdown(). -->
+        <div data-countdown-block>
           <p class="u-eyebrow" style="margin-bottom:14px">پایان کمپین تا</p>
           <div class="promo__timer" data-countdown>
             <div class="promo__unit"><div class="promo__num num" data-cd="h">00</div><div class="promo__cap">ساعت</div></div>
@@ -494,10 +496,23 @@
           <li><a href="#">مرجوعی و بازگشت وجه</a></li>
           <li><a href="#">سؤالات متداول</a></li>
         </ul>
-        <div class="trustmarks" aria-label="نمادهای اعتماد">
-          <span class="trustmark">نماد<br>اعتماد<br>الکترونیکی</span>
-          <span class="trustmark">ساماندهی</span>
-          <span class="trustmark">درگاه<br>امن</span>
+        <!-- These were three empty dashed boxes. One of them said «درگاه امن»,
+             and config.js says in its own words that phase 1 deliberately has
+             no payment gateway - so the badge advertised something that does
+             not exist. The other two were seals the shop has not been granted.
+             What replaces them is the thing that is both true and reassuring:
+             how paying actually works here.
+
+             When نماد اعتماد الکترونیکی and ساماندهی are really issued, their
+             own script tags go back in this block - a trust seal is a code
+             snippet from the issuer, never a box we draw ourselves. -->
+        <div class="payinfo">
+          <p class="payinfo__title">پرداخت چطور انجام می‌شود</p>
+          <p class="payinfo__body">
+            سفارش را در تلگرام ثبت می‌کنید، مبلغ و موجودی تأیید می‌شود، و بعد
+            شماره کارت برایتان فرستاده می‌شود. تا وقتی سفارش تأیید نشده،
+            پرداختی در کار نیست.
+          </p>
         </div>
       </div>
     </div>

@@ -36,6 +36,14 @@ SUPPEX.config = {
   freeShippingThreshold: 1500000,
   shippingFlatRate: 65000,
 
+  /* --- The campaign banner's deadline ----------------------------------
+     An ISO date-time, or null. The countdown used to end at the next
+     midnight, every night, which meant the banner showed a deadline that was
+     never real - a customer who came back the next day saw the same offer
+     with the clock reset. Set this when a campaign genuinely ends; leave it
+     null and the timer removes itself rather than inventing urgency. */
+  campaignEndsAt: null,
+
   /* --- How an order actually gets placed -------------------------------
      Phase 1 deliberately has no payment gateway. The cart is composed into a
      ready-made message and handed to a messaging app, so the seller keeps

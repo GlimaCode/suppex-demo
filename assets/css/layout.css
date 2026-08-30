@@ -84,9 +84,33 @@
 }
 .announce__item { display: inline-flex; align-items: center; gap: var(--sp-2); white-space: nowrap; }
 .announce__item svg { width: 14px; height: 14px; color: var(--amber); }
-/* On small screens only the middle message survives */
-.announce__item:not(.announce__item--key) { display: none; }
-@media (min-width: 760px) { .announce__item:not(.announce__item--key) { display: inline-flex; } }
+/* All three messages exist at every width. Below 760px only one fits on a
+   line, so they take turns - see initAnnounce() in app.js. Hiding two of them
+   was hiding the free-shipping threshold and the order channel from the device
+   most of the traffic arrives on. */
+@media (max-width: 759px) {
+  .announce__inner { gap: 0; }
+  .announce__item { display: none; }
+  .announce__item.is-on { display: inline-flex; }
+  /* Before the script runs, the first message is the one showing. */
+  .announce__inner:not([data-rotating]) .announce__item:first-child { display: inline-flex; }
+}
+
+/* ── Order of the page on a phone ─────────────────────────────────────────
+   The category tiles cost a full screen, and they sat between the hero and the
+   first product: measured at 375x812, the first price was 3.32 screens down.
+   The tiles are a way to navigate; the products are the shop. On a narrow
+   screen the products come first.
+
+   Flex order, not a DOM change: the reading order for a screen reader and the
+   order a crawler sees stay exactly as authored. */
+@media (max-width: 759px) {
+  main { display: flex; flex-direction: column; }
+  main > * { order: 2; }
+  main > .hero,
+  main > .ticker,
+  main > #featured { order: 1; }
+}
 
 /* --------------------------------------------------------------------------
    Header
@@ -551,19 +575,34 @@
 .socials a:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 .socials svg { width: 17px; height: 17px; }
 
-.trustmarks { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-block-start: var(--sp-5); }
-.trustmark {
-  display: grid;
-  place-items: center;
-  width: 72px; height: 72px;
-  border: 1px dashed var(--line-mid);
+/* Replaced three dashed placeholder seals - one of which advertised a payment
+   gateway the shop does not have - with a plain statement of how paying works.
+   A real trust seal arrives as the issuer's own script; it is never a box we
+   draw. The rule for those is kept below, unused, for when they are issued. */
+.payinfo {
+  margin-block-start: var(--sp-5);
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
   border-radius: var(--r-md);
-  font-size: 0.625rem;
-  color: var(--text-faint);
-  text-align: center;
-  line-height: 1.4;
-  padding: var(--sp-2);
+  background: var(--surface-2);
+  max-width: 34ch;
 }
+.payinfo__title {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text);
+}
+.payinfo__body {
+  margin: 0;
+  font-size: var(--fs-xs);
+  /* Persian running text: the same 1.9 the audit settled on elsewhere. */
+  line-height: 1.9;
+  color: var(--text-dim);
+}
+
+/* For the issued seals, when they exist. */
+.trustmarks { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-block-start: var(--sp-5); }
 
 /* Oversized ghost wordmark */
 .footer__mark {
