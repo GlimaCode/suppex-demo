@@ -2,6 +2,7 @@
 title: "پنجره طلایی پروتئین تا چه حد واقعی است؟"
 category: "تغذیه"
 readTime: 10
+image: "assets/images/journal/j2.svg"
 summary: "قانون معروف «30 دقیقه بعد از تمرین» از دو مطالعه کوچک در سال 2001 بیرون آمده، و وقتی پروتئین کل روز کنترل شود، اثر زمان‌بندی عملاً محو می‌شود."
 sources:
   - "Aragon AA, Schoenfeld BJ. Nutrient timing revisited: is there a post-exercise anabolic window? Journal of the International Society of Sports Nutrition. 2013;10:5. doi:10.1186/1550-2783-10-5"

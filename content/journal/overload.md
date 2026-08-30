@@ -2,6 +2,7 @@
 title: "اضافه‌بار تدریجی، بدون حدس و گمان"
 category: "تمرین"
 readTime: 12
+image: "assets/images/journal/j1.svg"
 summary: "تعداد ست، سنگینی وزنه، فاصله تا ناتوانی و تعداد جلسات هرکدام چقدر در بزرگ‌تر و قوی‌تر شدن نقش دارند، و چطور می‌شود هفته‌به‌هفته پیشرفت را از روی دفترچه‌ی تمرین اندازه گرفت نه از روی حس."
 sources:
   - "Pelland JC, Remmert JF, Robinson ZP, Hinson SR, Zourdos MC. The Resistance Training Dose Response: Meta-Regressions Exploring the Effects of Weekly Volume and Frequency on Muscle Hypertrophy and Strength Gains. Sports Medicine. 2026;56(2). PMID 41343037. https://doi.org/10.1007/s40279-025-02344-w"

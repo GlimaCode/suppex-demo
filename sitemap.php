@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/lib/bootstrap.php';
 require_once __DIR__ . '/lib/seo.php';
+require_once __DIR__ . '/lib/journal.php';
 
 header('Content-Type: application/xml; charset=utf-8');
 /* Cached briefly: crawlers re-request this far more often than the catalogue
@@ -59,6 +60,20 @@ foreach ($products as $p) {
         $p['updated_at'] ?? null,
         'daily',
         '0.8'
+    );
+}
+
+/* The journal. Unlike a product, an article is written once and then left
+   alone, so it is monthly and its lastmod is the file's own mtime - the only
+   honest date available, since there is no database row to ask. */
+foreach (journal_all() as $a) {
+    $file = SUPPEX_ROOT . '/content/journal/' . $a['slug'] . '.md';
+    $mtime = @filemtime($file);
+    $entry(
+        $origin . '/article.php?a=' . rawurlencode($a['slug']),
+        $mtime ? gmdate('Y-m-d', $mtime) : null,
+        'monthly',
+        '0.6'
     );
 }
 

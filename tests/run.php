@@ -30,6 +30,7 @@ $php = [
     ['test-og.php',        'test-config.php'],
     ['test-fixes.php',     'test-config.php'],
     ['test-backup.php',    'test-config.php'],
+    ['test-journal.php',   'test-config.php'],
     /* Rebuilds a database from nothing; needs the throwaway one. */
     ['test-migrate.php',   'fresh-config.php'],
 ];
@@ -70,11 +71,20 @@ echo "\n";
 
 foreach ($php as [$file, $config]) {
     if ($only !== null && strpos($file, $only) === false) { continue; }
-    [$out, ] = run(
+    [$out, $code] = run(
         escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg("$root/$file"),
         ['SUPPEX_CONFIG' => "$root/$config"]
     );
     [$p, $f] = tally($out);
+    /* A suite that dies half way through prints no FAIL line - it just stops.
+       test-seo.php once went from 75 checks to 42 that way and still read as a
+       pass. A failing suite exits 1 and a PHP fatal exits 255; both are
+       failures and neither used to be looked at. */
+    if ($code !== 0 && $f === 0) {
+        $f = 1;
+        $out .= "
+  FAIL suite exited with code $code after $p checks";
+    }
     $pass += $p; $fail += $f;
     printf("  %-22s %4d ok  %2d fail%s\n", $file, $p, $f, $f ? '   <<<' : '');
     flush();

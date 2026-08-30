@@ -2,6 +2,7 @@
 title: "چرا برگه آزمایش هر سری تولید را منتشر می‌کنیم"
 category: "پشت صحنه"
 readTime: 9
+image: "assets/images/journal/j3.svg"
 summary: "چرا مکمل‌ها در مبدأ پیش از فروش آزمایش نمی‌شوند، شواهد درباره آلودگی و برچسب نادرست چه می‌گویند، و یک برگه آزمایش دقیقاً چه چیزی را ثابت می‌کند و چه چیزی را نه."
 sources:
   - "Geyer H, Parr MK, Mareck U, Reinhart U, Schrader Y, Schänzer W. Analysis of Non-Hormonal Nutritional Supplements for Anabolic-Androgenic Steroids — Results of an International Study. International Journal of Sports Medicine. 2004;25(2):124–129. doi:10.1055/s-2004-819955"

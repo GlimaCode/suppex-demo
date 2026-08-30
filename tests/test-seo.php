@@ -124,16 +124,44 @@ $_GET = [];
 /* The harness has already echoed, so header() calls in the included file warn
    into the same buffer. Strip anything before the XML declaration — the file
    itself is fine, the CLI context is not. */
+/* $sitemap, not $xml: sitemap.php declares its own $xml as an XMLWriter and
+   include runs in this scope, so it overwrites anything by that name. That is
+   how this suite silently lost 33 checks once. */
 ob_start(); include SUPPEX_ROOT . '/sitemap.php'; $raw = ob_get_clean();
-$xml = ($pos = strpos($raw, '<?xml')) !== false ? substr($raw, $pos) : $raw;
-ok('is well-formed XML', simplexml_load_string($xml) !== false);
-$sx = simplexml_load_string($xml);
+$sitemap = ($pos = strpos($raw, '<?xml')) !== false ? substr($raw, $pos) : $raw;
+ok('is well-formed XML', simplexml_load_string($sitemap) !== false);
+$sx = simplexml_load_string($sitemap);
 $count = $sx === false ? 0 : count($sx->url);
 ok('lists the homepage plus every active product', $count >= 2, $count . ' urls');
-ok('urls are absolute', mb_strpos($xml, 'https://suppex.ir/') !== false);
-ok('hidden products are excluded',
-   $count === 1 + (int) db_value('SELECT COUNT(*) FROM products WHERE is_active = 1'),
-   $count . ' vs ' . (1 + (int) db_value('SELECT COUNT(*) FROM products WHERE is_active = 1')));
+ok('urls are absolute', mb_strpos($sitemap, 'https://suppex.ir/') !== false);
+/* The sitemap is the homepage, every active product, and every article. */
+require_once SUPPEX_ROOT . '/lib/journal.php';
+$expected = 1
+    + (int) db_value('SELECT COUNT(*) FROM products WHERE is_active = 1')
+    + count(journal_all());
+ok('lists exactly the homepage, the active products and the articles',
+   $count === $expected, $count . ' vs ' . $expected);
+
+/* The count above is a proxy, and a proxy passes for the wrong reason as soon
+   as something else is added. This is the claim that actually matters, made
+   directly: a product taken off the shop must not be advertised to Google. */
+$hidden = db_value('SELECT slug FROM products WHERE is_active = 0 LIMIT 1');
+if ($hidden === null) {
+    db_query('UPDATE products SET is_active = 0 WHERE slug = ?', ['iso-zero']);
+    $hidden = 'iso-zero';
+    ob_start(); include SUPPEX_ROOT . '/sitemap.php'; $raw2 = ob_get_clean();
+    $xml2 = ($p2 = strpos($raw2, '<?xml')) !== false ? substr($raw2, $p2) : $raw2;
+    db_query('UPDATE products SET is_active = 1 WHERE slug = ?', ['iso-zero']);
+} else {
+    $xml2 = $sitemap;
+}
+ok('a product with is_active = 0 never appears in the sitemap',
+   mb_strpos($xml2, 'p=' . rawurlencode((string) $hidden)) === false, (string) $hidden);
+
+ok('and every article does appear',
+   count(array_filter(journal_all(),
+       static fn(array $a): bool => mb_strpos($sitemap, 'a=' . rawurlencode($a['slug'])) !== false))
+   === count(journal_all()));
 
 
 echo "\n== what a crawler with no JavaScript sees ==\n";

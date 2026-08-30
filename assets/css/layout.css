@@ -805,3 +805,120 @@ p:lang(fa),
 li:lang(fa) {
   line-height: 1.9;
 }
+
+/* --------------------------------------------------------------------------
+   Article page
+   --------------------------------------------------------------------------
+   A measure, not a width. Running Persian is read one line at a time, and a
+   line that crosses the whole container loses the reader on the return sweep;
+   65ch is the range the audit already settled on for body copy elsewhere. */
+.container--narrow { max-width: 68ch; }
+
+.article { padding-block: var(--sp-10) var(--sp-8); }
+
+.article__crumbs {
+  display: flex;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  margin-block-end: var(--sp-6);
+}
+.article__crumbs a { color: inherit; }
+.article__crumbs a:hover { color: var(--text); }
+
+.article__head { margin-block-end: var(--sp-8); }
+.article__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-block-end: var(--sp-4);
+}
+.article__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 1.2rem + 2vw, 2.5rem);
+  line-height: 1.45;
+  margin: 0;
+}
+.article__lede {
+  margin-block-start: var(--sp-4);
+  font-size: var(--fs-lead);
+  line-height: 1.9;
+  color: var(--text-dim);
+}
+
+/* The body is the product here, so it is set for reading rather than for
+   fitting: 1.9 leading, real space between blocks, and headings that separate
+   sections without shouting. */
+.article__body { font-size: var(--fs-body); line-height: 1.9; }
+.article__body > p { margin-block: 0 var(--sp-5); }
+.article__body > h2,
+.article__body > h3,
+.article__body > h4 {
+  font-family: var(--font-display);
+  line-height: 1.5;
+  margin-block: var(--sp-8) var(--sp-4);
+}
+.article__body > h2 { font-size: 1.32rem; }
+.article__body > h3 { font-size: 1.12rem; }
+.article__body > h4 { font-size: 1rem; }
+.article__body strong { color: var(--text); font-weight: 700; }
+
+.article__list {
+  list-style: none;
+  margin: 0 0 var(--sp-5);
+  padding: 0;
+  display: grid;
+  gap: var(--sp-3);
+}
+.article__list li {
+  position: relative;
+  padding-inline-start: 18px;
+}
+/* A rule rather than a disc, the same mark the hover panel uses, so the two
+   lists on this site are visibly the same family. */
+.article__list li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 0.85em;
+  width: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.article__sources {
+  margin-block-start: var(--sp-10);
+  padding-block-start: var(--sp-6);
+  border-block-start: 1px solid var(--line);
+}
+.article__sources h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0 0 var(--sp-4);
+}
+/* Citations are Latin: they get the Latin face and stay left-to-right, or a
+   DOI reorders into nonsense inside a Persian paragraph direction. */
+.article__sources ol {
+  margin: 0;
+  padding-inline-start: var(--sp-5);
+  display: grid;
+  gap: var(--sp-3);
+  font-family: var(--font-lat);
+  font-size: var(--fs-xs);
+  line-height: 1.75;
+  color: var(--text-dim);
+  direction: ltr;
+  text-align: left;
+}
+
+.article__note {
+  margin-block-start: var(--sp-8);
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: var(--fs-xs);
+  line-height: 1.9;
+  color: var(--text-dim);
+}

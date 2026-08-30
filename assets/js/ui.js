@@ -289,7 +289,7 @@ SUPPEX.ui = (function () {
     /* Block-level children throughout: an <a> may wrap flow content, but a
        <span> may not contain a heading. */
     return '' +
-      '<a class="pcard reveal" href="#">' +
+      '<a class="pcard reveal" href="article.php?a=' + encodeURIComponent(post.slug || '') + '">' +
         '<div class="media media--16x10">' +
           '<img src="' + imgSrc(post.image) + '" alt="" loading="lazy" width="480" height="300">' +
         '</div>' +
