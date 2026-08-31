@@ -66,6 +66,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             static fn(string $k): bool => (bool) preg_match('/^(product|size):[0-9]+$/', $k)
         ));
 
+        /* Nothing ticked is an instruction, not an oversight: refuse rather
+           than guessing that they meant all of them. */
+        if (!$onlyKeys) {
+            flash('error', 'هیچ موردی انتخاب نشده بود؛ هیچ قیمتی تغییر نکرد.');
+            header('Location: pricing.php');
+            exit;
+        }
+
         try {
             $result = pricing_apply($posted, $user, $onlyKeys);
             $msg = 'قیمت ' . $result['applied'] . ' محصول با نرخ ' . number_format($posted) . ' به‌روز شد.';
@@ -245,7 +253,11 @@ admin_head('قیمت‌گذاری بر اساس درهم', ['user' => $user]);
                 </td>
                 <td class="num u-nowrap"><?= e(rtrim(rtrim(number_format($row['cost_aed'], 2), '0'), '.')) ?></td>
                 <td class="num u-nowrap u-dim"><?= money($row['cost']) ?></td>
-                <td class="num u-nowrap u-dim"><?= money($row['profit']) ?></td>
+                <?php /* 'margin', not 'profit': pricing_preview() has never emitted a
+                         'profit' key, so this was an undefined-key warning followed by
+                         money(null) throwing - the table stopped here and the page
+                         ended mid-row, silently, because production hides errors. */ ?>
+                <td class="num u-nowrap u-dim"><?= money($row['margin']) ?></td>
                 <td class="num u-nowrap"><?= money($row['current']) ?></td>
                 <td class="num u-nowrap"><strong><?= money($row['proposed']) ?></strong></td>
                 <td class="num u-nowrap u-dim">

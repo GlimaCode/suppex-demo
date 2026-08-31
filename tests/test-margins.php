@@ -1,4 +1,10 @@
 <?php
+/* A test suite that can DROP TABLE must never be reachable over HTTP.
+   bootstrap falls back to the real suppex-config.php when SUPPEX_CONFIG
+   is unset - which is exactly what a web request has - so one GET to an
+   uploaded tests/ folder could empty the live database. The .htaccess
+   beside this file is process; this is code. */
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 /* Renders admin/margins.php against the test database with a stubbed session,
    to prove its queries are valid and its arithmetic holds. */
 $_SERVER['REMOTE_ADDR']  = '127.0.0.1';

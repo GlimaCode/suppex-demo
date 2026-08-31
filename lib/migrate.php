@@ -29,6 +29,17 @@ function column_exists(string $table, string $column): bool
     ) !== null;
 }
 
+/** Does this index exist? A step must be able to ask about every object it
+    creates, not just the first one. */
+function index_exists(string $table, string $index): bool
+{
+    return db_one(
+        "SELECT 1 FROM information_schema.statistics
+          WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1",
+        [$table, $index]
+    ) !== null;
+}
+
 function table_exists(string $table): bool
 {
     return db_value(
@@ -308,6 +319,30 @@ function migrate_run(array &$log): void
         ) === 0,
         static function (): void {
             db()->exec("UPDATE products SET price_mode = 'manual' WHERE price_mode IS NULL");
+        },
+        $log
+    );
+
+    /* 2026-08 — the order endpoint's duplicate guard ---------------------- */
+
+    step(
+        'orders.items_hash — so a double-tapped button is one order',
+        static fn(): bool => column_exists('orders', 'items_hash'),
+        static function (): void {
+            /* Each object is checked on its own. Dropping the column leaves the
+               composite index behind on the remaining columns, so a step that
+               tested only the column and then created both failed on the index
+               with "Duplicate key name" - and a half-migrated database is
+               precisely what this mechanism exists to finish. */
+            if (!column_exists('orders', 'items_hash')) {
+                db()->exec('ALTER TABLE orders
+                    ADD COLUMN items_hash CHAR(40) NULL AFTER phone');
+            }
+            /* Indexed with phone because that is how it is queried, and only
+               ever over the last minute. */
+            if (!index_exists('orders', 'idx_orders_dupe')) {
+                db()->exec('CREATE INDEX idx_orders_dupe ON orders (phone, items_hash, created_at)');
+            }
         },
         $log
     );

@@ -1,4 +1,10 @@
 <?php
+/* A test suite that can DROP TABLE must never be reachable over HTTP.
+   bootstrap falls back to the real suppex-config.php when SUPPEX_CONFIG
+   is unset - which is exactly what a web request has - so one GET to an
+   uploaded tests/ folder could empty the live database. The .htaccess
+   beside this file is process; this is code. */
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 /* Integration harness for dirham-linked pricing, per-variant costs, and the
    profit-basis commission. Runs against a throwaway MariaDB database selected
    by SUPPEX_CONFIG. Not part of the deliverable. */

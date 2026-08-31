@@ -560,8 +560,16 @@ SUPPEX.app = (function () {
       var t = e.target.closest('[data-open]');
       if (t) { e.preventDefault(); setLayer(t.getAttribute('data-open')); return; }
 
-      if (e.target.closest('[data-close]') || e.target.closest('[data-scrim]')) {
-        e.preventDefault(); closeLayers(); return;
+      /* A link that closes a layer must still be a link. Every item in the
+         mobile menu carries data-close, and preventDefault()ing all of them
+         made all six dead - the menu closed and nothing navigated. Close the
+         layer, then let a real href do its job. */
+      var closer = e.target.closest('[data-close]');
+      if (closer || e.target.closest('[data-scrim]')) {
+        var isLink = closer && closer.tagName === 'A' && closer.getAttribute('href');
+        if (!isLink) { e.preventDefault(); }
+        closeLayers();
+        return;
       }
 
       /* Add to cart from any product card on the page */

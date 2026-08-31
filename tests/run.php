@@ -1,4 +1,10 @@
 <?php
+/* A test suite that can DROP TABLE must never be reachable over HTTP.
+   bootstrap falls back to the real suppex-config.php when SUPPEX_CONFIG
+   is unset - which is exactly what a web request has - so one GET to an
+   uploaded tests/ folder could empty the live database. The .htaccess
+   beside this file is process; this is code. */
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 /* ===========================================================================
    The whole suite, one command:   php tests/run.php
    ---------------------------------------------------------------------------
@@ -68,6 +74,28 @@ function tally(string $out): array
 }
 
 echo "\n";
+
+/* Bring the test database up to the current schema before anything runs.
+
+   The test database drifts exactly the way a production one does. Adding
+   orders.items_hash broke eighteen checks in test-pricing.php with "Unknown
+   column" - the same class of failure the migration mechanism exists to
+   prevent, arriving from the one direction nobody watches. Applying it here
+   means a new migration reaches the suite wherever it runs. */
+[$mOut, $mCode] = run(
+    escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg("$root/migrate-db.php"),
+    ['SUPPEX_CONFIG' => "$root/test-config.php"]
+);
+foreach (preg_split('/\R/', trim($mOut)) as $line) {
+    if (trim($line) !== '') { echo "  schema: " . $line . "
+"; }
+}
+if ($mCode !== 0) {
+    /* Every suite after a failed migration fails for the wrong reason. */
+    echo "  schema: migration failed - stopping
+";
+    exit(1);
+}
 
 foreach ($php as [$file, $config]) {
     if ($only !== null && strpos($file, $only) === false) { continue; }

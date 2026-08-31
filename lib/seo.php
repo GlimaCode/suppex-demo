@@ -80,7 +80,13 @@ function seo_clip(string $text, int $max = 155): string
     }
     $cut = mb_substr($text, 0, $max);
     $sp  = mb_strrpos($cut, ' ');
-    return rtrim($sp !== false && $sp > $max * 0.6 ? mb_substr($cut, 0, $sp) : $cut, ' ،.') . '…';
+    $tail = $sp !== false && $sp > $max * 0.6 ? mb_substr($cut, 0, $sp) : $cut;
+    /* preg_replace with /u, not rtrim. rtrim's character list is a set of
+       BYTES: ی is DB 8C and «،» is D8 8C, so trimming «،» stripped the 8C off a
+       trailing ی and left a dangling DB. The result failed mb_check_encoding,
+       showed a U+FFFD in the meta description, and - worse - made json_encode
+       return false at :174 so the product's whole JSON-LD vanished silently. */
+    return preg_replace('/[\s،.]+$/u', '', $tail) . '…';
 }
 
 /**

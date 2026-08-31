@@ -28,6 +28,14 @@ function db(): PDO
     try {
         $pdo = new PDO($dsn, $c['user'], $c['pass'], [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            /* PHP is pinned to Asia/Tehran in bootstrap; MySQL was never told.
+               expires_at is written from PHP's clock and swept with NOW(), so
+               on a host running MySQL in UTC - which cPanel commonly does - a
+               30-minute price hold silently became four hours, leaving orders
+               payable at a dirham rate that had moved. Both clocks now agree.
+               +03:30 rather than a named zone: shared hosts usually have not
+               loaded the MySQL timezone tables, and a named zone would fail. */
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '+03:30'",
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 
             /* Real prepared statements, not the driver emulating them by

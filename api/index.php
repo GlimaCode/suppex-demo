@@ -161,7 +161,36 @@ try {
                 api_error('Method not allowed.', 405);
             }
 
-            $result = order_create(api_json_body());
+            /* The only public route that costs money per request. Neither
+               guard existed: five identical POSTs in five seconds all returned
+               201 with fresh codes, each sending a Telegram message and, with
+               SMS on, a billed one. */
+            if (order_is_throttled()) {
+                api_error('تعداد سفارش‌های شما در این مدت زیاد بوده است. کمی بعد دوباره تلاش کنید.', 429);
+            }
+
+            $body = api_json_body();
+
+            /* A double-tapped button is one intention. Return the order they
+               already have rather than an error - they wanted an order, and the
+               code is what they need. */
+            $phoneIn = digits_only((string) (($body['customer']['phone'] ?? '')));
+            $lines   = is_array($body['items'] ?? null) ? $body['items'] : [];
+            $dupe    = order_recent_duplicate($phoneIn, $lines);
+            if ($dupe !== null) {
+                $existing = order_get((int) $dupe['id']);
+                if ($existing !== null) {
+                    api_send([
+                        'ok'        => true,
+                        'code'      => $existing['code'],
+                        'total'     => (int) $existing['total'],
+                        'duplicate' => true,
+                    ]);
+                }
+            }
+
+            order_record_attempt();
+            $result = order_create($body);
             if (!$result['ok']) {
                 api_error('اطلاعات سفارش کامل نیست.', 422, ['fields' => $result['errors']]);
             }

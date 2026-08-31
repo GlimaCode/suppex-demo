@@ -74,6 +74,79 @@ function orders_expire_due(): int
     return count($due);
 }
 
+/* The order endpoint is the only public route that costs money per request:
+   it sends a Telegram message and, with SMS on, a billed one. It had no
+   throttle of any kind, while the login form - which costs nothing - has had
+   one from the start.
+
+   Reuses login_attempts rather than adding a table. The reserved username
+   cannot collide with a real account: the panel does not accept a space in a
+   username, so nothing can ever register as this. */
+const ORDER_THROTTLE_USER    = '~order';
+const ORDER_THROTTLE_MAX     = 6;     // per IP
+const ORDER_THROTTLE_MINUTES = 10;
+
+/** True when this IP has placed too many orders too quickly. */
+function order_is_throttled(): bool
+{
+    $since = date('Y-m-d H:i:s', time() - ORDER_THROTTLE_MINUTES * 60);
+    return (int) db_value(
+        'SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND username = ? AND attempted_at > ?',
+        [client_ip_binary(), ORDER_THROTTLE_USER, $since]
+    ) >= ORDER_THROTTLE_MAX;
+}
+
+/** Record one order attempt against that window. */
+function order_record_attempt(): void
+{
+    db_query('INSERT INTO login_attempts (ip, username) VALUES (?, ?)',
+        [client_ip_binary(), ORDER_THROTTLE_USER]);
+    /* Housekeeping, since shared hosting rarely has a cron worth relying on. */
+    if (random_int(1, 20) === 1) {
+        db_query('DELETE FROM login_attempts WHERE attempted_at < ?',
+            [date('Y-m-d H:i:s', time() - 86400)]);
+    }
+}
+
+/**
+ * A stable signature of what is being bought.
+ *
+ * Sorted, so the same basket in a different order hashes the same, and short
+ * enough to index. Only what identifies the goods - not quantities of attention
+ * like the channel or the note.
+ */
+function order_items_hash(array $items): string
+{
+    $sig = [];
+    foreach ($items as $i) {
+        $sig[] = ($i['slug'] ?? '') . '|' . ($i['sizeId'] ?? '') . '|'
+               . ($i['flavorId'] ?? '') . '|' . (int) ($i['qty'] ?? 1);
+    }
+    sort($sig);
+    return substr(hash('sha256', implode(';', $sig)), 0, 40);
+}
+
+/**
+ * The order this request would duplicate, if any.
+ *
+ * Same phone, same basket, inside a minute: a double tap or a retry after a
+ * flaky connection, not a second order. A customer who genuinely wants two
+ * would have to change something, which is the right price for the guard.
+ */
+function order_recent_duplicate(string $phone, array $items): ?array
+{
+    if ($phone === '') {
+        return null;
+    }
+    $row = db_one(
+        'SELECT id, code, total, created_at FROM orders
+          WHERE phone = ? AND items_hash = ? AND created_at > (NOW() - INTERVAL 60 SECOND)
+          ORDER BY id DESC LIMIT 1',
+        [$phone, order_items_hash($items)]
+    );
+    return $row ?: null;
+}
+
 /**
  * Resolve one posted line into a priced item, or null if it cannot be trusted.
  *
@@ -125,14 +198,30 @@ function order_price_line(array $line): ?array
               WHERE product_id = ? AND ext_id = ?',
             [(int) $product['id'], $sizeId]
         );
-        if ($size !== null) {
-            $unitPrice     = (int) $size['price'];
-            $unitCost      = (int) ($size['cost_toman'] ?? 0);
-            $variantBits[] = $size['label'];
-            if ($size['commission_percent'] !== null) {
-                $rateOverride = $size['commission_percent'];
-            }
+        /* An unresolved size drops the line rather than falling back to the
+           parent's price. It used to skip this block, keep products.price and
+           record an empty variant label - so a cart holding a renamed size's
+           ext_id bought the 2270g tub at the 900g price, and the picking slip
+           said nothing about which one. Both writers rebuild sizes with DELETE
+           + INSERT and carts live in localStorage indefinitely, so a stale
+           ext_id is routine, not exotic. */
+        if ($size === null) {
+            return null;
         }
+
+        $unitPrice     = (int) $size['price'];
+        $unitCost      = (int) ($size['cost_toman'] ?? 0);
+        $variantBits[] = $size['label'];
+        if ($size['commission_percent'] !== null) {
+            $rateOverride = $size['commission_percent'];
+        }
+    }
+
+    /* A price of zero is never a real price. A dirham product saved active
+       before the pricing page has computed its price sits at 0, and this would
+       otherwise sell it for nothing and hand out an order code for it. */
+    if ($unitPrice <= 0) {
+        return null;
     }
 
     $flavorId = clean_text($line['flavorId'] ?? '', 60);
@@ -305,13 +394,13 @@ function order_create(array $payload): array
             try {
                 $orderId = db_insert(
                     'INSERT INTO orders
-                        (code, status, customer_name, phone, address, postal, note,
+                        (code, status, customer_name, phone, items_hash, address, postal, note,
                          subtotal, shipping, total, profit_total,
                          commission_percent, commission_amount, commission_basis, rate_at_order,
                          expires_at, channel, ip, user_agent)
-                     VALUES (?, "new", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     VALUES (?, "new", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
-                        $code, $name, $phone, $address, $postal, $note,
+                        $code, $name, $phone, order_items_hash($posted), $address, $postal, $note,
                         $subtotal, $shipping, $total, $profitTotal,
                         $effectivePercent, $commissionAmount, $basis, $rateAtOrder,
                         $expiresAt, $channel, client_ip_binary(),

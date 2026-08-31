@@ -1,4 +1,10 @@
 <?php
+/* A test suite that can DROP TABLE must never be reachable over HTTP.
+   bootstrap falls back to the real suppex-config.php when SUPPEX_CONFIG
+   is unset - which is exactly what a web request has - so one GET to an
+   uploaded tests/ folder could empty the live database. The .htaccess
+   beside this file is process; this is code. */
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 /* One migration run, in its own process, printing only the outcome.
    Used by test-migrate.php to prove a second run is a no-op: including
    admin/migrate.php twice in one process redeclares its helpers. */

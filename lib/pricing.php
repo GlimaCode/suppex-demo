@@ -268,7 +268,18 @@ function pricing_preview(float $rate): array
  * @param array<string> $onlyKeys  "product:12" / "size:34"; empty = all
  * @return array{applied:int,skipped:int}
  */
-function pricing_apply(float $rate, array $admin, array $onlyKeys = []): array
+/**
+ * Apply the proposed prices.
+ *
+ * $onlyKeys null  = every row in the preview.
+ * $onlyKeys array = exactly those rows, and an EMPTY array means none.
+ *
+ * That distinction is the point. It used to default to [] and test it with a
+ * plain truthiness check, so an operator who reviewed a bad preview, unticked
+ * every row and pressed apply wrote the whole catalogue live - the opposite of
+ * what the page told them unticking would do.
+ */
+function pricing_apply(float $rate, array $admin, ?array $onlyKeys = null): array
 {
     $preview = pricing_preview($rate);
     $applied = 0;
@@ -279,7 +290,7 @@ function pricing_apply(float $rate, array $admin, array $onlyKeys = []): array
     try {
         foreach ($preview as $row) {
             $key = $row['kind'] . ':' . $row['id'];
-            if ($onlyKeys && !in_array($key, $onlyKeys, true)) {
+            if ($onlyKeys !== null && !in_array($key, $onlyKeys, true)) {
                 continue;
             }
             /* Refused outright. An implausible row is not refused here — it
