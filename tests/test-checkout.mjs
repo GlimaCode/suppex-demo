@@ -99,6 +99,56 @@ head('a price that moved is applied, not blocked');
   ok('and the line is still orderable', S.snapshot().blocked === 0);
 }
 
+head('a cart holding more than the shop has is trimmed, not refused at the end');
+{
+  /* Caught here rather than at the order endpoint. The endpoint refuses it
+     correctly, but by then the shopper has typed their name, phone, address
+     and postal code - and being sent back to edit the basket is where an order
+     stops being placed. */
+  const S = boot(['config.js', 'store.js']).store;
+  S.add({ slug: 'a', nameFa: 'الف', price: 400000, qty: 3 });
+  const changes = S.syncPrices([{ slug: 'a', available: true, price: 400000, stock: 1 }]);
+  ok('the shopper is told', changes.length === 1);
+  ok('  what they asked for', changes[0].qtyFrom === 3, String(changes[0].qtyFrom));
+  ok('  and what they are getting', changes[0].qtyTo === 1, String(changes[0].qtyTo));
+  ok('the quantity is cut to what exists', S.snapshot().items[0].qty === 1);
+  ok('the total follows it down', S.snapshot().subtotal === 400000);
+  ok('and the line is still orderable', S.snapshot().blocked === 0);
+}
+
+{
+  /* Zero is a number, not an absence. A cart line for something that has run
+     out entirely must be blocked, not trimmed to nothing. */
+  const S = boot(['config.js', 'store.js']).store;
+  S.add({ slug: 'a', nameFa: 'الف', price: 400000, qty: 2 });
+  const changes = S.syncPrices([{ slug: 'a', available: true, price: 400000, stock: 0 }]);
+  ok('a line with none left is reported as gone', changes[0].gone === true);
+  ok('  and does not reach the total', S.snapshot().subtotal === 0);
+  ok('  and is counted as blocked so the drawer can say why', S.snapshot().blocked === 1);
+  ok('  and is left out of the order payload',
+     S.asOrderPayload('telegram').items.length === 0);
+}
+
+{
+  /* Uncounted is the state every product ships in, so the quiet path is the
+     one that must not move. */
+  const S = boot(['config.js', 'store.js']).store;
+  S.add({ slug: 'a', nameFa: 'الف', price: 400000, qty: 4 });
+  const changes = S.syncPrices([{ slug: 'a', available: true, price: 400000 }]);
+  ok('an uncounted product is left completely alone', changes.length === 0);
+  ok('  keeping its quantity', S.snapshot().items[0].qty === 4);
+}
+
+{
+  /* A size carries its own count, the same way it carries its own price. */
+  const S = boot(['config.js', 'store.js']).store;
+  S.add({ slug: 'a', nameFa: 'الف', price: 400000, qty: 3, sizeId: '900' });
+  S.syncPrices([{ slug: 'a', available: true, price: 400000, stock: 50,
+                  sizes: [{ id: '900', price: 400000, stock: 2 }] }]);
+  ok('a size carries its own count, and it wins', S.snapshot().items[0].qty === 2,
+     String(S.snapshot().items[0].qty));
+}
+
 head('the payment panel never invents a card number');
 {
   const ui = boot(['config.js', 'ui.js']).ui;

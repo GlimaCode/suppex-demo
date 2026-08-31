@@ -27,6 +27,20 @@ function to_latin_digits(string $s): string
     return str_replace($ar, $en, str_replace($fa, $en, $s));
 }
 
+/* The other direction. Money keeps Latin digits, because number_format is
+   what the front-end uses and one order must not show two shapes of the same
+   total - but a bare count inside a Persian sentence is text, and Latin digits
+   there flip position under the bidi algorithm unless something isolates them.
+   A sentence is not the place to start emitting spans. */
+function fa_digits(string $s): string
+{
+    return str_replace(
+        ['0','1','2','3','4','5','6','7','8','9'],
+        ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'],
+        $s
+    );
+}
+
 /** Digits only, Persian-aware. */
 function digits_only(string $s): string
 {

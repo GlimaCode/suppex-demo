@@ -996,10 +996,24 @@ SUPPEX.app = (function () {
     var sizes = (product.sizes && product.sizes.length) ? product.sizes : [{
       id: 'default', label: product.variantLabel || '—',
       price: product.price, compareAt: product.compareAt, servings: null,
+      /* The product's own count, because for a single-price product that IS
+         the size's count. Left off, the quantity stepper would happily offer
+         five of something there are two of and the order endpoint would refuse
+         it after the address had been typed. */
+      stock: typeof product.stock === 'number' ? product.stock : null,
     }];
     var flavors = product.flavors || [];
+
+    /* The first size that can actually be bought, not simply the first. A
+       product whose 900g tub is sold out and whose 2270g tub is not is
+       available - opening it on the sold-out one shows a greyed button on a
+       product the shop is happily selling, which reads as the site being
+       broken. Falls back to sizes[0] when they are all gone, so the page still
+       has something selected to price. */
+    var firstSellable = sizes.filter(function (s) { return s.stock !== 0; })[0] || sizes[0];
+
     var selected = {
-      size: sizes[0],
+      size: firstSellable,
       flavor: flavors[0] || null,
       qty: 1,
     };
@@ -1016,9 +1030,9 @@ SUPPEX.app = (function () {
 
     set('[data-p-eyebrow]', ui.esc(product.brand) + ' · <span class="lat">' + ui.esc(product.name) + '</span>');
     set('[data-p-title]', ui.esc(product.nameFa));
-    set('[data-p-rating]', ui.ratingHtml(product) +
-      '<span class="u-xs" style="color:' + (product.inStock ? 'var(--success)' : 'var(--text-dim)') + '">' +
-      (product.inStock ? '● موجود در انبار' : '● موقتاً ناموجود') + '</span>');
+    /* The stock line used to be written here, once, from product.inStock.
+       paintAvailability() owns it now: it depends on which size is selected,
+       and this runs before a selection exists. */
     set('[data-p-desc]', ui.esc(product.description || product.short));
     set('[data-p-breadcrumb]', ui.esc(product.nameFa));
 
@@ -1088,21 +1102,36 @@ SUPPEX.app = (function () {
       if (sizes.length < 2) {
         sizeWrap.closest('.pdp__field').hidden = true;
       } else {
-        sizeWrap.innerHTML = sizes.map(function (s, i) {
+        sizeWrap.innerHTML = sizes.map(function (s) {
           var perServing = s.servings ? Math.round(s.price / s.servings) : null;
-          return '<button type="button" class="opt' + (i === 0 ? ' is-active' : '') + '" data-size="' + ui.esc(s.id) + '">' +
+          var out = s.stock === 0;
+          /* The per-serving figure is what this line is for on a normal day.
+             On a size with two left, how many are left is the more useful
+             number, so it takes the slot rather than being squeezed in beside
+             it. */
+          var meta = out
+            ? '<span class="opt__meta">تمام شد</span>'
+            : (typeof s.stock === 'number'
+                ? '<span class="opt__meta"><span class="num">' + s.stock + '</span> عدد مانده</span>'
+                : (perServing
+                    ? '<span class="opt__meta"><span class="num">' + ui.money(perServing) + '</span> در هر وعده</span>'
+                    : ''));
+          return '<button type="button" class="opt' +
+              (s === firstSellable ? ' is-active' : '') + (out ? ' is-out' : '') +
+              '" data-size="' + ui.esc(s.id) + '"' + (out ? ' disabled' : '') + '>' +
             '<span class="opt__label">' + ui.esc(s.label) + '</span>' +
-            (perServing ? '<span class="opt__meta"><span class="num">' + ui.money(perServing) + '</span> در هر وعده</span>' : '') +
+            meta +
             '<span class="opt__price num">' + ui.money(s.price) + '</span>' +
           '</button>';
         }).join('');
         sizeWrap.addEventListener('click', function (e) {
           var btn = e.target.closest('[data-size]');
-          if (!btn) { return; }
+          if (!btn || btn.disabled) { return; }
           $$('.opt', sizeWrap).forEach(function (o) { o.classList.remove('is-active'); });
           btn.classList.add('is-active');
           selected.size = sizes.filter(function (s) { return s.id === btn.getAttribute('data-size'); })[0];
           paintPrice();
+          paintAvailability();
         });
       }
     }
@@ -1126,36 +1155,73 @@ SUPPEX.app = (function () {
     function paintQty() { if (qtyVal) { qtyVal.textContent = selected.qty; } }
     paintQty();
 
+    /* The ceiling on the stepper. Twenty is the shop's own limit; a counted
+       size lowers it to what exists, so the page cannot offer to sell three of
+       something there are two of and then refuse at checkout. */
+    function qtyCeiling() {
+      var left = selected.size ? selected.size.stock : null;
+      return typeof left === 'number' ? Math.max(1, Math.min(20, left)) : 20;
+    }
+
     var qtyBox = $('[data-p-qty]');
     if (qtyBox) {
       qtyBox.addEventListener('click', function (e) {
         var btn = e.target.closest('[data-step]');
         if (!btn) { return; }
-        selected.qty = Math.max(1, Math.min(20, selected.qty + parseInt(btn.getAttribute('data-step'), 10)));
+        selected.qty = Math.max(1, Math.min(qtyCeiling(),
+          selected.qty + parseInt(btn.getAttribute('data-step'), 10)));
         paintQty();
       });
     }
 
-    var buyBtn = $('[data-p-add]');
-    if (buyBtn) {
-      if (!product.inStock) {
-        buyBtn.disabled = true;
-        buyBtn.textContent = 'موقتاً ناموجود';
-      } else {
-        buyBtn.addEventListener('click', function () {
-          var parts = [];
-          if (selected.flavor) { parts.push(selected.flavor.name); }
-          if (selected.size && selected.size.label !== '—') { parts.push(selected.size.label); }
-          addToCart(product, {
-            price: selected.size.price,
-            variantLabel: parts.join(' · '),
-            flavorId: selected.flavor ? selected.flavor.id : null,
-            sizeId: selected.size.id,
-            qty: selected.qty,
-          });
-          setLayer('cart');
-        });
+    var buyBtn   = $('[data-p-add]');
+    var buyLabel = buyBtn ? buyBtn.textContent : '';
+
+    /* Availability is a property of the SELECTED SIZE, not of the product, so
+       it has to be repainted every time the selection moves. The button used
+       to be disabled once at render time from product.inStock alone, which is
+       true of the product and says nothing about the tub in front of you. */
+    function paintAvailability() {
+      var left = selected.size ? selected.size.stock : null;
+      var sold = !product.inStock || left === 0;
+
+      if (selected.qty > qtyCeiling()) { selected.qty = qtyCeiling(); paintQty(); }
+
+      if (buyBtn) {
+        buyBtn.disabled    = sold;
+        buyBtn.textContent = sold ? 'موقتاً ناموجود' : buyLabel;
       }
+
+      set('[data-p-rating]', ui.ratingHtml(product) +
+        '<span class="u-xs" style="color:' +
+          (sold ? 'var(--text-dim)' : (typeof left === 'number' ? 'var(--amber)' : 'var(--success)')) +
+        '">' +
+        (sold ? '● موقتاً ناموجود'
+              : (typeof left === 'number'
+                  ? '● تنها <span class="num">' + left + '</span> عدد مانده'
+                  : '● موجود در انبار')) +
+        '</span>');
+    }
+    paintAvailability();
+
+    if (buyBtn) {
+      buyBtn.addEventListener('click', function () {
+        /* Guarded rather than left unbound, because the handler now outlives
+           any single availability state - the shopper can switch to a sold-out
+           size and back. */
+        if (buyBtn.disabled) { return; }
+        var parts = [];
+        if (selected.flavor) { parts.push(selected.flavor.name); }
+        if (selected.size && selected.size.label !== '—') { parts.push(selected.size.label); }
+        addToCart(product, {
+          price: selected.size.price,
+          variantLabel: parts.join(' · '),
+          flavorId: selected.flavor ? selected.flavor.id : null,
+          sizeId: selected.size.id,
+          qty: selected.qty,
+        });
+        setLayer('cart');
+      });
     }
 
     /* --- accordion content --- */

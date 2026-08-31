@@ -32,6 +32,7 @@ function admin_nav_items(): array
         ['href' => 'index.php',    'label' => 'داشبورد',  'icon' => 'grid'],
         ['href' => 'orders.php',   'label' => 'سفارش‌ها', 'icon' => 'box'],
         ['href' => 'products.php', 'label' => 'محصولات',  'icon' => 'tag'],
+        ['href' => 'stock.php',    'label' => 'موجودی انبار', 'icon' => 'boxes'],
         ['href' => 'categories.php', 'label' => 'دسته‌ها', 'icon' => 'layers'],
         ['href' => 'import.php',   'label' => 'ورود گروهی',  'icon' => 'upload'],
         ['href' => 'pricing.php',  'label' => 'قیمت‌گذاری', 'icon' => 'coins'],
@@ -51,6 +52,8 @@ function admin_icon(string $name): string
         'save'   => '<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3"/><rect x="8" y="13" width="8" height="6"/>',
         'grid'   => '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
         'box'    => '<path d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/>',
+        /* Stacked crates: one box is an order, several are a shelf. */
+        'boxes'  => '<rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><rect x="8" y="3" width="8" height="8" rx="1.5"/>',
         'tag'    => '<path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.4"/>',
         'layers' => '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
         'chart'  => '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',

@@ -87,8 +87,15 @@ function preflight_checks(): array
 
     /* --- Schema ----------------------------------------------------------- */
     $missing = [];
-    foreach (['products' => 'commission_percent', 'product_sizes' => 'cost_aed',
-              'orders' => 'expires_at', 'order_items' => 'commission_percent'] as $t => $c) {
+    /* A list of pairs, not a map keyed by table: two columns on the same
+       table are now worth checking, and a map can only hold one of them.
+       Each entry is the LAST column a migration added to that table, so a
+       database that stopped halfway shows up here rather than at the first
+       order. */
+    foreach ([['products', 'commission_percent'], ['products', 'stock_qty'],
+              ['product_sizes', 'cost_aed'], ['product_sizes', 'stock_qty'],
+              ['orders', 'expires_at'], ['orders', 'items_hash'],
+              ['order_items', 'commission_percent'], ['order_items', 'stock_held']] as [$t, $c]) {
         $present = db_value('SELECT 1 FROM information_schema.COLUMNS
                               WHERE TABLE_SCHEMA = DATABASE()
                                 AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$t, $c]) !== null;

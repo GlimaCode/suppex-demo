@@ -38,6 +38,7 @@ $php = [
     ['test-backup.php',    'test-config.php'],
     ['test-journal.php',   'test-config.php'],
     ['test-track.php',     'test-config.php'],
+    ['test-stock.php',     'test-config.php'],
     /* Rebuilds a database from nothing; needs the throwaway one. */
     ['test-migrate.php',   'fresh-config.php'],
 ];

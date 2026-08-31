@@ -255,7 +255,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                Keyed by ext_id, the only stable handle a size has. */
             $keep = [];
             foreach (db_all('SELECT ext_id, cost_toman, promo_toman, commission_percent,
-                                    price_applied_rate, price_applied_at
+                                    price_applied_rate, price_applied_at, stock_qty
                                FROM product_sizes WHERE product_id = ?', [$id]) as $old) {
                 $keep[(string) $old['ext_id']] = $old;
             }
@@ -307,8 +307,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                         (product_id, ext_id, label, servings, price, compare_at,
                          cost_aed, cost_toman, profit_toman, promo_toman,
                          commission_percent, price_applied_rate, price_applied_at,
-                         sort_order)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                         stock_qty, sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [$id, $extFinal, $label,
                      $serv > 0 ? $serv : null,
                      $sPrice > 0 ? $sPrice : $price,
@@ -320,6 +320,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                      $prev['commission_percent'] ?? null,
                      $prev['price_applied_rate'] ?? null,
                      $prev['price_applied_at'] ?? null,
+                     /* Carried, never posted. The count belongs to stock.php,
+                        and the order flow changes it while this page is open —
+                        a size input here would let a save that touched nothing
+                        but a description undo somebody's purchase. */
+                     $prev['stock_qty'] ?? null,
                      $i]
                 );
             }
@@ -634,6 +639,13 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
             <?= ($isNew || (int) v($product, 'is_active', '1') === 1) ? ' checked' : '' ?>>
           <span>در سایت نمایش داده شود</span>
         </label>
+        <span class="hint" style="margin-block-start:8px">
+          این کلید دستی است و بر همه چیز مقدم است.
+          <?php if (!$isNew): ?>
+            برای شمردن تعداد،
+            <a href="stock.php">موجودی انبار</a>.
+          <?php endif; ?>
+        </span>
       </div>
 
       <div class="field">

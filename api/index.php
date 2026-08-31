@@ -126,21 +126,32 @@ try {
 
             $in   = implode(',', array_fill(0, count($slugs), '?'));
             $rows = db_all(
-                'SELECT id, slug, price, compare_at, in_stock, is_active
+                'SELECT id, slug, price, compare_at, in_stock, stock_qty, is_active,
+                        (SELECT COUNT(*) FROM product_sizes s
+                          WHERE s.product_id = products.id) AS sizes_total,
+                        (SELECT COUNT(s.stock_qty) FROM product_sizes s
+                          WHERE s.product_id = products.id) AS sizes_counted,
+                        (SELECT COUNT(*) FROM product_sizes s
+                          WHERE s.product_id = products.id AND s.stock_qty > 0) AS sizes_available
                    FROM products WHERE slug IN (' . $in . ')',
                 $slugs
             );
 
             $out = [];
             foreach ($rows as $r) {
+                $parentStock = $r['stock_qty'] === null ? null : (int) $r['stock_qty'];
                 $sizes = [];
-                foreach (db_all('SELECT ext_id, price, compare_at FROM product_sizes
+                foreach (db_all('SELECT ext_id, price, compare_at, stock_qty FROM product_sizes
                                   WHERE product_id = ? ORDER BY sort_order, id',
                                 [(int) $r['id']]) as $sz) {
+                    /* Same fallback as everywhere else: the size's own count,
+                       or the product's if the size has none. */
+                    $sizeStock = $sz['stock_qty'] !== null ? (int) $sz['stock_qty'] : $parentStock;
                     $sizes[] = [
                         'id'        => $sz['ext_id'],
                         'price'     => (int) $sz['price'],
                         'compareAt' => $sz['compare_at'] === null ? null : (int) $sz['compare_at'],
+                        'stock'     => $sizeStock === null ? null : max(0, $sizeStock),
                     ];
                 }
                 $out[] = [
@@ -150,7 +161,17 @@ try {
                     /* A product hidden since the item was added is treated as
                        unavailable rather than omitted, so the cart can say so
                        instead of silently dropping a line. */
-                    'available' => ((int) $r['is_active'] === 1 && (int) $r['in_stock'] === 1),
+                    'available' => ((int) $r['is_active'] === 1 && product_row_available($r)),
+                    /* How many are left, so a cart holding three of the last
+                       one is corrected here rather than at checkout, after the
+                       customer has typed their address. null = uncounted.
+
+                       Not capped at the low threshold the way the catalogue's
+                       is: this route answers about items already in somebody's
+                       basket, and trimming a quantity of five needs the real
+                       number to trim it to. */
+                    'stock'     => ((int) $r['sizes_total'] > 0 || $parentStock === null)
+                        ? null : max(0, $parentStock),
                     'sizes'     => $sizes,
                 ];
             }

@@ -93,6 +93,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 'free_shipping_threshold' => parse_money($_POST['free_shipping_threshold'] ?? 0),
                 'shipping_flat_rate'      => parse_money($_POST['shipping_flat_rate'] ?? 0),
                 'order_hold_minutes'      => max(5, min((int) digits_only((string) ($_POST['order_hold_minutes'] ?? '30')), 180)),
+                /* Clamped the same way stock_low_threshold() clamps it, so the
+                   field and the code cannot disagree about what is allowed. */
+                'low_stock_threshold'     => max(1, min((int) digits_only((string) ($_POST['low_stock_threshold'] ?? '3')), 50)),
                 'card_number'             => $card,
                 'card_holder'             => clean_text($_POST['card_holder'] ?? '', 120),
                 'bank_name'               => clean_text($_POST['bank_name'] ?? '', 80),
@@ -174,6 +177,19 @@ admin_head('تنظیمات', ['user' => $user]);
           بین ۵ تا ۱۸۰ دقیقه. پیشنهاد: ۳۰ دقیقه — برای مشتری کافی است
           و آنقدر طولانی نیست که نرخ درهم جابه‌جا شود.
           سفارش منقضی حذف نمی‌شود — از صفحه خودش قابل برگرداندن است.
+        </span>
+      </div>
+
+      <div class="field">
+        <label for="low_stock_threshold">هشدار «رو به اتمام» از (عدد)</label>
+        <input type="text" id="low_stock_threshold" name="low_stock_threshold" inputmode="numeric"
+               value="<?= e(s('low_stock_threshold', '3')) ?>">
+        <span class="hint">
+          وقتی موجودی یک محصول به این عدد یا کمتر برسد، در سایت نوشته می‌شود
+          «۲ عدد مانده» و در داشبورد هم هشدار می‌گیرید.
+          عددهای بالاتر از این در سایت نمایش داده نمی‌شوند — مشتری با شنیدن
+          «۴۷ عدد مانده» کار متفاوتی نمی‌کند، و انبار شما هم اطلاعات عمومی نیست.
+          بین ۱ تا ۵۰.
         </span>
       </div>
     </div>

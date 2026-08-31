@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/orders.php';
 require_once SUPPEX_ROOT . '/lib/pricing.php';
+require_once SUPPEX_ROOT . '/lib/stock.php';
 require_once __DIR__ . '/partials/layout.php';
 
 $user = auth_require();
@@ -21,8 +22,32 @@ $todayCount = orders_count(['from' => $today, 'to' => $today]);
 $month      = orders_settlement($monthStart, $today);
 $recent     = orders_list(['limit' => 12]);
 
-$lowStock = db_all(
+/* Switched off by hand. Unchanging by nature — it is only ever this way
+   because somebody made it so — but still worth a line, because "why is
+   nobody buying this" has this as its answer more often than it should. */
+$offSale = db_all(
     'SELECT slug, name_fa FROM products WHERE is_active = 1 AND in_stock = 0 ORDER BY name_fa LIMIT 8'
+);
+
+/* Run down on their own, which is the half nobody sees coming. Sizes are
+   listed by name because "وی پروتئین" being low says nothing useful when it is
+   sold in six sizes and only the 900g one is nearly gone. */
+$lowThreshold = stock_low_threshold();
+$runningOut = db_all(
+    'SELECT p.slug, p.name_fa, "" AS size_label, p.stock_qty AS n
+       FROM products p
+      WHERE p.is_active = 1 AND p.in_stock = 1
+        AND p.stock_qty IS NOT NULL AND p.stock_qty <= ?
+        AND NOT EXISTS (SELECT 1 FROM product_sizes s WHERE s.product_id = p.id)
+     UNION ALL
+     SELECT p.slug, p.name_fa, s.label AS size_label, s.stock_qty AS n
+       FROM product_sizes s
+       JOIN products p ON p.id = s.product_id
+      WHERE p.is_active = 1 AND p.in_stock = 1
+        AND s.stock_qty IS NOT NULL AND s.stock_qty <= ?
+     ORDER BY n ASC, name_fa ASC
+      LIMIT 12',
+    [$lowThreshold, $lowThreshold]
 );
 
 /* A card number that fails the Luhn check is almost always a typo, and the
@@ -94,14 +119,40 @@ admin_head('داشبورد', ['user' => $user]);
   </div>
 </div>
 
-<?php if ($lowStock): ?>
+<?php if ($runningOut): ?>
+  <div class="card">
+    <h2 class="card__title">رو به اتمام</h2>
+    <p class="u-dim" style="margin-block-end:12px">
+      موجودی این‌ها کم شده یا تمام شده است. تعدادی که سفارش‌های باز رزرو کرده‌اند
+      از این عددها کم شده.
+    </p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <?php foreach ($runningOut as $r): $n = (int) $r['n']; ?>
+        <a class="pill <?= $n <= 0 ? 'pill--cancelled' : 'pill--new' ?>" href="stock.php?low=1">
+          <?= e($r['name_fa']) ?><?= $r['size_label'] !== '' ? ' · ' . e($r['size_label']) : '' ?>
+          —
+          <?php if ($n < 0): ?>
+            <span class="num"><?= abs($n) ?></span> تا بیشتر فروخته شده
+          <?php elseif ($n === 0): ?>
+            تمام شد
+          <?php else: ?>
+            <span class="num"><?= $n ?></span> عدد
+          <?php endif; ?>
+        </a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+<?php endif; ?>
+
+<?php if ($offSale): ?>
   <div class="card">
     <h2 class="card__title">محصولات ناموجود</h2>
     <p class="u-dim" style="margin-block-end:12px">
       این محصولات در سایت دیده می‌شوند اما دکمه افزودن به سبد آن‌ها غیرفعال است.
+      این حالت دستی است و تا خودتان روشنش نکنید تغییر نمی‌کند.
     </p>
     <div style="display:flex;flex-wrap:wrap;gap:8px">
-      <?php foreach ($lowStock as $p): ?>
+      <?php foreach ($offSale as $p): ?>
         <a class="pill pill--off" href="product-edit.php?slug=<?= e(rawurlencode($p['slug'])) ?>">
           <?= e($p['name_fa']) ?>
         </a>

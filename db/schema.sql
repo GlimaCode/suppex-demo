@@ -255,6 +255,9 @@ INSERT INTO settings (setting_key, setting_value) VALUES
   ('bank_name',              ''),
   ('commission_percent',     '0'),
   ('order_hold_minutes',     '30'),
+  -- How few is "nearly gone". Below this the storefront says how many are
+  -- left; above it, nothing is published at all.
+  ('low_stock_threshold',    '3'),
   ('telegram_url',           'https://t.me/ARSENX2003'),
   ('bale_url',               'https://ble.ir/ALIARSENX'),
   ('whatsapp_url',           ''),

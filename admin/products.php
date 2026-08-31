@@ -6,6 +6,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/images.php';
+require_once SUPPEX_ROOT . '/lib/stock.php';
 require_once __DIR__ . '/partials/layout.php';
 
 $user = auth_require();
@@ -44,7 +45,10 @@ $q      = clean_text($_GET['q'] ?? '', 80);
 $catId  = (int) ($_GET['cat'] ?? 0);
 
 $sql = 'SELECT p.id, p.slug, p.name_fa, p.name_en, p.brand, p.price, p.compare_at,
-               p.in_stock, p.is_active, p.image, c.name_fa AS category_name
+               p.in_stock, p.stock_qty, p.is_active, p.image, c.name_fa AS category_name,
+               (SELECT COUNT(*) FROM product_sizes s WHERE s.product_id = p.id) AS sizes_total,
+               (SELECT MIN(s.stock_qty) FROM product_sizes s
+                 WHERE s.product_id = p.id) AS sizes_lowest
           FROM products p
           LEFT JOIN categories c ON c.id = p.category_id
          WHERE 1';
@@ -61,8 +65,9 @@ if ($catId > 0) {
 }
 $sql .= ' ORDER BY p.sort_order, p.id DESC LIMIT 300';
 
-$products   = db_all($sql, $params);
-$categories = db_all('SELECT id, name_fa FROM categories ORDER BY sort_order, id');
+$products     = db_all($sql, $params);
+$categories   = db_all('SELECT id, name_fa FROM categories ORDER BY sort_order, id');
+$lowThreshold = stock_low_threshold();
 
 admin_head('محصولات', [
     'user'   => $user,
@@ -137,9 +142,29 @@ admin_head('محصولات', [
               <?php endif; ?>
             </td>
             <td>
-              <span class="pill <?= (int) $p['in_stock'] === 1 ? 'pill--paid' : 'pill--cancelled' ?>">
-                <?= (int) $p['in_stock'] === 1 ? 'موجود' : 'ناموجود' ?>
-              </span>
+              <?php
+              /* The manual switch first, because it overrides everything. Then
+                 the number, when there is one: "موجود" beside a count of zero
+                 would be the panel disagreeing with the storefront. */
+              if ((int) $p['in_stock'] !== 1): ?>
+                <span class="pill pill--cancelled">ناموجود</span>
+              <?php else:
+                  $n = $p['stock_qty'] === null ? null : (int) $p['stock_qty'];
+                  /* A product sold in sizes reports its emptiest size, since
+                     that is the one about to embarrass somebody. */
+                  if ((int) $p['sizes_total'] > 0 && $p['sizes_lowest'] !== null) {
+                      $n = (int) $p['sizes_lowest'];
+                  }
+                  if ($n === null): ?>
+                    <span class="pill pill--paid">موجود</span>
+                  <?php elseif ($n <= 0): ?>
+                    <span class="pill pill--cancelled">تمام شد</span>
+                  <?php else: ?>
+                    <span class="pill <?= $n <= $lowThreshold ? 'pill--new' : 'pill--paid' ?>">
+                      <span class="num"><?= $n ?></span> عدد
+                    </span>
+                  <?php endif;
+              endif; ?>
             </td>
             <td>
               <span class="pill <?= (int) $p['is_active'] === 1 ? 'pill--new' : 'pill--off' ?>">

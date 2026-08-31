@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/products.php';
 require_once __DIR__ . '/pricing.php';
+require_once __DIR__ . '/stock.php';
 
 const ORDER_STATUSES = ['new', 'paid', 'shipped', 'done', 'cancelled', 'expired'];
 
@@ -64,7 +65,15 @@ function orders_expire_due(): int
         $id = (int) $row['id'];
         /* The status guard repeats in the UPDATE so a payment confirmed between
            the SELECT and here is not overwritten by the sweep. */
-        db_query('UPDATE orders SET status = "expired" WHERE id = ? AND status = "new"', [$id]);
+        if (db_query('UPDATE orders SET status = "expired" WHERE id = ? AND status = "new"',
+                     [$id])->rowCount() === 0) {
+            continue;   // somebody paid it between the SELECT and here
+        }
+        /* The hold ends with the window. This is the whole reason stock can be
+           reserved at order time rather than at payment: the expiry already
+           existed to end a price quote, and a reservation with no end is a
+           slow leak of goods that are sitting on the shelf. */
+        stock_release_order($id);
         db_query(
             'INSERT INTO order_events (order_id, admin_name, from_status, to_status, note)
              VALUES (?, "", "new", "expired", ?)',
@@ -174,6 +183,8 @@ function order_price_line(array $line): ?array
     $qty = (int) digits_only((string) ($line['qty'] ?? '1'));
     $qty = max(1, min($qty, 99));
 
+    $sizeExt = '';
+
     $unitPrice   = (int) $product['price'];
     $variantBits = [];
 
@@ -212,6 +223,10 @@ function order_price_line(array $line): ?array
         $unitPrice     = (int) $size['price'];
         $unitCost      = (int) ($size['cost_toman'] ?? 0);
         $variantBits[] = $size['label'];
+        /* Carried through to the order line. variant_label is prose assembled
+           for a human — it can read "وانیل · 900 گرم" — and giving stock back
+           needs the id the size is actually keyed by. */
+        $sizeExt       = $sizeId;
         if ($size['commission_percent'] !== null) {
             $rateOverride = $size['commission_percent'];
         }
@@ -254,6 +269,7 @@ function order_price_line(array $line): ?array
         'slug'          => $product['slug'],
         'name_fa'       => $product['name_fa'],
         'variant_label' => $variantBits ? implode(' · ', $variantBits) : (string) $product['variant_label'],
+        'size_ext'      => $sizeExt,
         'qty'           => $qty,
         'unit_price'    => $unitPrice,
         'unit_cost'     => $unitCost,
@@ -449,17 +465,29 @@ function order_create(array $payload): array
         }
 
         foreach ($items as $it) {
+            /* The goods are taken here, not when the money arrives. Deciding
+               at payment leaves the whole race open: everyone who orders the
+               last tub gets a code and a card number, and the ones who lose
+               find out after they have paid. Where nothing is counted this
+               returns held = 0 and changes nothing, which is every product in
+               the shop until somebody types a number. */
+            $hold = stock_take_line(
+                (int) $it['product_id'], (string) ($it['size_ext'] ?? ''),
+                (int) $it['qty'], (string) $it['name_fa']
+            );
+
             db_query(
                 'INSERT INTO order_items
-                    (order_id, product_id, slug, name_fa, variant_label, qty,
+                    (order_id, product_id, slug, name_fa, variant_label, size_ext, qty,
                      unit_price, unit_cost, unit_profit, line_total, line_profit,
-                     commission_percent, commission_basis, commission_amount)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     commission_percent, commission_basis, commission_amount,
+                     stock_held, stock_from)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [$orderId, $it['product_id'], $it['slug'], $it['name_fa'],
-                 $it['variant_label'], $it['qty'], $it['unit_price'],
+                 $it['variant_label'], $it['size_ext'] ?? '', $it['qty'], $it['unit_price'],
                  $it['unit_cost'], $it['unit_profit'], $it['line_total'], $it['line_profit'],
                  $it['commission_percent'], $it['commission_basis'] ?? 'goods',
-                 $it['commission_amount']]
+                 $it['commission_amount'], $hold['held'], $hold['from']]
             );
         }
 
@@ -470,6 +498,16 @@ function order_create(array $payload): array
         );
 
         $pdo->commit();
+    } catch (StockShortfall $e) {
+        /* Rolled back, so nothing survives: no code, no order, no stock taken
+           by the lines that did succeed before this one. The customer is told
+           which product and how many are left, because "ثبت سفارش با خطا مواجه
+           شد" leaves them with nothing to change. */
+        $pdo->rollBack();
+        return ['ok' => false, 'errors' => ['items' => $e->remaining > 0
+            ? 'از «' . $e->productName . '» فقط ' . fa_digits((string) $e->remaining)
+              . ' عدد باقی مانده است. تعداد را در سبد کم کنید و دوباره بفرستید.'
+            : '«' . $e->productName . '» همین الان تمام شد. آن را از سبد بردارید و دوباره بفرستید.']];
     } catch (Throwable $e) {
         $pdo->rollBack();
         error_log('[suppex] order_create failed: ' . $e->getMessage());
@@ -515,6 +553,22 @@ function order_set_status(int $id, string $status, array $admin, string $note = 
                   && $current['paid_at'] === null)
         ? date('Y-m-d H:i:s')
         : $current['paid_at'];
+
+    /* Stock follows the status. Leaving 'held' means new, paid, shipped and
+       done — done included, because the goods left the building and the count
+       must stay down; the hold simply becomes the sale.
+
+       Both directions are handled: cancelling an order puts the goods back on
+       the shelf, and putting a cancelled order back on the board takes them
+       again. Only doing the first would leak stock upward every time somebody
+       changed their mind twice. */
+    $heldBefore = order_holds_stock($current['status']);
+    $heldAfter  = order_holds_stock($status);
+    if ($heldBefore && !$heldAfter) {
+        stock_release_order($id);
+    } elseif (!$heldBefore && $heldAfter) {
+        stock_take_order($id);
+    }
 
     /* Putting an expired order back on the board gives it a fresh window.
        Without this the next page load would expire it again, which reads as

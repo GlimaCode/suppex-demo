@@ -108,19 +108,42 @@ head("the schema supports what the code queries");
 $need = [
     "products"      => ["cost_aed", "profit_toman", "promo_toman", "price_mode",
                         "cost_toman", "price_applied_rate", "price_applied_at",
-                        "commission_percent"],
+                        "commission_percent", "stock_qty"],
     "product_sizes" => ["cost_aed", "profit_toman", "promo_toman", "cost_toman",
-                        "price_applied_rate", "price_applied_at", "commission_percent"],
+                        "price_applied_rate", "price_applied_at", "commission_percent",
+                        "stock_qty"],
     "orders"        => ["expires_at", "profit_total", "commission_basis",
-                        "commission_percent", "commission_amount", "rate_at_order"],
+                        "commission_percent", "commission_amount", "rate_at_order",
+                        "items_hash"],
     "order_items"   => ["unit_cost", "unit_profit", "line_profit",
-                        "commission_percent", "commission_amount"],
+                        "commission_percent", "commission_amount",
+                        "size_ext", "stock_held", "stock_from"],
 ];
 foreach ($need as $table => $cols) {
     $have = array_column(db_all("SHOW COLUMNS FROM " . $table), "Field");
     $missing = array_values(array_diff($cols, $have));
     ok("$table has every pricing column", $missing === [], implode(", ", $missing));
 }
+/* A count must default to NULL — "nobody has counted this" — and not to 0.
+   Defaulting to zero would take an entire freshly installed catalogue off sale
+   the moment the migration ran, which is the loudest possible way to get this
+   wrong and the easiest one to type. */
+foreach ([["products", "stock_qty"], ["product_sizes", "stock_qty"]] as [$t, $c]) {
+    /* information_schema, not SHOW COLUMNS ... LIKE ?: the LIKE pattern of a
+       SHOW statement cannot be a bound parameter. */
+    $def = db_one("SELECT IS_NULLABLE, COLUMN_DEFAULT FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                  [$t, $c]);
+    /* MariaDB reports a NULL default as the four-character string "NULL" and
+       an absent default as SQL NULL. Both mean "no number here"; only a 0
+       would be the mistake this is watching for. */
+    $default = $def["COLUMN_DEFAULT"] ?? null;
+    ok("$t.$c defaults to uncounted, not to zero",
+       $def !== null && $def["IS_NULLABLE"] === "YES"
+       && ($default === null || strtoupper((string) $default) === "NULL"),
+       json_encode($def));
+}
+
 foreach (["rate_history", "commission_log", "order_events", "product_sizes",
           "product_flavors", "product_images"] as $t) {
     ok("table $t exists",

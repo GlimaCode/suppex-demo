@@ -97,6 +97,11 @@
 .badge--light  { background: var(--text); color: var(--inverse-text); }
 .badge--accent { background: var(--accent); color: #fff; }
 .badge--outline{ background: rgba(19,18,16,0.72); color: var(--text); border: 1px solid var(--line-strong); backdrop-filter: blur(6px); }
+/* Scarcity. Solid rather than tinted because this badge sits on top of a
+   product photograph, where a translucent fill takes its contrast from
+   whatever happens to be behind it. Near-black on amber reads at about 9:1 on
+   every image; white on amber would be 2.6:1 and effectively decorative. */
+.badge--warn   { background: var(--amber); color: #1A1207; }
 
 .chip {
   display: inline-flex;
@@ -198,6 +203,10 @@
   pointer-events: none;
   z-index: 2;
 }
+/* A product can be a bestseller AND nearly gone. Each badge is nowrap, so
+   without this the third one pushes the row out over the card's edge at the
+   narrow end of the grid. */
+.pcard__flags > .row { flex-wrap: wrap; }
 
 .pcard__body {
   display: flex;
@@ -359,6 +368,14 @@
 }
 .opt:hover { border-color: var(--line-strong); background: var(--surface); }
 .opt.is-active { border-color: var(--accent); background: rgba(242, 89, 20, 0.09); }
+/* A sold-out size. Still legible - the shopper needs to see that the 2270g tub
+   exists and is gone, not to have it vanish and leave them wondering whether
+   they misremembered. The label is struck through so the state survives for
+   anyone who cannot separate 0.55 opacity from 1. */
+.opt[disabled] { opacity: 0.55; cursor: not-allowed; }
+.opt[disabled]:hover { border-color: var(--line-mid); background: none; }
+.opt.is-out .opt__label,
+.opt.is-out .opt__price { text-decoration: line-through; }
 .opt__label { font-weight: 800; font-size: var(--fs-sm); }
 .opt__meta { font-size: var(--fs-xs); color: var(--text-dim); font-weight: 600; }
 .opt__price { font-weight: 800; font-size: var(--fs-sm); }

@@ -7,3 +7,8 @@
 
 # Test scratch: throwaway uploads and the last run report.
 tests/tmp/
+
+# Generated on demand by lib/ogimage.php and named by a content hash, so a
+# committed copy is stale the moment a price moves. The directory makes
+# itself.
+uploads/og/

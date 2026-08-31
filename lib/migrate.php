@@ -376,6 +376,69 @@ function migrate_run(array &$log): void
         },
         $log
     );
+
+    /* 2026-08 - stock counts ----------------------------------------------- */
+
+    step(
+        'products.stock_qty + product_sizes.stock_qty - how many are left',
+        static fn(): bool => column_exists('products', 'stock_qty')
+            && column_exists('product_sizes', 'stock_qty'),
+        static function (): void {
+            /* NULL, not 0. NULL means nobody has counted this, which is the
+               state every existing product is in and must stay in - defaulting
+               to zero would take the whole catalogue off sale the moment this
+               ran. */
+            if (!column_exists('products', 'stock_qty')) {
+                db()->exec('ALTER TABLE products
+                    ADD COLUMN stock_qty INT NULL AFTER in_stock');
+            }
+            if (!column_exists('product_sizes', 'stock_qty')) {
+                db()->exec('ALTER TABLE product_sizes
+                    ADD COLUMN stock_qty INT NULL AFTER price');
+            }
+            /* ext_id is how every order line and every reservation finds a
+               size, and the only index on the table is (product_id,
+               sort_order) - so each lookup scanned the product's sizes. That
+               was tolerable while it was one SELECT; it is not once the
+               reservation takes a row lock through it, because the scan locks
+               every size of the product instead of the one being sold.
+
+               Not UNIQUE. A duplicate ext_id is a bug, but adding a constraint
+               that existing rows might already violate turns a migration into
+               a failed install, and this index is here for the lookup. */
+            if (!index_exists('product_sizes', 'idx_psizes_ext')) {
+                db()->exec('CREATE INDEX idx_psizes_ext ON product_sizes (product_id, ext_id)');
+            }
+        },
+        $log
+    );
+
+    step(
+        'order_items.size_ext + stock_held + stock_from - a reversible hold',
+        static fn(): bool => column_exists('order_items', 'stock_held'),
+        static function (): void {
+            /* size_ext is the size that was ordered. The line already stores
+               variant_label, but that is prose assembled for a human - it can
+               say "وانیل · 900 گرم" - and giving stock back needs the id.
+
+               stock_held is how many units this line is holding NOW, so
+               zeroing it as the units go back makes the release idempotent
+               without an order-level flag. stock_from records which row they
+               came out of, because a size may start or stop being counted
+               between the order and its cancellation and the units have to go
+               home to where they were taken from. */
+            if (!column_exists('order_items', 'size_ext')) {
+                db()->exec("ALTER TABLE order_items
+                    ADD COLUMN size_ext VARCHAR(60) NOT NULL DEFAULT '' AFTER variant_label");
+            }
+            if (!column_exists('order_items', 'stock_held')) {
+                db()->exec('ALTER TABLE order_items
+                    ADD COLUMN stock_held INT NOT NULL DEFAULT 0,
+                    ADD COLUMN stock_from VARCHAR(60) NULL');
+            }
+        },
+        $log
+    );
 }
 
 /** Which migrations are present. Used by the panel and by preflight. */
@@ -394,5 +457,8 @@ function migrate_pending(): array
         'products.commission_percent'=> column_exists('products', 'commission_percent'),
         'order_items.commission_percent' => column_exists('order_items', 'commission_percent'),
         'commission_log'             => table_exists('commission_log'),
+        'orders.items_hash'          => column_exists('orders', 'items_hash'),
+        'products.stock_qty'         => column_exists('products', 'stock_qty'),
+        'order_items.stock_held'     => column_exists('order_items', 'stock_held'),
     ];
 }

@@ -133,18 +133,43 @@ SUPPEX.store = (function () {
         /* A size carries its own price, so resolve the same way the server
            does rather than falling back to the parent's. */
         var price = fresh.price;
+        var left  = fresh.stock;
         if (item.sizeId && Array.isArray(fresh.sizes)) {
           for (var i = 0; i < fresh.sizes.length; i++) {
-            if (fresh.sizes[i].id === item.sizeId) { price = fresh.sizes[i].price; break; }
+            if (fresh.sizes[i].id === item.sizeId) {
+              price = fresh.sizes[i].price;
+              left  = fresh.sizes[i].stock;
+              break;
+            }
+          }
+        }
+
+        var next = Object.assign({}, item, { unavailable: false });
+
+        /* A cart holding three of the last one. Caught here rather than at
+           checkout: the order endpoint refuses it correctly, but by then the
+           shopper has typed their name, phone, address and postal code, and
+           being told to go back and edit the basket is where an order gets
+           abandoned. typeof, not truthiness - zero is a real answer. */
+        if (typeof left === 'number' && left < item.qty) {
+          changes.push({
+            nameFa: item.nameFa, from: item.price, to: null,
+            gone: left === 0, qtyFrom: item.qty, qtyTo: left,
+          });
+          if (left === 0) {
+            next.unavailable = true;
+          } else {
+            next.qty = left;
           }
         }
 
         if (typeof price !== 'number' || price <= 0 || price === item.price) {
-          return Object.assign({}, item, { unavailable: false });
+          return next;
         }
 
         changes.push({ nameFa: item.nameFa, from: item.price, to: price, gone: false });
-        return Object.assign({}, item, { price: price, unavailable: false });
+        next.price = price;
+        return next;
       });
 
       if (changes.length) { emit(); }

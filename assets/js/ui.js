@@ -209,6 +209,17 @@ SUPPEX.ui = (function () {
       if (BADGE_TEXT[b]) { left += '<span class="badge badge--light">' + esc(BADGE_TEXT[b]) + '</span>'; }
     });
     if (!product.inStock) { left += '<span class="badge badge--outline">ناموجود</span>'; }
+    /* The server only sends a count when it is low enough to matter, so
+       anything that arrives here is worth printing. typeof, because 0 is a
+       number the shop means - it just never reaches this line, since a product
+       with none left is not inStock. */
+    else if (typeof product.stock === 'number' && product.stock > 0) {
+      /* Short on purpose. Three badges can share this row on a card that is
+         155px wide at the narrow end of the grid, and the number is the part
+         that has to survive - «تنها» is decoration. */
+      left += '<span class="badge badge--warn"><span class="num">' +
+              product.stock + '</span> عدد مانده</span>';
+    }
 
     var right = product.onSale
       ? /* The minus was written last so that RTL reordering would carry it
@@ -377,10 +388,25 @@ SUPPEX.ui = (function () {
   function priceChangeNotice(changes) {
     if (!changes || !changes.length) { return ''; }
 
+    /* Which KINDS of change happened, because the heading and the explanation
+       below both depend on it. A run can carry both at once — the rate moved
+       and the last tub went — and the notice has to be true about each. */
+    var movedPrice = changes.some(function (c) { return typeof c.to === 'number'; });
+    var movedStock = changes.some(function (c) { return typeof c.qtyTo === 'number' || c.gone; });
+
     var rows = changes.map(function (c) {
       if (c.gone) {
         return '<li><strong>' + esc(c.nameFa) + '</strong> — ' +
                'دیگر موجود نیست و در سفارش حساب نمی‌شود.</li>';
+      }
+      /* A quantity the shop can no longer fill. Said as what was done rather
+         than what went wrong: the shopper asked for three, they are getting
+         two, and the sentence has to leave them able to decide whether two is
+         still worth it. */
+      if (typeof c.qtyTo === 'number') {
+        return '<li><strong>' + esc(c.nameFa) + '</strong> — ' +
+               'فقط <span class="num">' + c.qtyTo + '</span> عدد مانده بود، ' +
+               'تعداد از <span class="num">' + c.qtyFrom + '</span> کم شد.</li>';
       }
       var up = c.to > c.from;
       return '<li><strong>' + esc(c.nameFa) + '</strong> — ' +
@@ -392,12 +418,23 @@ SUPPEX.ui = (function () {
     return '<div class="cart-notice">' +
       icon('info') +
       '<div>' +
-        '<strong>قیمت‌ها به‌روز شد</strong>' +
+        '<strong>' + (movedStock ? 'سبد شما به‌روز شد' : 'قیمت‌ها به‌روز شد') + '</strong>' +
         '<ul>' + rows + '</ul>' +
-        '<span class="cart-notice__why">' +
-          'قیمت این محصولات به نرخ ارز بسته است و از زمانی که به سبد اضافه کردید تغییر کرده. ' +
-          'مبلغی که پرداخت می‌کنید همین عدد جدید است.' +
-        '</span>' +
+        /* One sentence per kind of change, and only for the kinds that
+           actually happened. A cart trimmed from two to one was being told
+           its exchange rate had moved. */
+        (movedPrice
+          ? '<span class="cart-notice__why">' +
+              'قیمت این محصولات به نرخ ارز بسته است و از زمانی که به سبد اضافه کردید تغییر کرده. ' +
+              'مبلغی که پرداخت می‌کنید همین عدد جدید است.' +
+            '</span>'
+          : '') +
+        (movedStock
+          ? '<span class="cart-notice__why">' +
+              'موجودی انبار از زمانی که به سبد اضافه کردید کم شده. ' +
+              'همین تعداد را می‌توانیم برایتان بفرستیم.' +
+            '</span>'
+          : '') +
       '</div>' +
     '</div>';
   }

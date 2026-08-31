@@ -29,11 +29,34 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $status = (string) ($_POST['status'] ?? '');
     $note   = (string) ($_POST['note'] ?? '');
 
+    /* A status change moves goods on and off a shelf, and the badge on its
+       own does not say so. Measured either side rather than returned by
+       order_set_status(), which has one job and should keep it. */
+    $heldBefore = (int) db_value(
+        'SELECT COALESCE(SUM(stock_held), 0) FROM order_items WHERE order_id = ?', [$id]);
+
     if (order_set_status($id, $status, $user, $note)) {
         if ($note !== '') {
             db_query('UPDATE orders SET receipt_note = ? WHERE id = ?', [clean_multiline($note, 1000), $id]);
         }
-        flash('ok', 'وضعیت سفارش به «' . (ORDER_STATUS_FA[$status] ?? $status) . '» تغییر کرد.');
+        $heldAfter = (int) db_value(
+            'SELECT COALESCE(SUM(stock_held), 0) FROM order_items WHERE order_id = ?', [$id]);
+
+        $msg = 'وضعیت سفارش به «' . (ORDER_STATUS_FA[$status] ?? $status) . '» تغییر کرد.';
+        if ($heldAfter < $heldBefore) {
+            $msg .= ' ' . fa_digits((string) ($heldBefore - $heldAfter)) . ' عدد به موجودی برگشت.';
+        } elseif ($heldAfter > $heldBefore) {
+            $msg .= ' ' . fa_digits((string) ($heldAfter - $heldBefore)) . ' عدد دوباره از موجودی کم شد.';
+        }
+        flash('ok', $msg);
+
+        /* Reopening is allowed to oversell — the operator knows things the
+           database does not. Silence would be the mistake. */
+        $over = stock_oversold_for_order($id);
+        if ($over) {
+            flash('error', 'موجودی این‌ها حالا منفی است: ' . implode('، ', $over)
+                . '. یعنی بیشتر از چیزی که دارید فروخته شده — در «موجودی انبار» درستش کنید.');
+        }
     } else {
         flash('error', 'وضعیت انتخاب‌شده معتبر نیست.');
     }
