@@ -202,6 +202,13 @@ SUPPEX.config = {
      once on the host. */
   productPage: 'product.html',
 
+  /* Beside productPage and for the same reason: the page a category links to
+     is a deployment decision, not a rendering one. Categories only exist as
+     rows in a database, so the static no-backend demo has no category page to
+     send anyone to - leave this null there and the cards keep filtering the
+     grid in place, exactly as they did before. */
+  categoryPage: 'category.php',
+
   /* --- Data source ----------------------------------------------------
      baseUrl === null  →  read from the bundled catalogue (assets/js/catalog.js)
      baseUrl === '...' →  SUPPEX.repo issues fetch() calls instead.

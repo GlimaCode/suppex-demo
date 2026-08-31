@@ -308,6 +308,29 @@ function categories_list(): array
     ], $rows);
 }
 
+/**
+ * One category, or null.
+ *
+ * Built on categories_list() deliberately rather than its own SELECT.
+ * products_list() filters on c.slug ALONE - it never looks at c.is_active - so
+ * a category switched off in the panel still returns its products, and a page
+ * that decided it existed by counting products would happily publish a
+ * category the owner had hidden. categories_list() is the only reader that
+ * applies is_active, so it is the one that gets to answer "does this exist".
+ */
+function category_get(string $slug): ?array
+{
+    if ($slug === '') {
+        return null;
+    }
+    foreach (categories_list() as $c) {
+        if ($c['id'] === $slug) {
+            return $c;
+        }
+    }
+    return null;
+}
+
 /** Free-text search across the fields a shopper would actually type. */
 function products_search(string $query): array
 {

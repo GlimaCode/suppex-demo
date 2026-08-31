@@ -268,7 +268,15 @@ SUPPEX.ui = (function () {
 
   function categoryCard(cat) {
     return '' +
-      '<a class="ccard reveal" href="#featured" data-category="' + esc(cat.id) + '">' +
+      /* href="#featured" was the one line that made a category unlinkable:
+         the card scrolled to the grid and filtered it in place, so a category
+         had no URL to share, bookmark or index. With no category page
+         configured it still does exactly that. */
+      '<a class="ccard reveal" href="' +
+        (cfg.categoryPage
+          ? cfg.categoryPage + '?c=' + encodeURIComponent(cat.id)
+          : '#featured') +
+        '" data-category="' + esc(cat.id) + '">' +
         '<span class="media media--4x5" style="border-radius:0;display:block">' +
           '<img src="' + imgSrc(cat.image) + '" alt="دسته‌بندی ' + esc(cat.name) + '" loading="lazy" width="320" height="400">' +
         '</span>' +

@@ -28,7 +28,7 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
     </span>
     <span class="announce__item announce__item--key">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg>
-      ضمانت اصالت کالا
+      کالای اصل و پلمب‌شده
     </span>
     <span class="announce__item">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M21 4L3 11l5 1.8L19 6.5l-8.4 8.1.4 5 2.8-3.4L18.5 19z" fill="currentColor" stroke="none"/></svg>

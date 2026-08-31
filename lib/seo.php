@@ -72,6 +72,20 @@ function seo_absolute(string $path): string
  * Trim to a length that survives a search snippet without ending mid-word.
  * Cut on a space so the result reads as a sentence rather than as truncation.
  */
+/**
+ * The canonical URL for a category page.
+ *
+ * ?c=slug rather than a path. Shared cPanel hosting cannot be assumed to have
+ * mod_rewrite, and Google's own ecommerce URL guidance recommends exactly this
+ * shape - "use ?key=value URL parameters" - so this is the correct answer here
+ * rather than a compromise. One function, so the canonical, the sitemap, the
+ * breadcrumb and the footer cannot drift apart.
+ */
+function seo_category_url(string $slug): string
+{
+    return seo_origin() . '/category.php?c=' . rawurlencode($slug);
+}
+
 function seo_clip(string $text, int $max = 155): string
 {
     $text = trim(preg_replace('/\s+/u', ' ', strip_tags($text)) ?? '');
@@ -158,6 +172,28 @@ function seo_product_meta(?array $product): array
         'seller'        => ['@type' => 'Organization', 'name' => $shop],
     ];
 
+    /* A breadcrumb, which this page has never had. Of the structured data a
+       listing or a product page can carry, BreadcrumbList is the one Google
+       actually consumes and displays - and a product that knows its category
+       can state the trail truthfully. Emitted as a @graph beside the Product
+       rather than nested, so neither has to be valid inside the other. */
+    $crumbs = [
+        ['@type' => 'ListItem', 'position' => 1, 'name' => $shop,
+         'item' => seo_origin() . '/'],
+    ];
+    if (!empty($product['category'])) {
+        $catName = (string) db_value(
+            'SELECT name_fa FROM categories WHERE slug = ? AND is_active = 1',
+            [(string) $product['category']]
+        );
+        if ($catName !== '') {
+            $crumbs[] = ['@type' => 'ListItem', 'position' => 2, 'name' => $catName,
+                         'item' => seo_category_url((string) $product['category'])];
+        }
+    }
+    $crumbs[] = ['@type' => 'ListItem', 'position' => count($crumbs) + 1,
+                 'name' => $name, 'item' => seo_product_url((string) $product['slug'])];
+
     $ld = [
         '@context'    => 'https://schema.org',
         '@type'       => 'Product',
@@ -177,7 +213,12 @@ function seo_product_meta(?array $product): array
         'image'       => $image,
         'url'         => seo_product_url((string) $product['slug']),
         'robots'      => 'index, follow',
-        'jsonld'      => json_encode($ld,
-            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '',
+        'jsonld'      => json_encode([
+            '@context' => 'https://schema.org',
+            '@graph'   => [
+                $ld,
+                ['@type' => 'BreadcrumbList', 'itemListElement' => $crumbs],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '',
     ];
 }

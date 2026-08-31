@@ -86,7 +86,24 @@ echo "\n== structured data describes the product being viewed ==\n";
 preg_match('~<script type="application/ld\+json">(.*?)</script>~s', $a, $m);
 $ld = json_decode(trim($m[1] ?? ''), true);
 ok('JSON-LD parses', is_array($ld), substr(trim($m[1] ?? ''), 0, 60));
+/* The page now emits a @graph: the Product, and a BreadcrumbList beside it.
+   They are siblings rather than nested so neither has to be valid inside the
+   other, which means the Product is no longer the top-level node. */
+$graph = $ld['@graph'] ?? [];
+ok('it carries a @graph', is_array($graph) && count($graph) === 2, (string) count($graph));
+$byType = [];
+foreach ($graph as $node) { $byType[$node['@type'] ?? '?'] = $node; }
+$ld = $byType['Product'] ?? [];
 ok('it is a Product', ($ld['@type'] ?? '') === 'Product');
+ok('and a BreadcrumbList sits beside it',
+   isset($byType['BreadcrumbList']['itemListElement']));
+/* Shop, category, product. The middle crumb is the thing that did not exist
+   before category pages did. */
+$crumbs = $byType['BreadcrumbList']['itemListElement'] ?? [];
+ok('the trail is shop, category, product', count($crumbs) === 3, (string) count($crumbs));
+ok('and the middle crumb is the category page',
+   strpos((string) ($crumbs[1]['item'] ?? ''), 'category.php?c=') !== false,
+   (string) ($crumbs[1]['item'] ?? ''));
 ok('name matches this product', mb_strpos($ld['name'] ?? '', 'وی پروتئین') !== false, $ld['name'] ?? '');
 ok('sku is this slug', ($ld['sku'] ?? '') === 'whey-original', $ld['sku'] ?? '');
 ok('offer carries a real price', (int) ($ld['offers']['price'] ?? 0) > 0, (string) ($ld['offers']['price'] ?? ''));
@@ -151,7 +168,12 @@ $expected = 1
     + (int) db_value('SELECT COUNT(*) FROM products WHERE is_active = 1')
     + count(journal_all())
     + 1                      // journal.php, the article index
-    + count(pages_all());    // shipping, returns, faq, terms, privacy
+    + count(pages_all())     // shipping, returns, faq, terms, privacy
+    // Categories, but only the ones with something in them: an empty category
+    // is dropped here and says noindex on its own page, and those two
+    // decisions living in different files is how they come to disagree.
+    + count(array_filter(categories_list(),
+        static fn(array $c): bool => (int) $c['count'] > 0));
 ok('lists exactly the homepage, the products, the articles and the standing pages',
    $count === $expected, $count . ' vs ' . $expected);
 
@@ -202,6 +224,10 @@ ok('no other product leaked into the page',
 echo "\n== schema price is in rial, not toman mislabelled ==\n";
 preg_match('~<script type="application/ld\+json">(.*?)</script>~s', $whey, $m);
 $ld = json_decode(trim($m[1]), true);
+/* Same @graph unwrap as above: the Product is a node now, not the root. */
+foreach ($ld['@graph'] ?? [] as $node) {
+    if (($node['@type'] ?? '') === 'Product') { $ld = $node; break; }
+}
 ok('priceCurrency is a real ISO 4217 code', ($ld['offers']['priceCurrency'] ?? '') === 'IRR');
 ok('price is the toman figure x10',
    (int) $ld['offers']['price'] === $p * 10,

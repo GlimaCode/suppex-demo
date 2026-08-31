@@ -19,6 +19,11 @@ require_once __DIR__ . '/lib/bootstrap.php';
 require_once __DIR__ . '/lib/seo.php';
 require_once __DIR__ . '/lib/journal.php';
 require_once __DIR__ . '/lib/pages.php';
+/* This file read products with raw SQL and never needed the catalogue model.
+   Categories are not a table it can scan blindly: categories_list() is the only
+   reader that filters is_active, and a sitemap listing a category the owner has
+   hidden is a sitemap arguing with the page it points at. */
+require_once __DIR__ . '/lib/products.php';
 
 header('Content-Type: application/xml; charset=utf-8');
 /* Cached briefly: crawlers re-request this far more often than the catalogue
@@ -76,6 +81,20 @@ foreach (journal_all() as $a) {
         'monthly',
         '0.6'
     );
+}
+
+/* Categories. Weekly, because what is in one changes when stock does.
+
+   An EMPTY category is left out entirely, and its page says noindex in the
+   same breath - that is Google's own explicit instruction for a category with
+   no items, and having the two decisions in different files is how they end up
+   disagreeing. No lastmod: the categories table has no updated_at, and a date
+   invented from something else would be worse than none. */
+foreach (categories_list() as $c) {
+    if ((int) $c['count'] === 0) {
+        continue;
+    }
+    $entry($origin . '/category.php?c=' . rawurlencode((string) $c['id']), null, 'weekly', '0.7');
 }
 
 /* The journal index. Monthly, because it changes when an article is added. */

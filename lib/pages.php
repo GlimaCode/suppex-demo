@@ -98,6 +98,54 @@ function pages_all(): array
     return $out;
 }
 
+/* --- Category guides -------------------------------------------------------
+   The same mechanism as the standing pages, pointed at a different directory:
+   a Markdown file per category, rendered by lib/journal.php's escape-first
+   renderer. Kept here rather than in lib/products.php because it is content,
+   not catalogue - products.php answers what is for sale, this answers what the
+   thing is and whether the reader needs it. */
+const CATEGORY_DIR = SUPPEX_ROOT . '/content/categories';
+
+/**
+ * The buying guide for one category, or null when none has been written.
+ *
+ * Null is an ordinary answer, not an error: a category page is perfectly
+ * serviceable with a product grid and the blurb, and a new category should not
+ * 404 because nobody has written its guide yet.
+ *
+ * @return array{slug:string,heading:string,summary:string,body:string,sources:string[]}|null
+ */
+function category_guide(string $slug): ?array
+{
+    if (!journal_slug_ok($slug)) {
+        return null;
+    }
+    /* realpath containment, same as the journal and the standing pages: a slug
+       that satisfied the pattern still must not resolve outside the directory. */
+    $real = realpath(CATEGORY_DIR . '/' . $slug . '.md');
+    $base = realpath(CATEGORY_DIR);
+    if ($real === false || $base === false || strpos($real, $base) !== 0) {
+        return null;
+    }
+    $raw = @file_get_contents($real);
+    if ($raw === false) {
+        return null;
+    }
+
+    [$front, $body] = journal_split($raw);
+    if (trim($body) === '') {
+        return null;
+    }
+
+    return [
+        'slug'    => $slug,
+        'heading' => trim((string) ($front['heading'] ?? '')),
+        'summary' => trim((string) ($front['summary'] ?? '')),
+        'sources' => is_array($front['sources'] ?? null) ? $front['sources'] : [],
+        'body'    => $body,
+    ];
+}
+
 /** The href for one page. One function, so a rename is one edit. */
 function page_url(string $slug): string
 {

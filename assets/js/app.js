@@ -670,16 +670,30 @@ SUPPEX.app = (function () {
     }).catch(function () { /* the footer simply stays as rendered */ });
   }
 
-  /* The footer's product links are written as product.html so the static demo
-     works when opened straight off disk. On a deployment running the real
-     backend that sent every footer visitor to the demo page, which has no
-     database behind it. config.js already knows which page this deployment
-     uses. */
-  function initFooterProductLinks() {
-    var page = cfg.productPage || 'product.html';
-    $$('[data-p]').forEach(function (a) {
-      a.setAttribute('href', page + '?p=' + encodeURIComponent(a.getAttribute('data-p')));
-    });
+  /* initFooterProductLinks() lived here. It rewrote six footer hrefs from
+     cfg.productPage, because the «فروشگاه» column linked to one product per
+     category and the right page differed between the static demo and the
+     real deployment. That column links to categories now, which are the
+     same URL in both, so there is nothing left to rewrite. */
+
+  /* The category page's product grid, upgraded from the server-rendered
+     links to the full cards.
+
+     The links are rendered by category.php so that a crawler and a reader
+     without JavaScript get real, followable product links - the rich card
+     markup stays in ui.productCard rather than being copied into PHP, where
+     the two would drift the way five copies of the footer did. */
+  function initCategoryPage() {
+    var grid = $('[data-cat-products]');
+    if (!grid) { return; }
+    var slug = new URLSearchParams(location.search).get('c');
+    if (!slug) { return; }
+
+    repo.getProducts({ category: slug, limit: 60 }).then(function (list) {
+      if (!list || !list.length) { return; }   // keep the server's links
+      grid.innerHTML = list.map(ui.productCard).join('');
+      observeReveals(grid);
+    }).catch(function () { /* the server-rendered links stay */ });
   }
 
   function initChrome() {
@@ -1338,8 +1352,8 @@ SUPPEX.app = (function () {
     init: function () {
       initChrome();
       initContact();
-      initFooterProductLinks();
       initHome();
+      initCategoryPage();
       initProduct();
       /* Every page, not only the homepage: the point of remembering the code is
          that the way back to an order is there wherever the customer lands. */

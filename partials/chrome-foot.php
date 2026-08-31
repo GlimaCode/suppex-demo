@@ -54,17 +54,17 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
       <nav class="footer__col" aria-labelledby="f-shop">
         <h3 id="f-shop">فروشگاه</h3>
         <ul>
-          <!-- data-p, so app.js can point these at whichever product page
-               this deployment uses. Hardcoding product.html sent every footer
-               visitor to the static demo page on a site running the real
-               backend; hardcoding product.php would break the demo, which has
-               no database. config.js already holds the answer. -->
-          <li><a href="product.html?p=whey-original" data-p="whey-original">وی پروتئین</a></li>
-          <li><a href="product.html?p=creatine-mono" data-p="creatine-mono">کراتین</a></li>
-          <li><a href="product.html?p=mass-builder" data-p="mass-builder">افزایش وزن</a></li>
-          <li><a href="product.html?p=pre-blast" data-p="pre-blast">قبل تمرین</a></li>
-          <li><a href="product.html?p=bcaa-211" data-p="bcaa-211">آمینو و BCAA</a></li>
-          <li><a href="product.html?p=multi-sport" data-p="multi-sport">ویتامین‌ها</a></li>
+          <!-- These six labels were always the six CATEGORIES. They linked to
+               one arbitrary product each because a category had no URL; now
+               they point at what they are named after. Also sturdier: a
+               product slug can be renamed or the product discontinued, and
+               then the footer of every page on the site points at a 404. -->
+          <li><a href="category.php?c=protein">پروتئین</a></li>
+          <li><a href="category.php?c=creatine">کراتین</a></li>
+          <li><a href="category.php?c=mass-gainer">افزایش وزن</a></li>
+          <li><a href="category.php?c=pre-workout">قبل تمرین</a></li>
+          <li><a href="category.php?c=amino">آمینو و BCAA</a></li>
+          <li><a href="category.php?c=vitamins">ویتامین و مکمل</a></li>
         </ul>
       </nav>
 

@@ -73,7 +73,8 @@ ok('and the directory is denied by Apache as well',
    trim((string) @file_get_contents($root . '/partials/.htaccess')) === 'Require all denied');
 
 head('every PHP page includes the chrome rather than carrying a copy');
-foreach (['product.php', 'article.php', 'track.php', 'page.php', 'journal.php'] as $f) {
+foreach (['product.php', 'article.php', 'track.php', 'page.php', 'journal.php',
+          'category.php'] as $f) {
     $path = $root . '/' . $f;
     if (!is_file($path)) { continue; }
     $src = (string) file_get_contents($path);
@@ -136,6 +137,30 @@ ok('index.html links nowhere the partial does not',
 ok('and misses nothing the partial links to',
    $missing === [], implode(', ', $missing));
 
+head('index.html says the same things as the shared chrome');
+/* The announcement bar is on every page and lives in the partial, except on
+   index.html, which carries its own copy because it cannot include PHP. The
+   claims purge changed index.html's copy and not the partial's, so the home
+   page and every other page made different claims for a whole commit - and
+   nothing noticed, because product.html was compared to the partial (both
+   carried the old text) and index.html was compared only on its footer links.
+   This is that missing eye. */
+$announce = static function (string $html): string {
+    $i = strpos($html, '<div class="announce">');
+    if ($i === false) { return ''; }
+    $j = strpos($html, '</div>', strpos($html, '</div>', $i) + 6);
+    /* Text only: the markup around it legitimately differs nowhere, but
+       comparing rendered TEXT is what actually matters for a claim. */
+    $slice = substr($html, $i, ($j === false ? strlen($html) : $j) - $i);
+    $slice = (string) preg_replace('/<[^>]*>/', ' ', $slice);
+    return trim((string) preg_replace('/\s+/u', ' ', $slice));
+};
+$partialAnnounce = $announce($top);
+$indexAnnounce   = $announce($ix);
+ok('the partial has an announcement bar', $partialAnnounce !== '');
+ok('index.html has one too', $indexAnnounce !== '');
+ok('and they say the same thing', $partialAnnounce === $indexAnnounce,
+   "partial: $partialAnnounce" . "  ||  index: $indexAnnounce");
 head('no page in the chrome links into the void');
 /* href="#" is not a link, it is a promise the page does not keep. Every one of
    them in the footer was exactly that for the whole life of this project. */
@@ -165,7 +190,7 @@ head('the claims that were removed do not come back');
    database. */
 $surface = [];
 foreach (['index.html', 'product.html', '404.html', 'product.php', 'article.php',
-          'track.php', 'page.php', 'journal.php',
+          'track.php', 'page.php', 'journal.php', 'category.php',
           'partials/chrome-top.php', 'partials/chrome-foot.php',
           'assets/js/catalog.js', 'assets/js/ui.js', 'assets/js/app.js',
           'assets/js/config.js', 'db/catalog-seed.json'] as $f) {
@@ -178,7 +203,7 @@ foreach (['index.html', 'product.html', '404.html', 'product.php', 'article.php'
     $src = (string) preg_replace('~/\*.*?\*/~s', '', $src);
     $surface[$f] = $src;
 }
-ok('the whole visitor-facing surface was read', count($surface) >= 14,
+ok('the whole visitor-facing surface was read', count($surface) >= 15,
    (string) count($surface));
 
 $banned = [
@@ -206,6 +231,33 @@ foreach ($surface as $f => $src) {
         ok("$f has no \"$needle\"", mb_strpos($src, $needle) === false, $why);
     }
 }
+
+head('no PHP string interpolates a variable straight into a Persian character');
+/* PHP identifier characters are [a-zA-Z_\x80-\xff], so EVERY byte of a
+   multibyte character is a legal part of a variable name. "«$name»" therefore
+   reads the variable as $name» - undefined - and renders with the value
+   missing. This project writes Persian around interpolated values on almost
+   every page, and the failure is silent enough that it took a mystery test
+   failure to notice. {$name} is the fix. */
+$interp = 0;
+$offenders = [];
+$dir = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root));
+foreach ($dir as $file) {
+    if (!$file->isFile() || $file->getExtension() !== 'php') { continue; }
+    $path = str_replace('\\', '/', $file->getPathname());
+    if (strpos($path, '/.git/') !== false || strpos($path, '/uploads/') !== false) { continue; }
+    /* Comments stripped first - this check's own explanation contains the
+       very pattern it looks for, and a check that fails on its own
+       documentation is one somebody deletes rather than fixes. */
+    $src = (string) preg_replace(['~/\*.*?\*/~s', '~^\s*//.*$~m'], '',
+                                 (string) @file_get_contents($path));
+    if (preg_match_all('/\$[A-Za-z_][A-Za-z0-9_]*[\x80-\xff]/', $src, $mm)) {
+        $offenders[] = str_replace($root . '/', '', $path) . ': ' . implode(' ', array_slice($mm[0], 0, 3));
+        $interp += count($mm[0]);
+    }
+}
+ok('no bare $var runs into a multibyte character in any PHP file',
+   $interp === 0, implode(' | ', $offenders));
 
 head('the footer is structurally sound');
 /* The legal row and the watermark rendered OUTSIDE .container on every page,
