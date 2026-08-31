@@ -60,6 +60,28 @@ ok("a phone with punctuation still matches, since it is pasted from chat",
 ok("a lower-case code still matches", track_find(strtolower($code), $phone) !== null);
 ok("a code with stray spaces still matches", track_find('  ' . $code . ' ', $phone) !== null);
 
+head("the code is accepted in whatever shape it was pasted");
+/* The FAQ promises this in as many words, and track_find()'s own comment
+   claimed it - but the function only STRIPPED stray characters and never put
+   the dashes back, so a code copied without them was looked up verbatim and
+   matched nothing. Every earlier test here passed the canonical form, which is
+   why the gap survived. */
+$bare = str_replace("-", "", $code);
+ok("the same code with no dashes at all resolves",
+   track_find($bare, $phone) !== null, $bare);
+ok("  in lower case as well", track_find(strtolower($bare), $phone) !== null);
+ok("  with spaces where the dashes were",
+   track_find(str_replace("-", " ", $code), $phone) !== null);
+ok("  and with the whole thing wrapped in punctuation",
+   track_find("«" . $bare . "»", $phone) !== null);
+/* Rebuilding only happens for the exact shape SPX + 6 digits + 4 characters.
+   Anything else is passed through as typed rather than guessed at, so a near
+   miss still fails rather than resolving to somebody else's order. */
+ok("a code of the right shape but wrong value still finds nothing",
+   track_find("SPX9909094ZZZ", $phone) === null);
+ok("and a phone that does not match is still refused, dashes or not",
+   track_find($bare, "09129999999") === null);
+
 head("what it hands back");
 $o = track_find($code, $phone);
 ok("the order code", (string) $o['code'] === $code);

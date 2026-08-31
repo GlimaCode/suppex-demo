@@ -168,13 +168,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             حداقل ۱۰ کاراکتر. یک عبارت طولانی از چند کلمه بهتر از یک رمز کوتاه و پیچیده است.
           </span>
         </div>
+        <!-- Unchecked now. This was checked by default, so the ordinary
+             install put fifteen INVENTED products into the shop - with
+             invented names, prices and feature bullets - and a real customer
+             could order one. Sample data is useful for looking around before
+             the real catalogue is imported, which is a decision worth making
+             on purpose rather than by not noticing a checkbox. -->
         <label class="check" style="margin-block-start:16px">
-          <input type="checkbox" name="seed" value="1" checked>
+          <input type="checkbox" name="seed" value="1">
           <span>محصولات نمونه هم وارد شود</span>
         </label>
         <span class="hint" style="display:block;margin-block-start:6px">
-          محصولات نمونه را بعداً می‌توانید از پنل ویرایش یا حذف کنید.
-          بدون آن‌ها فروشگاه با کاتالوگ خالی شروع می‌شود.
+          <strong>این محصولات واقعی نیستند</strong> — نام، قیمت و مشخصاتشان ساختگی است
+          و فقط برای این‌اند که پیش از وارد کردن کاتالوگ واقعی، شکل فروشگاه را ببینید.
+          اگر تیک بزنید، حتماً پیش از راه‌اندازی از پنل حذفشان کنید.
+          کاتالوگ واقعی از صفحه «ورود گروهی» و فایل اکسل وارد می‌شود.
         </span>
 
         <button class="btn btn--primary btn--block" type="submit" style="margin-block-start:20px">

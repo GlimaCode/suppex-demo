@@ -6,7 +6,7 @@
       "nameLatin": "Protein",
       "blurb": "وی، ایزوله و کازئین برای ریکاوری و رشد عضله",
       "image": "assets/images/categories/protein.svg",
-      "count": 12
+      "count": 3
     },
     {
       "id": "creatine",
@@ -14,7 +14,7 @@
       "nameLatin": "Creatine",
       "blurb": "افزایش قدرت، توان انفجاری و حجم سلولی",
       "image": "assets/images/categories/creatine.svg",
-      "count": 6
+      "count": 2
     },
     {
       "id": "mass-gainer",
@@ -22,7 +22,7 @@
       "nameLatin": "Mass Gainer",
       "blurb": "کالری متراکم برای دوره حجم",
       "image": "assets/images/categories/mass-gainer.svg",
-      "count": 5
+      "count": 2
     },
     {
       "id": "pre-workout",
@@ -30,7 +30,7 @@
       "nameLatin": "Pre Workout",
       "blurb": "انرژی، تمرکز و پامپ برای جلسات سنگین",
       "image": "assets/images/categories/pre-workout.svg",
-      "count": 8
+      "count": 2
     },
     {
       "id": "amino",
@@ -38,7 +38,7 @@
       "nameLatin": "Amino Acid",
       "blurb": "حفظ عضله در تمرین و کات",
       "image": "assets/images/categories/amino.svg",
-      "count": 9
+      "count": 3
     },
     {
       "id": "vitamins",
@@ -46,7 +46,7 @@
       "nameLatin": "Vitamins",
       "blurb": "پایه سلامت، خواب و ریکاوری روزانه",
       "image": "assets/images/categories/vitamins.svg",
-      "count": 14
+      "count": 3
     }
   ],
   "products": [
@@ -79,7 +79,7 @@
         "ترکیب کنسانتره و ایزوله با فیلتراسیون سرد",
         "بدون قند افزوده و بدون رنگ مصنوعی",
         "دارای آنزیم گوارشی، برای کسانی که با وی دچار نفخ می‌شوند",
-        "برگه آزمایش سری تولید، از همین صفحه قابل دانلود"
+        "پلمب اصلی سازنده، سری تولید و تاریخ روی قوطی"
       ],
       "flavors": [
         {

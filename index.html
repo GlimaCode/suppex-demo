@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>SUPPEX | فروشگاه تخصصی مکمل‌های ورزشی و بدنسازی</title>
-<meta name="description" content="خرید مکمل ورزشی اصل با ضمانت اصالت کالا — وی پروتئین، کراتین، گینر، پری ورک‌اوت، BCAA و ویتامین. برگه آزمایش هر سری تولید روی سایت هست و سفارش‌ها سریع به دستتان می‌رسد.">
+<meta name="description" content="خرید مکمل ورزشی اصل برندهای معتبر — وی پروتئین، کراتین، گینر، پری ورک‌اوت، BCAA و ویتامین. قوطی پلمب‌شده مستقیم از دبی، قیمت روشن، ثبت سفارش در تلگرام و پیگیری با کد.">
 <meta name="theme-color" content="#131210">
 <link rel="canonical" href="https://suppex.ir/">
 
@@ -13,7 +13,7 @@
 <meta property="og:site_name" content="SUPPEX">
 <meta property="og:locale" content="fa_IR">
 <meta property="og:title" content="SUPPEX | فروشگاه تخصصی مکمل‌های ورزشی">
-<meta property="og:description" content="مکملی که مقدار هر ماده‌اش روی برچسب نوشته شده و برگه آزمایش هر سری تولیدش را می‌توانید ببینید.">
+<meta property="og:description" content="مکمل اصل برندهای معتبر، پلمب‌شده و مستقیم از دبی. سفارش را در تلگرام ثبت می‌کنید، کد می‌گیرید و تا تحویل پیگیری‌اش می‌کنید.">
 <meta property="og:image" content="assets/images/og-cover.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -27,6 +27,24 @@
 <link rel="stylesheet" href="assets/css/components.css">
 <link rel="stylesheet" href="assets/css/layout.css">
 
+<!-- Structured data is not marketing copy. Whatever is written here is read
+     by Google, Bing and the AI crawlers as this business's own record of
+     itself, and it is what a Knowledge Panel gets built from - so a number
+     nobody answers or an address where somebody else lives does more damage
+     here than the same words would in a paragraph.
+
+     Removed, all four confirmed with the owner:
+       - a ContactPoint telephone (+98-21-88776655) that is not a real line
+       - a Store node: schema.org/Store asserts a physical shop, and there is
+         no shop; its priceRange "$$" was template filler as well
+       - a PostalAddress with a plaque number on Valiasr Street
+       - a SearchAction pointing at /search, which does not exist - search on
+         this site is a client-side overlay with no URL of its own, so a
+         crawler following that target gets a 404
+
+     sameAs replaces the contactPoint deliberately: those two handles are how
+     this shop is genuinely reached, so they are the true answer to the
+     question the contactPoint was answering falsely. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -37,14 +55,12 @@
       "name": "SUPPEX",
       "url": "https://suppex.ir/",
       "logo": "https://suppex.ir/assets/icons/logo.svg",
-      "description": "فروشگاه تخصصی مکمل‌های ورزشی و بدنسازی",
-      "contactPoint": {
-        "@type": "ContactPoint",
-        "telephone": "+98-21-88776655",
-        "contactType": "customer service",
-        "areaServed": "IR",
-        "availableLanguage": ["fa"]
-      }
+      "description": "فروش مکمل‌های ورزشی اصل برندهای معتبر",
+      "areaServed": "IR",
+      "sameAs": [
+        "https://t.me/ARSENX2003",
+        "https://ble.ir/ALIARSENX"
+      ]
     },
     {
       "@type": "WebSite",
@@ -52,24 +68,7 @@
       "url": "https://suppex.ir/",
       "name": "SUPPEX",
       "inLanguage": "fa-IR",
-      "publisher": { "@id": "https://suppex.ir/#org" },
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": "https://suppex.ir/search?q={search_term_string}",
-        "query-input": "required name=search_term_string"
-      }
-    },
-    {
-      "@type": "Store",
-      "name": "SUPPEX",
-      "image": "https://suppex.ir/assets/images/hero-tub.svg",
-      "priceRange": "$$",
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "خیابان ولیعصر، بالاتر از میدان ونک، پلاک ۲۴۱",
-        "addressLocality": "تهران",
-        "addressCountry": "IR"
-      }
+      "publisher": { "@id": "https://suppex.ir/#org" }
     }
   ]
 }
@@ -88,7 +87,7 @@
     </span>
     <span class="announce__item announce__item--key">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg>
-      ضمانت اصالت کالا
+      کالای اصل و پلمب‌شده
     </span>
     <span class="announce__item">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M21 4L3 11l5 1.8L19 6.5l-8.4 8.1.4 5 2.8-3.4L18.5 19z" fill="currentColor" stroke="none"/></svg>
@@ -114,7 +113,8 @@
         <rect x="23" y="13" width="4"  height="14" rx="2" fill="currentColor"/>
         <rect x="28" y="16" width="5"  height="8"  rx="2" fill="#F25914"/>
       </svg>
-      <span class="logo__text">SUPPEX<sup>®</sup></span>
+      <!-- No ® : nothing is registered. -->
+      <span class="logo__text">SUPPEX</span>
     </a>
 
     <nav class="nav" aria-label="ناوبری اصلی">
@@ -152,7 +152,7 @@
       <div class="hero__copy">
         <span class="chip" style="border-color:var(--line-strong)">
           <span class="dot" aria-hidden="true"></span>
-          برگه آزمایش هر سری تولید، روی سایت
+          قوطی پلمب‌شده، مستقیم از دبی
         </span>
 
         <h1 class="u-display hero__title" id="hero-title">
@@ -161,9 +161,9 @@
         </h1>
 
         <p class="u-lead" style="max-width:46ch">
-          هر چیزی که می‌خورید روی نتیجه تمرینتان اثر می‌گذارد. ما مقدار دقیق هر ماده را
-          روی برچسب می‌نویسیم و برگه آزمایش هر سری تولید را منتشر می‌کنیم — تا لازم
-          نباشد حرفمان را همین‌طوری قبول کنید.
+          هر چیزی که می‌خورید روی نتیجه تمرینتان اثر می‌گذارد. ما چیزی تولید نمی‌کنیم:
+          قوطی اصل و پلمب‌شده برندهای شناخته‌شده را مستقیم از دبی می‌آوریم و همان
+          چیزی را می‌فروشیم که سازنده‌اش روی برچسب نوشته — نه چیزی بیشتر.
         </p>
 
         <div class="hero__actions">
@@ -184,10 +184,13 @@
           </div>
           <span class="stage__hint">با ماوس بچرخانید</span>
         </div>
-        <span class="stage-sticker">پک شروع، تا <span class="num">۲۵</span>٪ تخفیف</span>
+        <!-- A «پک شروع، تا ۲۵٪ تخفیف» sticker used to sit here. There is no
+             starter bundle and no 25% anywhere in the catalogue or the pricing
+             rules, so it advertised a discount nobody could claim. It comes
+             back when the bundle exists. -->
         <span class="stage-chip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg>
-          برگه آزمایش دارد
+          پلمب اصلی
         </span>
       </div>
 
@@ -268,22 +271,46 @@
         <article class="trust-card reveal">
           <span class="trust-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg></span>
           <h3 class="u-h3">اصالت کالا</h3>
-          <p class="u-sm u-muted">واردات مستقیم، با هولوگرام اصالت روی هر بسته. اگر ثابت شود جنس تقلبی است، سه برابر پولتان را برمی‌گردانیم.</p>
+          <!-- Was: a hologram on every package, and a 3x refund if anything
+               turned out to be counterfeit. No hologram is applied - these are
+               the manufacturer's own sealed tubs - and a triple-refund
+               guarantee is a liability the owner never agreed to and could not
+               pay. What is left is what he actually does and can honour, with
+               the remedy defined on the returns page rather than invented. -->
+          <p class="u-sm u-muted">قوطی پلمب‌شده و دست‌نخورده، مستقیم از دبی خریده می‌شود، نه از واسطه داخلی. اگر بسته‌ای که به دستتان رسید پلمبش باز بود یا با سفارشتان نمی‌خواند، برمی‌گردانیم.</p>
         </article>
         <article class="trust-card reveal">
           <span class="trust-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17.5" cy="18" r="1.6"/></svg></span>
-          <h3 class="u-h3">ارسال سریع</h3>
-          <p class="u-sm u-muted">سفارش‌های قبل از ساعت ۱۵ همان روز ارسال می‌شود. تهران زیر ۲۴ ساعت، شهرستان ۴۸ تا ۷۲ ساعت.</p>
+          <h3 class="u-h3">ارسال</h3>
+          <!-- Was a service-level promise - a 15:00 cut-off, under 24 hours in
+               Tehran - that nothing in the code or the process enforces. One
+               person packs these around a day job; publishing an SLA he has
+               not agreed to is how a shop acquires angry customers who are
+               technically right. The shipping page deliberately publishes no
+               day count for the same reason. -->
+          <p class="u-sm u-muted">زمان ارسال هر سفارش را در همان گفتگو به شما می‌گوییم، چون به همان قوطی و موجودی‌اش بستگی دارد. بعد از تحویل به پست، شماره مرسوله را می‌فرستیم.</p>
         </article>
         <article class="trust-card reveal">
           <span class="trust-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v6.2L4.6 18A2 2 0 0 0 6.3 21h11.4a2 2 0 0 0 1.7-3L14 9.2V3"/><path d="M9 3h6M7.5 15h9"/></svg></span>
-          <h3 class="u-h3">تضمین کیفیت</h3>
-          <p class="u-sm u-muted">هر سری تولید را یک آزمایشگاه مستقل از نظر خلوص، فلزات سنگین و آلودگی میکروبی بررسی می‌کند و برگه‌اش را در همان صفحه محصول می‌گذاریم.</p>
+          <h3 class="u-h3">قیمت روشن</h3>
+          <!-- This card claimed an independent laboratory tested every
+               production batch for purity, heavy metals and microbial
+               contamination, with the certificate on the product page. He runs
+               no batches and commissions no testing; there were never any
+               certificates. There is no honest smaller version of that claim,
+               so the card is replaced rather than softened - and what replaces
+               it is the thing this shop genuinely does differently, which the
+               pricing code has enforced from the beginning. -->
+          <p class="u-sm u-muted">قیمت به نرخ درهم بسته است و موقع ثبت سفارش برای مدت مشخصی قفل می‌شود. عددی که آن لحظه می‌بینید همان عددی است که واریز می‌کنید.</p>
         </article>
         <article class="trust-card reveal">
           <span class="trust-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0 1 16 0v1"/><path d="M4 13h2.5v6H5a1 1 0 0 1-1-1zM20 13h-2.5v6H19a1 1 0 0 0 1-1z"/><path d="M17.5 19v.5a2.5 2.5 0 0 1-2.5 2.5h-2"/></svg></span>
-          <h3 class="u-h3">مشاوره تخصصی</h3>
-          <p class="u-sm u-muted">مشاوران ما کارشناس تغذیه ورزشی‌اند، نه فروشنده. اگر محصولی به دردتان نمی‌خورد، رک می‌گوییم نخرید.</p>
+          <h3 class="u-h3">مشاوره</h3>
+          <!-- "Our advisers are sports-nutrition specialists" - plural staff,
+               and a credential. It is one person and he has not claimed a
+               qualification. The persuasive half of the sentence was always
+               the second half, and that half is true. -->
+          <p class="u-sm u-muted">خودم جواب می‌دهم، نه یک تیم پشتیبانی. اگر محصولی به دردتان نمی‌خورد، رک می‌گویم نخرید.</p>
         </article>
       </div>
     </div>
@@ -331,13 +358,13 @@
         <p class="u-eyebrow">شفافیت</p>
         <h2 class="u-h2" id="std-title" style="margin:12px 0 0">
           شک به مکمل‌ها بی‌دلیل نیست.
-          <span class="u-accent-voice">برای همین همه‌چیز را نشان می‌دهیم.</span>
+          <span class="u-accent-voice">برای همین می‌گوییم دقیقاً چه می‌فروشیم.</span>
         </h2>
         <p class="u-lead" style="max-width:42ch;margin-top:20px">
-          در بازار کم نیستند محصولاتی که محتویاتشان با برچسب یکی نیست. ما به‌جای ادعا،
-          ترجیح می‌دهیم مدرک ارائه کنیم: مقدار دقیق هر ماده و سری تولید هر قوطی
-          روی بسته نوشته شده، و اگر برگه آزمایش آن سری را خواستید در همان گفتگو
-          برایتان می‌فرستیم.
+          در بازار کم نیستند محصولاتی که محتویاتشان با برچسب یکی نیست. ما سازنده
+          نیستیم و ادعای آزمایشگاه هم نمی‌کنیم. کاری که می‌کنیم این است: قوطی
+          پلمب‌شده برند اصلی را مستقیم می‌آوریم، و پیش از ارسال از سری تولید و
+          تاریخ انقضای روی همان قوطی عکس می‌گیریم و برایتان می‌فرستیم.
         </p>
       </div>
 
@@ -346,58 +373,53 @@
           <span class="feature__num">01</span>
           <div>
             <h3 class="feature__title">دوز مؤثر، نه صرفاً نام ماده</h3>
-            <p class="feature__text">رایج است که از یک ماده گران مقدار ناچیزی اضافه شود تا نامش روی برچسب بیاید. سیاست ما روشن است: یا مقدار مؤثر آن ماده را می‌آوریم، یا آن را حذف می‌کنیم.</p>
+            <!-- "Either we include the effective dose or we leave the
+                 ingredient out" is a formulation policy, and formulating is
+                 what a manufacturer does. A reseller has the other half of
+                 that decision, which is just as real: what he refuses to
+                 stock. -->
+            <p class="feature__text">رایج است که از یک ماده گران مقدار ناچیزی اضافه شود تا نامش روی برچسب بیاید. ما فرمول را عوض نمی‌کنیم، انتخاب می‌کنیم: محصولی را نمی‌آورم که مقدار مؤثر ماده‌اش روی برچسب خودش نوشته نشده باشد.</p>
           </div>
         </div>
         <div class="feature reveal">
           <span class="feature__num">02</span>
           <div>
-            <h3 class="feature__title">آزمایش در آزمایشگاه بیرونی</h3>
-            <p class="feature__text">خلوص، فلزات سنگین و بار میکروبی هر سری تولید را آزمایشگاهی خارج از مجموعه ما بررسی می‌کند، نه آزمایشگاه داخلی خودمان. برگه نتیجه با شماره همان سری، در صفحه محصول منتشر می‌شود.</p>
+            <h3 class="feature__title">سری تولید و تاریخ، پیش از ارسال</h3>
+            <!-- The worst sentence on the site. It claimed an external lab
+                 tested every batch for purity, heavy metals and microbial
+                 load, and by contrasting it with «آزمایشگاه داخلی خودمان» it
+                 also asserted an in-house laboratory. Neither exists, and no
+                 certificate was ever published anywhere in this repo. -->
+            <p class="feature__text">پیش از بستن بسته، از سری تولید و تاریخ انقضای روی همان قوطی عکس می‌گیرم و در گفتگو می‌فرستم. این چیزی است که واقعاً در دست من است و می‌توانید با سایت خود سازنده مطابقتش بدهید.</p>
           </div>
         </div>
         <div class="feature reveal" style="border-bottom:1px solid var(--line-mid)">
           <span class="feature__num">03</span>
           <div>
-            <h3 class="feature__title">فهرست مواد، کوتاه و روشن</h3>
-            <p class="feature__text">بدون رنگ مصنوعی، بدون پرکننده ارزان و بدون قند پنهان. فهرست بلند مواد در یک مکمل، معمولاً نشانه خوبی نیست.</p>
+            <h3 class="feature__title">برچسب، همان‌طور که هست</h3>
+            <!-- "No artificial colour, no cheap filler, no hidden sugar" is a
+                 claim about a recipe. He does not write the recipe; he sells a
+                 sealed tub whose label is the manufacturer's. -->
+            <p class="feature__text">فهرست مواد روی قوطی نوشته خودِ سازنده است و ما چیزی به آن اضافه یا از آن کم نمی‌کنیم. اگر درباره ماده‌ای سؤال دارید، قبل از خرید بپرسید — فهرست بلند مواد در یک مکمل معمولاً نشانه خوبی نیست.</p>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ══════════════════════════════════════ Reviews ═══ -->
-  <section class="section section--flush-top" aria-labelledby="rev-title" data-social-proof>
-    <div class="container">
-      <div class="section__head">
-        <div>
-          <p class="u-eyebrow">نظر مشتریان</p>
-          <h2 class="u-h2" id="rev-title" style="margin-top:8px">نظر کسانی که خریده‌اند</h2>
-        </div>
-        <span class="u-sm u-muted">فقط نظرات خریداران تأییدشده</span>
-      </div>
+  <!-- The reviews section stood here: six customer quotes with names and star ratings,
+       none of them from a customer, on a shop that has not taken an order through
+       this site yet.
 
-      <div class="review-grid" data-reviews>
-        <div class="review review--score reveal">
-          <span class="rating__stars" style="color:var(--accent-deep)" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9z"/></svg>
-          </span>
-          <div>
-            <!-- Not a number until there are orders behind it. The same
-                 reasoning as the ratings flag: an invented average is the one
-                 placeholder that costs more than it stands in for. -->
-            <div class="review__big num">—</div>
-            <p class="u-xs" style="color:rgba(22,19,14,.6);margin-top:6px">هنوز امتیازی ثبت نشده است</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+       app.js already removed it at runtime, because flags.showRatings is false.
+       That was never enough: the removal happens in the BROWSER, and a search
+       crawler, a Telegram link preview or an AI reader that does not run the
+       page’s JavaScript reads all six as genuine testimonials. The same file
+       had already reached exactly this conclusion once, for an invented press
+       strip, and deleted the markup rather than hiding it.
+
+       Real reviews get a real section, fed by real orders. Until then there is
+       nothing here, which is the honest amount. -->
 
   <!-- ══════════════════════════════════════ Journal ═══ -->
   <section class="section section--flush-top" id="journal" aria-labelledby="jr-title">
@@ -407,7 +429,7 @@
           <p class="u-eyebrow">مجله ساپکس</p>
           <h2 class="u-h2" id="jr-title" style="margin-top:8px">چیزهایی که خوب است بدانید</h2>
         </div>
-        <a class="link-more" href="#">
+        <a class="link-more" href="journal.php">
           همه مقاله‌ها
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </a>
@@ -422,21 +444,11 @@
 <footer class="footer" id="contact">
   <div class="container">
 
-    <div class="newsletter">
-      <div>
-        <h2 class="u-h2" style="font-size:clamp(1.5rem,1.1rem+1.6vw,2.2rem)">
-          <span class="num">10</span>٪ تخفیف اولین سفارش
-        </h2>
-        <p class="u-sm u-muted" style="margin-top:10px">
-          خبر محصولات جدید، موجودی دوباره و نکته‌های تمرینی. ایمیل اضافه نمی‌فرستیم و هر وقت خواستید لغو کنید.
-        </p>
-      </div>
-      <form class="newsletter__form" data-newsletter novalidate>
-        <label class="sr-only" for="nl-email">نشانی ایمیل</label>
-        <input class="input" id="nl-email" type="email" name="email" placeholder="you@example.com" dir="ltr" required>
-        <button class="btn btn--primary" type="submit">عضویت</button>
-      </form>
-    </div>
+    <!-- A newsletter form offering «۱۰٪ تخفیف اولین سفارش» stood here. No
+         coupon mechanism exists anywhere in this codebase, so the discount
+         could never be issued, and the submit handler answered «ایمیل شما ثبت
+         شد» while discarding the address. A restock list is worth building for
+         a shop that now counts its stock - with a table behind it. -->
 
     <div class="footer__cols">
       <div class="footer__col">
@@ -449,53 +461,83 @@
             <rect x="23" y="13" width="4"  height="14" rx="2" fill="currentColor"/>
             <rect x="28" y="16" width="5"  height="8"  rx="2" fill="#F25914"/>
           </svg>
-          <span class="logo__text">SUPPEX<sup>®</sup></span>
+          <!-- The ® is gone: nothing is registered. ™ would be free to use
+               but claims a trademark nobody has asserted either. -->
+          <span class="logo__text">SUPPEX</span>
         </a>
         <p class="u-sm u-muted" style="margin-top:14px;max-width:34ch">
-          مکمل ورزشی با مقدار مؤثر و برگه آزمایش مستقل. ساخته‌شده برای باشگاه، اثبات‌شده در آزمایشگاه.
+          مکمل اصل برندهای معتبر، پلمب‌شده و مستقیم از دبی. سفارش در تلگرام، پیگیری با کد.
         </p>
-        <div class="socials">
-          <a href="#" aria-label="اینستاگرام"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/></svg></a>
-          <a href="#" aria-label="تلگرام"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 4L3 11l5 1.8L19 6.5l-8.4 8.1.4 5 2.8-3.4L18.5 19z"/></svg></a>
-          <a href="#" aria-label="واتس‌اپ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.2-3.8A8 8 0 1 1 8.6 19z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5"/></svg></a>
-          <a href="#" aria-label="آپارات"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M11 9.8l4 2.2-4 2.2z" fill="currentColor" stroke="none"/></svg></a>
+        <!-- Every icon was href="#" on a shop whose customers arrive from
+             Instagram and Telegram. They are filled by app.js from ?r=config
+             and each one stays hidden until its URL is set in the panel, so an
+             account the owner does not have never shows a dead icon - and one
+             he opens later needs no developer. hidden, not display:none, so it
+             is out of the accessibility tree too. -->
+        <div class="socials" data-socials>
+          <a data-social="instagram" aria-label="اینستاگرام" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/></svg></a>
+          <a data-social="telegram" aria-label="تلگرام" hidden><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 4L3 11l5 1.8L19 6.5l-8.4 8.1.4 5 2.8-3.4L18.5 19z"/></svg></a>
+          <a data-social="whatsapp" aria-label="واتس‌اپ" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.2-3.8A8 8 0 1 1 8.6 19z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5"/></svg></a>
+          <a data-social="aparat" aria-label="آپارات" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M11 9.8l4 2.2-4 2.2z" fill="currentColor" stroke="none"/></svg></a>
         </div>
       </div>
 
       <nav class="footer__col" aria-labelledby="f-shop">
         <h3 id="f-shop">فروشگاه</h3>
         <ul>
-          <li><a href="product.html?p=whey-original">وی پروتئین</a></li>
-          <li><a href="product.html?p=creatine-mono">کراتین</a></li>
-          <li><a href="product.html?p=mass-builder">افزایش وزن</a></li>
-          <li><a href="product.html?p=pre-blast">قبل تمرین</a></li>
-          <li><a href="product.html?p=bcaa-211">آمینو و BCAA</a></li>
-          <li><a href="product.html?p=multi-sport">ویتامین‌ها</a></li>
+          <!-- data-p, so app.js can point these at whichever product page
+               this deployment uses. Hardcoding product.html sent every footer
+               visitor to the static demo page on a site running the real
+               backend; hardcoding product.php would break the demo, which has
+               no database. config.js already holds the answer. -->
+          <li><a href="product.html?p=whey-original" data-p="whey-original">وی پروتئین</a></li>
+          <li><a href="product.html?p=creatine-mono" data-p="creatine-mono">کراتین</a></li>
+          <li><a href="product.html?p=mass-builder" data-p="mass-builder">افزایش وزن</a></li>
+          <li><a href="product.html?p=pre-blast" data-p="pre-blast">قبل تمرین</a></li>
+          <li><a href="product.html?p=bcaa-211" data-p="bcaa-211">آمینو و BCAA</a></li>
+          <li><a href="product.html?p=multi-sport" data-p="multi-sport">ویتامین‌ها</a></li>
         </ul>
       </nav>
 
       <nav class="footer__col" aria-labelledby="f-company">
-        <h3 id="f-company">شرکت</h3>
+        <!-- «شرکت» was the wrong word before the links were: there is no
+             registered company. Three of the five entries here were removed
+             rather than built - «گواهی آزمایشگاه» (no lab, no certificates),
+             «فرصت‌های شغلی» and «همکاری در فروش» (nobody to hire, no affiliate
+             scheme). A page saying "we have no vacancies" is a worse answer
+             than not asking the question. -->
+        <h3 id="f-company">درباره ساپکس</h3>
         <ul>
           <li><a href="#standard">استاندارد ما</a></li>
-          <li><a href="#">گواهی آزمایشگاه</a></li>
-          <li><a href="index.html#journal">مجله ساپکس</a></li>
-          <li><a href="#">فرصت‌های شغلی</a></li>
-          <li><a href="#">همکاری در فروش</a></li>
+          <li><a href="journal.php">مجله ساپکس</a></li>
+          <li><a href="page.php?p=faq">سؤالات متداول</a></li>
+          <li><a href="page.php?p=terms">قوانین و شرایط استفاده</a></li>
         </ul>
       </nav>
 
       <div class="footer__col">
         <h3>پشتیبانی</h3>
         <ul>
-          <li><a href="tel:+982188776655" dir="ltr" class="num">021-88776655</a></li>
-          <li><a href="mailto:info@suppex.ir" dir="ltr">info@suppex.ir</a></li>
-          <li><a href="#">رویه ارسال</a></li>
-          <li><a href="#">مرجوعی و بازگشت وجه</a></li>
-          <li><a href="#">سؤالات متداول</a></li>
+          <!-- Order tracking first: it is the thing somebody who has already
+               paid actually came back for. -->
+          <li><a href="track.php">پیگیری سفارش</a></li>
+          <li><a href="page.php?p=shipping">رویه ارسال</a></li>
+          <li><a href="page.php?p=returns">مرجوعی و بازگشت وجه</a></li>
+          <li><a href="page.php?p=privacy">حریم خصوصی</a></li>
+          <!-- Before buying, not only after. This shop's whole funnel is a
+               chat, so the chat belongs in the footer rather than only behind
+               the checkout button. Filled and unhidden by app.js from the
+               channel the owner has actually configured. -->
+          <li hidden data-ask><a>پرسیدن قبل از خرید</a></li>
+          <!-- A landline (021-88776655) and info@suppex.ir stood here. The
+               owner confirmed neither is real; both are wired to settings and
+               appear the moment he fills them in, rather than being deleted
+               and needing a developer later. -->
+          <li hidden data-contact="phone"><a dir="ltr" class="num"></a></li>
+          <li hidden data-contact="email"><a dir="ltr"></a></li>
         </ul>
-        <!-- These were three empty dashed boxes. One of them said «درگاه امن»,
-             and config.js says in its own words that phase 1 deliberately has
+        <!-- These were three empty dashed boxes. One said «درگاه امن», and
+             config.js states in its own words that this phase deliberately has
              no payment gateway - so the badge advertised something that does
              not exist. The other two were seals the shop has not been granted.
              What replaces them is the thing that is both true and reassuring:
@@ -512,17 +554,29 @@
             پرداختی در کار نیست.
           </p>
         </div>
+      <!-- There was a fourth </div> here, closing .container early so the
+           watermark and the legal row below rendered OUTSIDE it and lost the
+           page's max-width. It was in article.php, product.php, track.php and
+           product.html - four of the five copies - and index.html was the one
+           that had it right. Which is the argument for this file existing:
+           four hand-maintained copies drifted, and nothing noticed until
+           legal.closest('.container') came back null in a browser. -->
       </div>
     </div>
 
     <div class="footer__mark" aria-hidden="true">SUPPEX</div>
 
     <div class="footer__legal">
-      <span>© <span class="num" data-year>2026</span> شرکت مکمل‌های ورزشی ساپکس — تمام حقوق محفوظ است.</span>
+      <!-- «شرکت مکمل‌های ورزشی ساپکس» named a company that is not
+           registered. Confirmed with the owner: it is one person trading under
+           a name, which is what this now says. -->
+      <span>© <span class="num" data-year>2026</span> ساپکس</span>
       <nav aria-label="پیوندهای حقوقی">
-        <a href="#">قوانین و مقررات</a>
-        <a href="#">حریم خصوصی</a>
-        <a href="#">شرایط استفاده</a>
+        <!-- «قوانین و مقررات» and «شرایط استفاده» were two links to the same
+             document that did not exist. Now one link to one that does. -->
+        <a href="page.php?p=terms">قوانین و شرایط استفاده</a>
+        <a href="page.php?p=privacy">حریم خصوصی</a>
+        <a href="page.php?p=returns">مرجوعی</a>
       </nav>
     </div>
 

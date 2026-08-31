@@ -53,11 +53,23 @@ function track_find(string $code, string $phone): ?array
     if ($code === '' || $phone === '') {
         return null;
     }
-    /* Accept the code with or without its dashes and in either case, because it
-       arrives pasted from a chat message and nobody retypes it carefully. */
+    /* Accept the code with or without its dashes and in either case, because
+       it arrives pasted from a chat message and nobody retypes it carefully.
+
+       This comment was here before the code that makes it true. Stripping the
+       stray characters is not enough: the column stores the canonical
+       SPX-YYMMDD-XXXX, so a code pasted without dashes was looked up as
+       SPX2508314F7A and matched nothing - while the FAQ told the customer
+       plainly that either form works. The dashes go back on. */
     $code = preg_replace('/[^A-Z0-9-]/', '', $code) ?? '';
     if ($code === '' || mb_strlen($code) > 32) {
         return null;
+    }
+    /* Rebuilt only when the shape is unmistakable: the SPX prefix, six digits
+       of date and the four-character suffix. Anything else is passed through
+       as typed rather than guessed at. */
+    if (preg_match('/^SPX([0-9]{6})([A-Z0-9]{4})$/', $code, $m)) {
+        $code = 'SPX-' . $m[1] . '-' . $m[2];
     }
 
     $order = order_get_by_code($code);

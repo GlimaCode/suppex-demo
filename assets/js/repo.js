@@ -124,7 +124,9 @@ SUPPEX.repo = (function () {
       return local(hits.map(withDerived));
     },
 
-    getReviews: function () { return local(db.reviews.slice()); },
+    /* getReviews() lived here and returned db.reviews, which no longer
+       exists - the three testimonials in it were invented. Real reviews will
+       need a real source; this returned an array from a file. */
     getJournal: function () { return local(db.journal.slice()); },
 
     /* ------------------------------------------------------------------
@@ -152,6 +154,18 @@ SUPPEX.repo = (function () {
              we were in before, not a regression. */
           return null;
         });
+    },
+
+    /* The shop's own settings. ?r=config has existed since the backend was
+       written and nothing ever called it, so the panel wrote these values into
+       the database and the storefront went on reading config.js.
+
+       Resolves to null with no backend, which is the static demo - and a demo
+       has no settings, so printing nothing is the right answer there too. */
+    getShopConfig: function () {
+      if (!isRemote()) { return local(null); }
+      return remote(cfg.api.endpoints.config || 'config', {})
+        .catch(function () { return null; });
     },
 
     createOrder: function (payload) {

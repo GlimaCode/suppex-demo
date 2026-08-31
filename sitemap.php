@@ -18,6 +18,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/lib/bootstrap.php';
 require_once __DIR__ . '/lib/seo.php';
 require_once __DIR__ . '/lib/journal.php';
+require_once __DIR__ . '/lib/pages.php';
 
 header('Content-Type: application/xml; charset=utf-8');
 /* Cached briefly: crawlers re-request this far more often than the catalogue
@@ -74,6 +75,25 @@ foreach (journal_all() as $a) {
         $mtime ? gmdate('Y-m-d', $mtime) : null,
         'monthly',
         '0.6'
+    );
+}
+
+/* The journal index. Monthly, because it changes when an article is added. */
+$entry($origin . '/journal.php', null, 'monthly', '0.5');
+
+/* The standing pages. Yearly and low, and both are the truth: a returns policy
+   is rewritten when the policy changes, which is rarely, and nobody arrives at
+   this shop looking for its terms. They are here because a customer who wants
+   to check them before transferring money should be able to FIND them, and
+   because a page reachable only through a footer link gets indexed late. */
+foreach (pages_all() as $p) {
+    $file  = SUPPEX_ROOT . '/content/pages/' . $p['slug'] . '.md';
+    $mtime = @filemtime($file);
+    $entry(
+        $origin . '/' . page_url($p['slug']),
+        $mtime ? gmdate('Y-m-d', $mtime) : null,
+        'yearly',
+        '0.3'
     );
 }
 

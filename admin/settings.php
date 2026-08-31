@@ -100,6 +100,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 'card_holder'             => clean_text($_POST['card_holder'] ?? '', 120),
                 'bank_name'               => clean_text($_POST['bank_name'] ?? '', 80),
                 'commission_percent'      => number_format($commission, 2, '.', ''),
+                'shop_email'              => trim((string) ($_POST['shop_email'] ?? '')),
+                'instagram_url'           => trim((string) ($_POST['instagram_url'] ?? '')),
+                'aparat_url'              => trim((string) ($_POST['aparat_url'] ?? '')),
                 'telegram_url'            => trim((string) ($_POST['telegram_url'] ?? '')),
                 'bale_url'                => trim((string) ($_POST['bale_url'] ?? '')),
                 'whatsapp_url'            => trim((string) ($_POST['whatsapp_url'] ?? '')),
@@ -202,6 +205,30 @@ admin_head('تنظیمات', ['user' => $user]);
       برای غیرفعال کردن هرکدام، کادر آن را خالی بگذارید.
     </p>
     <div class="form-grid">
+      <div class="field">
+        <label for="shop_email">ایمیل فروشگاه</label>
+        <input type="email" id="shop_email" name="shop_email" dir="ltr"
+               placeholder="info@suppex.ir" value="<?= e(s('shop_email')) ?>">
+        <span class="hint">
+          خالی بگذارید تا در سایت نمایش داده نشود. فقط وقتی پرش کنید که واقعاً
+          صندوقش را می‌خوانید — نشانی‌ای که کسی جواب نمی‌دهد از نبودنش بدتر است.
+        </span>
+      </div>
+
+      <div class="field">
+        <label for="instagram_url">لینک اینستاگرام</label>
+        <input type="url" id="instagram_url" name="instagram_url" dir="ltr"
+               placeholder="https://instagram.com/username" value="<?= e(s('instagram_url')) ?>">
+        <span class="hint">آیکن اینستاگرام در فوتر تا وقتی این خالی است دیده نمی‌شود.</span>
+      </div>
+
+      <div class="field">
+        <label for="aparat_url">لینک آپارات</label>
+        <input type="url" id="aparat_url" name="aparat_url" dir="ltr"
+               placeholder="https://aparat.com/username" value="<?= e(s('aparat_url')) ?>">
+        <span class="hint">اگر کانالی ندارید خالی بگذارید؛ آیکنش نمایش داده نمی‌شود.</span>
+      </div>
+
       <div class="field">
         <label for="telegram_url">لینک تلگرام</label>
         <input type="url" id="telegram_url" name="telegram_url" dir="ltr"

@@ -245,6 +245,61 @@ ok('esc escapes markup', e('<script>') === '&lt;script&gt;');
 ok('lines_to_array drops blanks', lines_to_array("a\n\n b \n") === ['a', 'b']);
 ok('clean_text collapses whitespace', clean_text("  a   b  ") === 'a b');
 
+echo "
+== the storefront config: what the shop tells the browser about itself ==
+";
+/* Nothing exercised this route until now, which is how it came to exist since
+   the backend was written with no caller at all - the storefront read its
+   channel list from config.js while the panel wrote the same values into a
+   database nobody read. */
+require_once SUPPEX_ROOT . "/lib/settings.php";
+
+$restore = [];
+foreach (["shop_phone", "shop_email", "instagram_url", "telegram_url",
+          "whatsapp_url", "aparat_url", "bale_url"] as $k) {
+    $restore[$k] = (string) setting($k);
+}
+
+settings_save(["shop_phone" => "", "shop_email" => "", "instagram_url" => "",
+               "telegram_url" => "", "whatsapp_url" => "", "aparat_url" => "",
+               "bale_url" => ""]);
+$cfg = storefront_config();
+ok("with nothing set, contact is empty", $cfg["contact"] === [],
+   json_encode($cfg["contact"], JSON_UNESCAPED_UNICODE));
+ok("and there are no ordering channels", $cfg["channels"] === []);
+/* Absent, not present-and-empty. The footer shows a row when its key EXISTS,
+   so an empty string here would print a blank link where a phone number should
+   be - which is a smaller version of the bug this mechanism replaced. */
+ok("an unset detail is absent rather than empty",
+   !array_key_exists("phone", $cfg["contact"]));
+
+settings_save(["shop_phone" => "09121234567", "shop_email" => "hi@suppex.ir",
+               "telegram_url" => "https://t.me/x"]);
+$cfg = storefront_config();
+ok("a set phone appears", ($cfg["contact"]["phone"] ?? "") === "09121234567");
+ok("a set email appears", ($cfg["contact"]["email"] ?? "") === "hi@suppex.ir");
+ok("and the ones still unset stay absent",
+   !array_key_exists("instagram", $cfg["contact"])
+   && !array_key_exists("aparat", $cfg["contact"]));
+ok("telegram becomes an ordering channel too", count($cfg["channels"]) === 1);
+
+/* A field cleared by selecting the text and pressing space is a cleared field. */
+settings_save(["shop_email" => "   "]);
+$cfg = storefront_config();
+ok("a setting holding only whitespace counts as unset",
+   !array_key_exists("email", $cfg["contact"]),
+   json_encode($cfg["contact"], JSON_UNESCAPED_UNICODE));
+
+/* The one value that must never travel on an open endpoint. */
+settings_save(["card_number" => "6104337600000002", "card_holder" => "tester"]);
+$blob = (string) json_encode(storefront_config(), JSON_UNESCAPED_UNICODE);
+ok("the card number is never in the public config",
+   strpos($blob, "6104337600000002") === false);
+ok("nor the card holder", strpos($blob, "tester") === false);
+
+settings_save($restore);
+ok("settings restored", (string) setting("telegram_url") === $restore["telegram_url"]);
+
 echo "\n----------------------------------------\n";
 echo "passed: $pass    failed: $failCount\n";
 exit($failCount > 0 ? 1 : 0);

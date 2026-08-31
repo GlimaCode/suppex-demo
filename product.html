@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>وی پروتئین اورجینال | SUPPEX</title>
-<meta name="description" content="وی پروتئین اورجینال ساپکس — ۲۴ گرم پروتئین در هر پیمانه، ترکیب کنسانتره و ایزوله با فیلتراسیون سرد، بدون قند افزوده و با برگه آزمایش مستقل.">
+<meta name="description" content="صفحه محصول ساپکس — مکمل اصل و پلمب‌شده برندهای معتبر، با قیمت روشن و ثبت سفارش در تلگرام.">
 <meta name="theme-color" content="#131210">
 
 <meta property="og:type" content="product">
 <meta property="og:site_name" content="SUPPEX">
 <meta property="og:locale" content="fa_IR">
 <meta property="og:title" content="وی پروتئین اورجینال | SUPPEX">
-<meta property="og:description" content="۲۴ گرم پروتئین در هر پیمانه، با برگه آزمایش مستقل برای هر سری تولید.">
+<meta property="og:description" content="مکمل اصل و پلمب‌شده برندهای معتبر، مستقیم از دبی. سفارش در تلگرام، پیگیری با کد.">
 <meta property="og:image" content="assets/images/og-cover.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -25,27 +25,22 @@
 <link rel="stylesheet" href="assets/css/components.css">
 <link rel="stylesheet" href="assets/css/layout.css">
 
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Product",
-  "name": "وی پروتئین اورجینال",
-  "alternateName": "Whey Original",
-  "image": "https://suppex.ir/assets/images/products/whey-original.svg",
-  "description": "ترکیب وی کنسانتره و ایزوله با فیلتراسیون سرد، ۲۴ گرم پروتئین در هر پیمانه ۳۰ گرمی.",
-  "sku": "SPX-WHY-900-VAN",
-  "brand": { "@type": "Brand", "name": "SUPPEX" },
-  "offers": {
-    "@type": "Offer",
-    "url": "https://suppex.ir/product.html?p=whey-original",
-    "priceCurrency": "IRR",
-    "price": "24500000",
-    "availability": "https://schema.org/InStock",
-    "itemCondition": "https://schema.org/NewCondition",
-    "seller": { "@type": "Organization", "name": "SUPPEX" }
-  }
-}
-</script>
+<!-- There used to be a Product block here. It described وی پروتئین
+     اورجینال - name, description, SKU, price, InStock - and this one file
+     serves every product through ?p=<slug>, so fourteen of the fifteen
+     product pages published the wrong product's price and identifier to
+     Google, Torob and Emalls, which rank on precisely those fields. All
+     fifteen asserted InStock whatever the shelf said, and named SUPPEX as the
+     BRAND, which is the manufacturer's role: these are sealed Optimum
+     Nutrition and Dymatize tubs, and the tub the customer opens does not say
+     SUPPEX on it.
+
+     Deleted rather than corrected, because this file cannot know which
+     product it is rendering - it has no PHP. product.php generates the real
+     thing per product from the database, with the price it will actually
+     charge and the availability it can actually honour, and that is the page
+     the live site serves. No structured data beats structured data that is
+     right one time in fifteen. -->
 </head>
 
 <body>
@@ -86,13 +81,19 @@
         <rect x="23" y="13" width="4"  height="14" rx="2" fill="currentColor"/>
         <rect x="28" y="16" width="5"  height="8"  rx="2" fill="#F25914"/>
       </svg>
-      <span class="logo__text">SUPPEX<sup>®</sup></span>
+      <!-- No ® : nothing is registered. -->
+      <span class="logo__text">SUPPEX</span>
     </a>
 
     <nav class="nav" aria-label="ناوبری اصلی">
       <ul class="nav__list">
         <li><a class="nav__link" href="index.html">خانه</a></li>
-        <li><a class="nav__link" href="index.html#featured" aria-current="page">محصولات</a></li>
+        <!-- aria-current="page" was hardcoded here. This nav is now shared by
+             the product, article, tracking, policy and journal pages, so a
+             screen reader was told the user is on the products page on every
+             one of them. Nothing sets it now, which is right for all of them:
+             none IS the products listing - that lives on the home page. -->
+        <li><a class="nav__link" href="index.html#featured">محصولات</a></li>
         <li><a class="nav__link" href="index.html#categories">دسته‌بندی‌ها</a></li>
         <li><a class="nav__link" href="index.html#promo">تخفیف‌ها</a></li>
         <li><a class="nav__link" href="index.html#standard">درباره ما</a></li>
@@ -175,9 +176,19 @@
         </div>
 
         <div class="pdp__assur">
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> مرجوعی ۷ روزه</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> برگه آزمایش سری تولید</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> ارسال از انبار تهران</span>
+          <!-- The middle item used to read «برگه آزمایش سری تولید», with a
+               green tick, on all fifteen products, in the server-rendered
+               HTML - while the shop's own returns, FAQ and terms pages say in
+               plain Persian that there is no laboratory and no batch is
+               tested. What replaces it is the thing he actually does before
+               packing, which index.html now describes as well.
+
+               «مرجوعی ۷ روزه» became «۷ روز کاری»: the withdrawal right in
+               ماده ۳۷ is in WORKING days, so the old wording was narrower than
+               both the law and the shop's own returns page. -->
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> مرجوعی ۷ روز کاری</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> عکس سری تولید پیش از ارسال</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> قوطی پلمب‌شده</span>
         </div>
 
         <!-- Details -->
@@ -212,9 +223,18 @@
               <svg class="acc__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             </button>
             <div class="acc__panel"><div><p class="acc__body">
-              سفارش‌های ثبت‌شده تا ساعت ۱۵ همان روز ارسال می‌شود. ارسال بالای
-              <span class="num">1,500,000</span> تومان رایگان است و در غیر این صورت
-              <span class="num">65,000</span> تومان محاسبه می‌شود. مرجوعی تا ۷ روز پذیرفته می‌شود، به شرط آنکه پلمب بسته باز نشده باشد.
+              <!-- Was: «سفارش‌های ثبت‌شده تا ساعت ۱۵ همان روز ارسال می‌شود»
+                   - a dispatch SLA nothing in the code enforces and one
+                   person cannot promise, removed from index.html for the same
+                   reason - and «مرجوعی تا ۷ روز», which is narrower than the
+                   ۷ روز کاری the law gives and the returns page states.
+
+                   The two shipping numbers stay: those are real, and the
+                   server enforces them when it recomputes the order. -->
+              ارسال بالای <span class="num">1,500,000</span> تومان رایگان است و در غیر این صورت
+              <span class="num">65,000</span> تومان محاسبه می‌شود. زمان ارسال هر سفارش را در
+              همان گفتگو می‌گوییم. مرجوعی تا ۷ روز کاری پذیرفته می‌شود؛ شرایط و
+              استثناهایش در صفحه مرجوعی و بازگشت وجه نوشته شده است.
             </p></div></div>
           </div>
         </div>
@@ -243,21 +263,11 @@
 <footer class="footer" id="contact">
   <div class="container">
 
-    <div class="newsletter">
-      <div>
-        <h2 class="u-h2" style="font-size:clamp(1.5rem,1.1rem+1.6vw,2.2rem)">
-          <span class="num">10</span>٪ تخفیف اولین سفارش
-        </h2>
-        <p class="u-sm u-muted" style="margin-top:10px">
-          خبر محصولات جدید، موجودی مجدد و نکات تمرینی. بدون هرزنامه — هر زمان بخواهید لغو عضویت کنید.
-        </p>
-      </div>
-      <form class="newsletter__form" data-newsletter novalidate>
-        <label class="sr-only" for="nl-email">نشانی ایمیل</label>
-        <input class="input" id="nl-email" type="email" name="email" placeholder="you@example.com" dir="ltr" required>
-        <button class="btn btn--primary" type="submit">عضویت</button>
-      </form>
-    </div>
+    <!-- A newsletter form offering «۱۰٪ تخفیف اولین سفارش» stood here. No
+         coupon mechanism exists anywhere in this codebase, so the discount
+         could never be issued, and the submit handler answered «ایمیل شما ثبت
+         شد» while discarding the address. A restock list is worth building for
+         a shop that now counts its stock - with a table behind it. -->
 
     <div class="footer__cols">
       <div class="footer__col">
@@ -270,71 +280,122 @@
             <rect x="23" y="13" width="4"  height="14" rx="2" fill="currentColor"/>
             <rect x="28" y="16" width="5"  height="8"  rx="2" fill="#F25914"/>
           </svg>
-          <span class="logo__text">SUPPEX<sup>®</sup></span>
+          <!-- The ® is gone: nothing is registered. ™ would be free to use
+               but claims a trademark nobody has asserted either. -->
+          <span class="logo__text">SUPPEX</span>
         </a>
         <p class="u-sm u-muted" style="margin-top:14px;max-width:34ch">
-          مکمل ورزشی با مقدار مؤثر و برگه آزمایش مستقل. ساخته‌شده برای باشگاه، اثبات‌شده در آزمایشگاه.
+          مکمل اصل برندهای معتبر، پلمب‌شده و مستقیم از دبی. سفارش در تلگرام، پیگیری با کد.
         </p>
-        <div class="socials">
-          <a href="#" aria-label="اینستاگرام"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/></svg></a>
-          <a href="#" aria-label="تلگرام"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 4L3 11l5 1.8L19 6.5l-8.4 8.1.4 5 2.8-3.4L18.5 19z"/></svg></a>
-          <a href="#" aria-label="واتس‌اپ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.2-3.8A8 8 0 1 1 8.6 19z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5"/></svg></a>
-          <a href="#" aria-label="آپارات"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M11 9.8l4 2.2-4 2.2z" fill="currentColor" stroke="none"/></svg></a>
+        <!-- Every icon was href="#" on a shop whose customers arrive from
+             Instagram and Telegram. They are filled by app.js from ?r=config
+             and each one stays hidden until its URL is set in the panel, so an
+             account the owner does not have never shows a dead icon - and one
+             he opens later needs no developer. hidden, not display:none, so it
+             is out of the accessibility tree too. -->
+        <div class="socials" data-socials>
+          <a data-social="instagram" aria-label="اینستاگرام" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/></svg></a>
+          <a data-social="telegram" aria-label="تلگرام" hidden><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 4L3 11l5 1.8L19 6.5l-8.4 8.1.4 5 2.8-3.4L18.5 19z"/></svg></a>
+          <a data-social="whatsapp" aria-label="واتس‌اپ" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.2-3.8A8 8 0 1 1 8.6 19z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5"/></svg></a>
+          <a data-social="aparat" aria-label="آپارات" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M11 9.8l4 2.2-4 2.2z" fill="currentColor" stroke="none"/></svg></a>
         </div>
       </div>
 
       <nav class="footer__col" aria-labelledby="f-shop">
         <h3 id="f-shop">فروشگاه</h3>
         <ul>
-          <li><a href="product.html?p=whey-original">وی پروتئین</a></li>
-          <li><a href="product.html?p=creatine-mono">کراتین</a></li>
-          <li><a href="product.html?p=mass-builder">افزایش وزن</a></li>
-          <li><a href="product.html?p=pre-blast">قبل تمرین</a></li>
-          <li><a href="product.html?p=bcaa-211">آمینو و BCAA</a></li>
-          <li><a href="product.html?p=multi-sport">ویتامین‌ها</a></li>
+          <!-- data-p, so app.js can point these at whichever product page
+               this deployment uses. Hardcoding product.html sent every footer
+               visitor to the static demo page on a site running the real
+               backend; hardcoding product.php would break the demo, which has
+               no database. config.js already holds the answer. -->
+          <li><a href="product.html?p=whey-original" data-p="whey-original">وی پروتئین</a></li>
+          <li><a href="product.html?p=creatine-mono" data-p="creatine-mono">کراتین</a></li>
+          <li><a href="product.html?p=mass-builder" data-p="mass-builder">افزایش وزن</a></li>
+          <li><a href="product.html?p=pre-blast" data-p="pre-blast">قبل تمرین</a></li>
+          <li><a href="product.html?p=bcaa-211" data-p="bcaa-211">آمینو و BCAA</a></li>
+          <li><a href="product.html?p=multi-sport" data-p="multi-sport">ویتامین‌ها</a></li>
         </ul>
       </nav>
 
       <nav class="footer__col" aria-labelledby="f-company">
-        <h3 id="f-company">شرکت</h3>
+        <!-- «شرکت» was the wrong word before the links were: there is no
+             registered company. Three of the five entries here were removed
+             rather than built - «گواهی آزمایشگاه» (no lab, no certificates),
+             «فرصت‌های شغلی» and «همکاری در فروش» (nobody to hire, no affiliate
+             scheme). A page saying "we have no vacancies" is a worse answer
+             than not asking the question. -->
+        <h3 id="f-company">درباره ساپکس</h3>
         <ul>
           <li><a href="index.html#standard">استاندارد ما</a></li>
-          <li><a href="#">گواهی آزمایشگاه</a></li>
-          <li><a href="#">مجله ساپکس</a></li>
-          <li><a href="#">فرصت‌های شغلی</a></li>
-          <li><a href="#">همکاری در فروش</a></li>
+          <li><a href="journal.php">مجله ساپکس</a></li>
+          <li><a href="page.php?p=faq">سؤالات متداول</a></li>
+          <li><a href="page.php?p=terms">قوانین و شرایط استفاده</a></li>
         </ul>
       </nav>
 
       <div class="footer__col">
         <h3>پشتیبانی</h3>
         <ul>
-          <li><a href="tel:+982188776655" dir="ltr" class="num">021-88776655</a></li>
-          <li><a href="mailto:info@suppex.ir" dir="ltr">info@suppex.ir</a></li>
-          <li><a href="#">رویه ارسال</a></li>
-          <li><a href="#">مرجوعی و بازگشت وجه</a></li>
-          <li><a href="#">سؤالات متداول</a></li>
+          <!-- Order tracking first: it is the thing somebody who has already
+               paid actually came back for. -->
+          <li><a href="track.php">پیگیری سفارش</a></li>
+          <li><a href="page.php?p=shipping">رویه ارسال</a></li>
+          <li><a href="page.php?p=returns">مرجوعی و بازگشت وجه</a></li>
+          <li><a href="page.php?p=privacy">حریم خصوصی</a></li>
+          <!-- Before buying, not only after. This shop's whole funnel is a
+               chat, so the chat belongs in the footer rather than only behind
+               the checkout button. Filled and unhidden by app.js from the
+               channel the owner has actually configured. -->
+          <li hidden data-ask><a>پرسیدن قبل از خرید</a></li>
+          <!-- A landline (021-88776655) and info@suppex.ir stood here. The
+               owner confirmed neither is real; both are wired to settings and
+               appear the moment he fills them in, rather than being deleted
+               and needing a developer later. -->
+          <li hidden data-contact="phone"><a dir="ltr" class="num"></a></li>
+          <li hidden data-contact="email"><a dir="ltr"></a></li>
         </ul>
-        <div class="payinfo">
-          <p class="payinfo__title">پرداخت چطور انجام می‌شود</p>
-          <p class="payinfo__body">
-            سفارش را در تلگرام ثبت می‌کنید، مبلغ و موجودی تأیید می‌شود، و بعد
-            شماره کارت برایتان فرستاده می‌شود. تا وقتی سفارش تأیید نشده،
-            پرداختی در کار نیست.
-          </p>
-        </div>
-      </div>
+        <!-- These were three empty dashed boxes. One said «درگاه امن», and
+             config.js states in its own words that this phase deliberately has
+             no payment gateway - so the badge advertised something that does
+             not exist. The other two were seals the shop has not been granted.
+             What replaces them is the thing that is both true and reassuring:
+             how paying actually works here.
+
+             When نماد اعتماد الکترونیکی and ساماندهی are really issued, their
+             own script tags go back in this block - a trust seal is a code
+             snippet from the issuer, never a box we draw ourselves. -->
+        <div class="payinfo">
+          <p class="payinfo__title">پرداخت چطور انجام می‌شود</p>
+          <p class="payinfo__body">
+            سفارش را در تلگرام ثبت می‌کنید، مبلغ و موجودی تأیید می‌شود، و بعد
+            شماره کارت برایتان فرستاده می‌شود. تا وقتی سفارش تأیید نشده،
+            پرداختی در کار نیست.
+          </p>
+        </div>
+      <!-- There was a fourth </div> here, closing .container early so the
+           watermark and the legal row below rendered OUTSIDE it and lost the
+           page's max-width. It was in article.php, product.php, track.php and
+           product.html - four of the five copies - and index.html was the one
+           that had it right. Which is the argument for this file existing:
+           four hand-maintained copies drifted, and nothing noticed until
+           legal.closest('.container') came back null in a browser. -->
       </div>
     </div>
 
     <div class="footer__mark" aria-hidden="true">SUPPEX</div>
 
     <div class="footer__legal">
-      <span>© <span class="num" data-year>2026</span> شرکت مکمل‌های ورزشی ساپکس — تمام حقوق محفوظ است.</span>
+      <!-- «شرکت مکمل‌های ورزشی ساپکس» named a company that is not
+           registered. Confirmed with the owner: it is one person trading under
+           a name, which is what this now says. -->
+      <span>© <span class="num" data-year>2026</span> ساپکس</span>
       <nav aria-label="پیوندهای حقوقی">
-        <a href="#">قوانین و مقررات</a>
-        <a href="#">حریم خصوصی</a>
-        <a href="#">شرایط استفاده</a>
+        <!-- «قوانین و مقررات» and «شرایط استفاده» were two links to the same
+             document that did not exist. Now one link to one that does. -->
+        <a href="page.php?p=terms">قوانین و شرایط استفاده</a>
+        <a href="page.php?p=privacy">حریم خصوصی</a>
+        <a href="page.php?p=returns">مرجوعی</a>
       </nav>
     </div>
 

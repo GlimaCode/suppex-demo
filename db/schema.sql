@@ -258,6 +258,13 @@ INSERT INTO settings (setting_key, setting_value) VALUES
   -- How few is "nearly gone". Below this the storefront says how many are
   -- left; above it, nothing is published at all.
   ('low_stock_threshold',    '3'),
+  -- Empty on purpose. The footer used to hard-code a landline, an email
+  -- and a Valiasr Street address, none of which were real; these render
+  -- nothing until they are filled in, and appear everywhere the moment they
+  -- are. shop_phone already existed here and was never read by anything.
+  ('shop_email',             ''),
+  ('instagram_url',          ''),
+  ('aparat_url',             ''),
   ('telegram_url',           'https://t.me/ARSENX2003'),
   ('bale_url',               'https://ble.ir/ALIARSENX'),
   ('whatsapp_url',           ''),

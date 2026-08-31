@@ -92,19 +92,11 @@ try {
            Publishing it on an open endpoint would let anyone scrape it and
            reuse it in a scam that the shop then gets blamed for. */
         case 'config':
-            api_send([
-                'freeShippingThreshold' => setting_int('free_shipping_threshold', 1500000),
-                'shippingFlatRate'      => setting_int('shipping_flat_rate', 65000),
-                'saleMode'              => setting_bool('sale_mode', true),
-                'channels'              => array_values(array_filter([
-                    setting('telegram_url') ? ['id' => 'telegram', 'label' => 'تلگرام',
-                        'url' => setting('telegram_url'), 'prefillParam' => 'text'] : null,
-                    setting('bale_url') ? ['id' => 'bale', 'label' => 'بله',
-                        'url' => setting('bale_url'), 'prefillParam' => 'text'] : null,
-                    setting('whatsapp_url') ? ['id' => 'whatsapp', 'label' => 'واتس‌اپ',
-                        'url' => setting('whatsapp_url'), 'prefillParam' => 'text'] : null,
-                ])),
-            ], 200, 60);
+            /* One line, because the payload is a value now rather than a
+               statement. It lived inline and ended in api_send(), which exits,
+               so nothing could assert on it - which is how this route came to
+               exist for months with no caller and no test. */
+            api_send(storefront_config(), 200, 60);
 
         /* Current prices for what is sitting in someone's cart.
 

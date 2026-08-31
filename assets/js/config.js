@@ -14,12 +14,14 @@ SUPPEX.config = {
   /* --- Brand ---------------------------------------------------------- */
   brand: {
     name: 'SUPPEX',
-    legalName: 'شرکت مکمل‌های ورزشی ساپکس',
+    /* legalName, established, phone, email and address used to sit here:
+       «شرکت مکمل‌های ورزشی ساپکس», 1396, a Tehran landline, info@suppex.ir and
+       a Valiasr Street address. The owner confirmed none of them are real -
+       there is no registered company - and nothing in the codebase read them
+       anyway. The real contact details, when there are some, come from the
+       admin panel through ?r=config, so they can never be wrong in a file the
+       shopkeeper cannot edit. */
     tagline: 'مکمل ورزشی، بدون حاشیه',
-    established: 1396,
-    phone: '021-88776655',
-    email: 'info@suppex.ir',
-    address: 'تهران، خیابان ولیعصر، بالاتر از میدان ونک، پلاک ۲۴۱',
   },
 
   /* --- Commerce ------------------------------------------------------- */

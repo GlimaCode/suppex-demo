@@ -143,6 +143,17 @@ button { cursor: pointer; }
 
 /* Numerals stay Latin (per brand decision) and get tabular figures so prices
    and counts line up in columns without jitter. */
+/* The `hidden` attribute is a UA-stylesheet rule, so ANY author rule that sets
+   a display silently defeats it - and .socials a sets display:flex. The footer's
+   social icons were marked hidden, reported hidden by element.hidden, and
+   rendered anyway as four empty circles on every page.
+
+   !important on a reset like this is not a smell: `hidden` is a statement that
+   the element is not relevant to the page, and no layout rule should be able
+   to overrule that by accident. Anything that genuinely needs to override it
+   should be using a class, not fighting the attribute. */
+[hidden] { display: none !important; }
+
 .num {
   font-variant-numeric: tabular-nums;
   direction: ltr;

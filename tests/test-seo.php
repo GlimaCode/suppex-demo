@@ -140,12 +140,19 @@ $sx = simplexml_load_string($sitemap);
 $count = $sx === false ? 0 : count($sx->url);
 ok('lists the homepage plus every active product', $count >= 2, $count . ' urls');
 ok('urls are absolute', mb_strpos($sitemap, 'https://suppex.ir/') !== false);
-/* The sitemap is the homepage, every active product, and every article. */
+/* The sitemap is the homepage, every active product, every article, the
+   journal index and every standing page. Counted rather than hardcoded, so
+   adding a policy page or an article cannot silently drop it from the
+   sitemap - which is the failure this assertion exists to catch, and the
+   reason a bare "at least two urls" check above is not enough. */
 require_once SUPPEX_ROOT . '/lib/journal.php';
+require_once SUPPEX_ROOT . '/lib/pages.php';
 $expected = 1
     + (int) db_value('SELECT COUNT(*) FROM products WHERE is_active = 1')
-    + count(journal_all());
-ok('lists exactly the homepage, the active products and the articles',
+    + count(journal_all())
+    + 1                      // journal.php, the article index
+    + count(pages_all());    // shipping, returns, faq, terms, privacy
+ok('lists exactly the homepage, the products, the articles and the standing pages',
    $count === $expected, $count . ' vs ' . $expected);
 
 /* The count above is a proxy, and a proxy passes for the wrong reason as soon
@@ -239,10 +246,20 @@ ok("and offers a way onward",
 
 ok("no add-to-cart for a product that is not there",
    mb_strpos($gone, "افزودن به سبد") === false);
-/* «برگه آزمایش سری تولید» sits in the announcement bar on every page;
-   what must be gone is the product's own certificate block. */
+/* This comment used to say «برگه آزمایش سری تولید» sits in the announcement
+   bar on every page, so only «دانلود گواهی» was checked for. The premise was
+   false - the announce bar's three items are the free-shipping threshold,
+   authenticity and ordering in Telegram - and the string was actually in the
+   product page's own assurance strip. So the suite carried a written excuse
+   for tolerating exactly the claim it should have caught, resting on a fact
+   about the codebase that was not true.
+
+   The shop has no laboratory and issues no certificates, so neither string
+   belongs on any product page, present or missing. */
 ok("no batch certificate block",
    mb_strpos($gone, "دانلود گواهی") === false);
+ok("and no certificate claim in the assurance strip",
+   mb_strpos($gone, "برگه آزمایش") === false);
 ok("no price", preg_match('/data-p-price/', $gone) === 0);
 ok("the page is short, not a full skeleton", strlen($gone) < 30000, (string) strlen($gone));
 ok("but it keeps the site header", mb_strpos($gone, "SUPPEX") !== false);

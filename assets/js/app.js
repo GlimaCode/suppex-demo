@@ -488,8 +488,16 @@ SUPPEX.app = (function () {
       if (!raw) { return ''; }
       var v = JSON.parse(raw);
       /* Two weeks. After that it is more likely to confuse than to help - the
-         order is long settled and the code on screen would be stale. */
-      if (!v || !v.code || Date.now() - (v.at || 0) > 14 * 864e5) { return ''; }
+         order is long settled and the code on screen would be stale.
+
+         ERASED, not merely ignored. This used to return '' and leave the value
+         in localStorage for ever, while the privacy page told the customer the
+         code removes itself after two weeks. A promise about someone's data is
+         the last one to keep only approximately. */
+      if (!v || !v.code || Date.now() - (v.at || 0) > 14 * 864e5) {
+        try { window.localStorage.removeItem(LAST_ORDER_KEY); } catch (e2) {}
+        return '';
+      }
       return String(v.code);
     } catch (e) { return ''; }
   }
@@ -593,6 +601,87 @@ SUPPEX.app = (function () {
   /* ====================================================================
      Global chrome
      ==================================================================== */
+  /* --------------------------------------------------------------------
+     The footer's contact details and social links.
+
+     Everything here starts hidden and is revealed only by a value the owner
+     has actually set. That is the opposite of how this footer worked for the
+     whole life of the project: it hard-coded a landline, an email and a
+     Valiasr Street address that were template filler, and four social icons
+     pointing at href="#".
+
+     Deferred rather than deleted because the owner said the real details come
+     later - so the day he types them into the panel they appear on every page,
+     with no developer involved. Until then nothing is printed, which is the
+     honest amount.
+
+     A failure here must never be visible: if the request fails the footer
+     stays exactly as rendered, which is a footer with no contact block.
+     -------------------------------------------------------------------- */
+  function initContact() {
+    var host = $('[data-socials]');
+    var rows = $$('[data-contact], [data-ask]');
+    if (!host && !rows.length) { return; }
+
+    SUPPEX.repo.getShopConfig().then(function (remote) {
+      var c = (remote && remote.contact) || {};
+
+      /* Social icons: one per key, shown only where there is a URL. */
+      $$('[data-social]').forEach(function (a) {
+        var url = c[a.getAttribute('data-social')];
+        if (!url) { return; }
+        a.setAttribute('href', url);
+        a.setAttribute('rel', 'noopener');
+        a.setAttribute('target', '_blank');
+        a.hidden = false;
+      });
+
+      var fill = function (sel, href, text) {
+        var li = $(sel);
+        if (!li || !href) { return; }
+        var a = $('a', li);
+        if (!a) { return; }
+        a.setAttribute('href', href);
+        if (text) { a.textContent = text; }
+        li.hidden = false;
+      };
+
+      /* tel: wants the dialable form and the label wants the readable one. */
+      if (c.phone) {
+        fill('[data-contact="phone"]', 'tel:' + String(c.phone).replace(/[^\d+]/g, ''), c.phone);
+      }
+      if (c.email) {
+        fill('[data-contact="email"]', 'mailto:' + c.email, c.email);
+      }
+
+      /* «پرسیدن قبل از خرید» goes to whichever chat the shop is actually on.
+         Telegram first because that is where this business already lives. */
+      var chat = c.telegram || c.whatsapp || c.instagram;
+      if (chat) {
+        var li = $('[data-ask]');
+        var a = li && $('a', li);
+        if (a) {
+          a.setAttribute('href', chat);
+          a.setAttribute('rel', 'noopener');
+          a.setAttribute('target', '_blank');
+          li.hidden = false;
+        }
+      }
+    }).catch(function () { /* the footer simply stays as rendered */ });
+  }
+
+  /* The footer's product links are written as product.html so the static demo
+     works when opened straight off disk. On a deployment running the real
+     backend that sent every footer visitor to the demo page, which has no
+     database behind it. config.js already knows which page this deployment
+     uses. */
+  function initFooterProductLinks() {
+    var page = cfg.productPage || 'product.html';
+    $$('[data-p]').forEach(function (a) {
+      a.setAttribute('href', page + '?p=' + encodeURIComponent(a.getAttribute('data-p')));
+    });
+  }
+
   function initChrome() {
     /* Sticky header shadow */
     var header = $('[data-header]');
@@ -721,21 +810,11 @@ SUPPEX.app = (function () {
     }
 
     /* Newsletter — validates, then reports without sending anywhere */
-    $$('[data-newsletter]').forEach(function (form) {
-      form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        var input = $('input', form);
-        if (!input.value || input.validity.typeMismatch) {
-          input.focus();
-          toast('لطفاً یک ایمیل معتبر وارد کنید');
-          return;
-        }
-        input.value = '';
-        /* No coupon mechanism exists and the address is not stored anywhere,
-           so the old «کد تخفیف ایمیل می‌شود» was a promise nothing could keep. */
-        toast('ایمیل شما ثبت شد');
-      });
-    });
+    /* The newsletter handler used to live here. It answered «ایمیل شما ثبت
+       شد» and then discarded the address - its own comment said the address
+       was not stored anywhere. The form is gone from the footer for that
+       reason, and this went with it. A restock list is worth building; it
+       needs a table, not a toast. */
 
     /* Search */
     var searchInput = $('[data-search-input]');
@@ -835,7 +914,10 @@ SUPPEX.app = (function () {
       if (chip) { chip.click(); }
     });
 
-    var reviewGrid = cfg.flags.showTestimonials ? $('[data-reviews]') : null;
+    /* The reviews grid was fed from a hardcoded array of invented customers
+       and its markup is gone from index.html. Left as null so the block below
+       short-circuits without reaching for data that no longer exists. */
+    var reviewGrid = null;
     if (reviewGrid) {
       repo.getReviews().then(function (list) {
         reviewGrid.insertAdjacentHTML('beforeend', list.map(ui.reviewCard).join(''));
@@ -1146,7 +1228,11 @@ SUPPEX.app = (function () {
         '</span>\u00a0<span class="price__unit">' + ui.esc(cfg.currency.label) +
         '</span></span>' +
         (onSale ? '<span class="price__was num">' + ui.money(s.compareAt) + '</span>' : '') +
-        '<span class="price__unit">شامل مالیات · ارسال رایگان بالای <span class="num">' +
+        /* «شامل مالیات» was here. This shop is one person reselling; nothing in
+           the pricing code computes or remits a tax, and telling a customer a
+           price includes one is a claim about an obligation nobody has taken
+           on. The free-shipping half is real and the server enforces it. */
+        '<span class="price__unit">ارسال رایگان بالای <span class="num">' +
           ui.money(cfg.freeShippingThreshold) + '</span></span>');
     }
     paintPrice();
@@ -1251,6 +1337,8 @@ SUPPEX.app = (function () {
   return {
     init: function () {
       initChrome();
+      initContact();
+      initFooterProductLinks();
       initHome();
       initProduct();
       /* Every page, not only the homepage: the point of remembering the code is

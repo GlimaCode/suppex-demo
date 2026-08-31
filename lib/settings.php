@@ -78,6 +78,61 @@ function setting_bool(string $key, bool $default = false): bool
     return $all[$key] === '1' || $all[$key] === 'true';
 }
 
+/**
+ * The settings the storefront is allowed to know.
+ *
+ * A whitelist, not a dump. The card number is deliberately absent: it is
+ * returned once, with the order that was actually placed, because an open
+ * endpoint that hands it out lets anyone scrape it and reuse it in a scam the
+ * shop then gets blamed for.
+ *
+ * Contact details are filtered to what is actually SET, and the difference
+ * matters more than it looks: the footer renders a row only when its key is
+ * present, so an empty setting means nothing is printed rather than an empty
+ * link. The site used to hard-code a landline nobody answers.
+ *
+ * @return array{freeShippingThreshold:int,shippingFlatRate:int,saleMode:bool,
+ *               contact:array<string,string>,channels:list<array<string,string>>}
+ */
+function storefront_config(): array
+{
+    /* trim before the comparison: a setting holding only spaces is a setting
+       somebody meant to clear, and it must not light up a footer row with a
+       blank link in it. */
+    $contact = [];
+    foreach ([
+        'phone'     => 'shop_phone',
+        'email'     => 'shop_email',
+        'instagram' => 'instagram_url',
+        'telegram'  => 'telegram_url',
+        'whatsapp'  => 'whatsapp_url',
+        'aparat'    => 'aparat_url',
+    ] as $key => $setting) {
+        $value = trim((string) setting($setting));
+        if ($value !== '') {
+            $contact[$key] = $value;
+        }
+    }
+
+    return [
+        'freeShippingThreshold' => setting_int('free_shipping_threshold', 1500000),
+        'shippingFlatRate'      => setting_int('shipping_flat_rate', 65000),
+        'saleMode'              => setting_bool('sale_mode', true),
+        'contact'               => $contact,
+        'channels'              => array_values(array_filter([
+            trim((string) setting('telegram_url')) !== ''
+                ? ['id' => 'telegram', 'label' => 'تلگرام',
+                   'url' => setting('telegram_url'), 'prefillParam' => 'text'] : null,
+            trim((string) setting('bale_url')) !== ''
+                ? ['id' => 'bale', 'label' => 'بله',
+                   'url' => setting('bale_url'), 'prefillParam' => 'text'] : null,
+            trim((string) setting('whatsapp_url')) !== ''
+                ? ['id' => 'whatsapp', 'label' => 'واتس‌اپ',
+                   'url' => setting('whatsapp_url'), 'prefillParam' => 'text'] : null,
+        ])),
+    ];
+}
+
 function settings_save(array $pairs): void
 {
     Settings::save($pairs);

@@ -218,7 +218,15 @@ function journal_inline(string $text): string
     $safe = e($text);
     $safe = preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', $safe);
     /* Latin digit runs, with their decimals, percent sign and unit-joining
-       characters, wrapped so they read left-to-right inside Persian. */
-    $safe = preg_replace('/(?<![\w>])((?:\d[\d,.\/]*)(?:\s*%)?)/u', '<span class="num">$1</span>', $safe);
+       characters, wrapped so they read left-to-right inside Persian.
+
+       [0-9], not \d. PHP's /u modifier turns on PCRE_UCP as well as UTF-8, so
+       \d there matches every Unicode decimal digit - including ۰-۹ - and this
+       was wrapping Persian numerals too. They need none of it: they are
+       already native to the surrounding direction, so isolating them adds
+       markup that does nothing and asks a Persian font for tabular figures it
+       may not have. The comment above always said Latin; only the pattern
+       disagreed. */
+    $safe = preg_replace('/(?<![\w>])((?:[0-9][0-9,.\/]*)(?:\s*%)?)/u', '<span class="num">$1</span>', $safe);
     return $safe;
 }

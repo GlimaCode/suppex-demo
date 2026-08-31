@@ -20,7 +20,7 @@ SUPPEX.catalog = {
       nameLatin: 'Protein',
       blurb: 'وی، ایزوله و کازئین برای ریکاوری و رشد عضله',
       image: 'assets/images/categories/protein.svg',
-      count: 12,
+      count: 3,
     },
     {
       id: 'creatine',
@@ -28,7 +28,7 @@ SUPPEX.catalog = {
       nameLatin: 'Creatine',
       blurb: 'افزایش قدرت، توان انفجاری و حجم سلولی',
       image: 'assets/images/categories/creatine.svg',
-      count: 6,
+      count: 2,
     },
     {
       id: 'mass-gainer',
@@ -36,7 +36,7 @@ SUPPEX.catalog = {
       nameLatin: 'Mass Gainer',
       blurb: 'کالری متراکم برای دوره حجم',
       image: 'assets/images/categories/mass-gainer.svg',
-      count: 5,
+      count: 2,
     },
     {
       id: 'pre-workout',
@@ -44,7 +44,7 @@ SUPPEX.catalog = {
       nameLatin: 'Pre Workout',
       blurb: 'انرژی، تمرکز و پامپ برای جلسات سنگین',
       image: 'assets/images/categories/pre-workout.svg',
-      count: 8,
+      count: 2,
     },
     {
       id: 'amino',
@@ -52,7 +52,7 @@ SUPPEX.catalog = {
       nameLatin: 'Amino Acid',
       blurb: 'حفظ عضله در تمرین و کات',
       image: 'assets/images/categories/amino.svg',
-      count: 9,
+      count: 3,
     },
     {
       id: 'vitamins',
@@ -60,7 +60,7 @@ SUPPEX.catalog = {
       nameLatin: 'Vitamins',
       blurb: 'پایه سلامت، خواب و ریکاوری روزانه',
       image: 'assets/images/categories/vitamins.svg',
-      count: 14,
+      count: 3,
     },
   ],
 
@@ -94,7 +94,7 @@ SUPPEX.catalog = {
         'ترکیب کنسانتره و ایزوله با فیلتراسیون سرد',
         'بدون قند افزوده و بدون رنگ مصنوعی',
         'دارای آنزیم گوارشی، برای کسانی که با وی دچار نفخ می‌شوند',
-        'برگه آزمایش سری تولید، از همین صفحه قابل دانلود',
+        'پلمب اصلی سازنده، سری تولید و تاریخ روی قوطی',
       ],
       flavors: [
         { id: 'vanilla', name: 'وانیل' },
@@ -397,26 +397,17 @@ SUPPEX.catalog = {
   ],
 
   /* ---------------------------------------------------------------- */
-  reviews: [
-    {
-      author: 'مهدی ر.',
-      verified: true,
-      rating: 5,
-      text: 'سه ساله وی می‌خرم، این اولین باریه که برگه آزمایش رو خودشون روی صفحه محصول گذاشتن. حل شدنش هم واقعاً بدون گلوله‌ست.',
-    },
-    {
-      author: 'سارا ک.',
-      verified: true,
-      rating: 5,
-      text: 'سه‌شنبه شب سفارش دادم، پنج‌شنبه صبح باهاش تمرین کردم. بسته‌بندی سالم و پلمب اصلی.',
-    },
-    {
-      author: 'امیرحسین ن.',
-      verified: true,
-      rating: 5,
-      text: 'پری ورک‌اوتشون دوز واقعی داره و مقدار دقیق هر ماده روی برچسب نوشته شده. دیگه سراغ برندهایی که ترکیبشون معلوم نیست نمی‌رم.',
-    },
-  ],
+  /* Three invented customer reviews stood here - names, five stars,
+     verified: true - and one of them praised the shop for publishing the
+     batch certificate it does not publish.
+
+     The section that displayed them was already removed from the markup.
+     Leaving the DATA behind a feature flag is not a smaller version of the
+     same problem: it ships to every visitor and it is one flag away from
+     being published by whoever flips showTestimonials next.
+
+     Real reviews will want a table, an order to have happened, and a way
+     to moderate them. None of that is an array in a file. */
 
   /* ---------------------------------------------------------------- */
   journal: [
@@ -440,7 +431,7 @@ SUPPEX.catalog = {
       slug: 'counterfeit',
       category: 'پشت صحنه',
       readTime: 9,
-      title: 'چرا برگه آزمایش هر سری تولید را منتشر می‌کنیم',
+      title: 'برگه آزمایش را چطور بخوانیم',
       summary: 'چرا مکمل‌ها در مبدأ پیش از فروش آزمایش نمی‌شوند، شواهد درباره آلودگی و برچسب نادرست چه می‌گویند، و یک برگه آزمایش دقیقاً چه چیزی را ثابت می‌کند و چه چیزی را نه.',
       image: 'assets/images/journal/j3.svg',
     },
