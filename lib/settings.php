@@ -1,4 +1,6 @@
 <?php
+
+
 /* ===========================================================================
    SUPPEX — Shop settings
    ---------------------------------------------------------------------------
@@ -79,4 +81,36 @@ function setting_bool(string $key, bool $default = false): bool
 function settings_save(array $pairs): void
 {
     Settings::save($pairs);
+}
+
+/**
+ * Normalise the shop's canonical origin.
+ *
+ * Empty stays empty - an unset value is meaningful, it means "not configured
+ * yet" and preflight reports it. Anything else gets a scheme if it lacks one
+ * and loses a trailing slash, because seo_origin() concatenates paths onto it.
+ */
+function settings_normalise_site_url($raw): string
+{
+    $v = trim((string) $raw);
+    if ($v === '') {
+        return '';
+    }
+    if (!preg_match('~^https?://~i', $v)) {
+        $v = 'https://' . $v;
+    }
+    /* A host with a path or a query is a mistake, not a canonical origin. */
+    $parts = parse_url($v);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return '';
+    }
+    /* parse_url is permissive - it accepts a host with a space in it. A
+       canonical origin that is not a hostname is worse than none, because it
+       would be published in every canonical tag on the site. */
+    if (!preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i', $parts['host'])) {
+        return '';
+    }
+    $scheme = strtolower($parts['scheme'] ?? 'https');
+    $port   = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+    return $scheme . '://' . strtolower($parts['host']) . $port;
 }

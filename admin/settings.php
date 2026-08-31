@@ -84,6 +84,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 'commission_basis'        => ($_POST['commission_basis'] ?? 'goods') === 'profit'
                                               ? 'profit' : 'goods',
                 'shop_name'               => clean_text($_POST['shop_name'] ?? '', 80),
+                /* Without this every canonical, og:url and sitemap <loc> follows
+                   the Host header, so the same catalogue gets indexed under
+                   every hostname cPanel answers on. Normalised here rather than
+                   trusted: no trailing slash, and a bare domain gets https://. */
+                'site_url'                => settings_normalise_site_url($_POST['site_url'] ?? ''),
                 'shop_phone'              => digits_only((string) ($_POST['shop_phone'] ?? '')),
                 'free_shipping_threshold' => parse_money($_POST['free_shipping_threshold'] ?? 0),
                 'shipping_flat_rate'      => parse_money($_POST['shipping_flat_rate'] ?? 0),
@@ -212,6 +217,16 @@ admin_head('تنظیمات', ['user' => $user]);
       <div class="field">
         <label for="shop_phone">شماره تماس فروشگاه</label>
         <input type="tel" id="shop_phone" name="shop_phone" dir="ltr" value="<?= e(s('shop_phone')) ?>">
+      </div>
+      <div class="field">
+        <label for="site_url">نشانی اصلی سایت</label>
+        <input type="url" id="site_url" name="site_url" dir="ltr"
+               placeholder="https://suppex.ir" value="<?= e(s('site_url')) ?>">
+        <p class="field__hint">
+          نشانی‌ای که می‌خواهید گوگل نشان بدهد. تا وقتی خالی باشد، سایت هر نامی را
+          که مرورگر بفرستد به‌عنوان نشانی رسمی اعلام می‌کند و یک فروشگاه چند بار
+          جداگانه ایندکس می‌شود.
+        </p>
       </div>
       <div class="field">
         <label>حالت تخفیف</label>

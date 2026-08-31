@@ -134,6 +134,20 @@ function preflight_checks(): array
         'روی product.php بگذارید تا هر محصول عنوان و عکس خودش را در پیش‌نمایش تلگرام داشته باشد.');
 
     /* --- Shop settings ------------------------------------------------------ */
+
+    /* Until this is set, seo_origin() falls back to the Host header, so every
+       canonical, og:url and sitemap <loc> announces whatever hostname the
+       request arrived on. On cPanel that is at least four - the domain, www,
+       the serverN path and the preview subdomain - and Google indexes the same
+       catalogue under all of them. A blocker, not a warning: it is invisible
+       until it has already cost the ranking. */
+    $siteUrl = trim((string) setting('site_url', ''));
+    $add('فروشگاه', 'نشانی اصلی سایت',
+        $siteUrl === '' ? 'blocker' : 'ok',
+        $siteUrl === '' ? 'ثبت نشده' : $siteUrl,
+        'در تنظیمات ثبتش کنید. تا ثبت نشود، سایت هر نامی را که مرورگر بفرستد '
+        . 'به‌عنوان نشانی رسمی اعلام می‌کند و یک فروشگاه چند بار جداگانه ایندکس می‌شود.');
+
     $card = (string) setting('card_number', '');
     $add('فروشگاه', 'شماره کارت',
         $card === '' ? 'blocker' : (is_valid_card_number($card) ? 'ok' : 'blocker'),

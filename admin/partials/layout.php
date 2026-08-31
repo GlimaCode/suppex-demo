@@ -100,9 +100,6 @@ function admin_head(string $title, array $opts = []): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($title) ?> — پنل مدیریت SUPPEX</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800;900&family=Archivo:wght@400;600;700;800&family=Archivo+Black&display=swap">
 <link rel="stylesheet" href="assets/admin.css">
 </head>
 <body>

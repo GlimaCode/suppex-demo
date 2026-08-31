@@ -67,9 +67,6 @@ if ($article !== null) {
 
 <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&family=Archivo:wght@400;600;700;800&family=Archivo+Black&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="assets/css/tokens.css">
 <link rel="stylesheet" href="assets/css/base.css">
@@ -303,11 +300,15 @@ if ($article !== null) {
           <li><a href="#">مرجوعی و بازگشت وجه</a></li>
           <li><a href="#">سؤالات متداول</a></li>
         </ul>
-        <div class="trustmarks" aria-label="نمادهای اعتماد">
-          <span class="trustmark">نماد<br>اعتماد<br>الکترونیکی</span>
-          <span class="trustmark">ساماندهی</span>
-          <span class="trustmark">درگاه<br>امن</span>
+        <div class="payinfo">
+          <p class="payinfo__title">پرداخت چطور انجام می‌شود</p>
+          <p class="payinfo__body">
+            سفارش را در تلگرام ثبت می‌کنید، مبلغ و موجودی تأیید می‌شود، و بعد
+            شماره کارت برایتان فرستاده می‌شود. تا وقتی سفارش تأیید نشده،
+            پرداختی در کار نیست.
+          </p>
         </div>
+      </div>
       </div>
     </div>
 

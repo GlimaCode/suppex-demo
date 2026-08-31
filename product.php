@@ -65,9 +65,6 @@ $unit   = 'تومان';
 
 <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&family=Archivo:wght@400;600;700;800&family=Archivo+Black&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="assets/css/tokens.css">
 <link rel="stylesheet" href="assets/css/base.css">
@@ -303,18 +300,6 @@ $unit   = 'تومان';
 
           <div class="acc__item">
             <button class="acc__trigger" type="button" aria-expanded="false">
-              برگه آزمایشگاه
-              <svg class="acc__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
-            <div class="acc__panel"><div><p class="acc__body">
-              این قوطی از سری تولید <span class="num" dir="ltr">۲۶۰۸-V</span> است. در مرداد ۱۴۰۵ آزمایشگاهی
-              خارج از مجموعه ما خلوص، فلزات سنگین و بار میکروبی آن را بررسی کرده و نتیجه کامل در دسترس است.
-              <a href="#" style="color:var(--amber);text-decoration:underline;text-underline-offset:3px">دانلود گواهی (PDF)</a>
-            </p></div></div>
-          </div>
-
-          <div class="acc__item">
-            <button class="acc__trigger" type="button" aria-expanded="false">
               ارسال و مرجوعی
               <svg class="acc__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             </button>
@@ -423,11 +408,15 @@ $unit   = 'تومان';
           <li><a href="#">مرجوعی و بازگشت وجه</a></li>
           <li><a href="#">سؤالات متداول</a></li>
         </ul>
-        <div class="trustmarks" aria-label="نمادهای اعتماد">
-          <span class="trustmark">نماد<br>اعتماد<br>الکترونیکی</span>
-          <span class="trustmark">ساماندهی</span>
-          <span class="trustmark">درگاه<br>امن</span>
+        <div class="payinfo">
+          <p class="payinfo__title">پرداخت چطور انجام می‌شود</p>
+          <p class="payinfo__body">
+            سفارش را در تلگرام ثبت می‌کنید، مبلغ و موجودی تأیید می‌شود، و بعد
+            شماره کارت برایتان فرستاده می‌شود. تا وقتی سفارش تأیید نشده،
+            پرداختی در کار نیست.
+          </p>
         </div>
+      </div>
       </div>
     </div>
 

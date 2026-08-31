@@ -1,3 +1,57 @@
+/* --------------------------------------------------------------------------
+   Fonts, served from this origin
+   --------------------------------------------------------------------------
+   Not from fonts.googleapis.com. The audience is inside Iran, where that host
+   is unreliable to unreachable, and a render-blocking stylesheet on a host that
+   black-holes means first paint waits for a network timeout on every page.
+
+   font-display: swap throughout: the text is readable in a fallback face
+   immediately and reflows once, which is the right trade for a shop whose
+   visitors arrive from a link and decide in seconds.
+   -------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('../fonts/Vazirmatn-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('../fonts/Vazirmatn-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+/* 500, 600, 800 and 900 are asked for in places; the browser synthesises them
+   from these two rather than downloading four more files for a difference
+   nobody would notice at these sizes. */
+
+/* One variable file covers the whole weight range - that is what Google serves
+   for Archivo, and the 400 and 700 downloads were byte-identical. */
+@font-face {
+  font-family: 'Archivo';
+  src: url('../fonts/archivo-var.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Archivo Black';
+  src: url('../fonts/archivoblack-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('../fonts/instrumentserif-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ==========================================================================
    SUPPEX — Design Tokens
    Direction A "Premium". Single source of truth for the whole prototype.

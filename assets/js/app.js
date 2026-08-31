@@ -677,7 +677,9 @@ SUPPEX.app = (function () {
           return;
         }
         input.value = '';
-        toast('عضویت شما ثبت شد. کد تخفیف ایمیل می‌شود');
+        /* No coupon mechanism exists and the address is not stored anywhere,
+           so the old «کد تخفیف ایمیل می‌شود» was a promise nothing could keep. */
+        toast('ایمیل شما ثبت شد');
       });
     });
 

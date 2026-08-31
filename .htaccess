@@ -24,12 +24,23 @@ AddDefaultCharset UTF-8
 </IfModule>
 
 # --- Caching ----------------------------------------------------------------
-# Long for fingerprinted-by-content assets, short for HTML so a price change is
-# visible immediately rather than after a week of stale cache.
+# Images are long because a replacement is uploaded under a new name, so the URL
+# really does identify the bytes.
+#
+# CSS and JS are NOT. Nothing fingerprints them - every reference is bare, with
+# no ?v= and no filemtime helper anywhere - so a 7-day window meant the first
+# fix after launch could not reach anyone who had already visited, and returning
+# customers kept transacting against stale cart code. An hour is the honest
+# number for an unfingerprinted asset.
+#
+# To make these long again: add a filemtime-based asset() helper and use it on
+# every reference. That needs index.html to become index.php first, because a
+# static file cannot compute one - and fingerprinting only some pages is worse
+# than none, since the same file then gets two cache entries.
 <IfModule mod_expires.c>
   ExpiresActive On
-  ExpiresByType text/css                "access plus 7 days"
-  ExpiresByType application/javascript  "access plus 7 days"
+  ExpiresByType text/css                "access plus 1 hour"
+  ExpiresByType application/javascript  "access plus 1 hour"
   ExpiresByType image/webp              "access plus 30 days"
   ExpiresByType image/jpeg              "access plus 30 days"
   ExpiresByType image/png               "access plus 30 days"

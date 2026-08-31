@@ -232,7 +232,12 @@ SUPPEX.config = {
   hero3d: {
     modelSrc: 'assets/models/tub.mesh.js',
     labelSrc: 'assets/models/label.tex.js',
-    threeSrc: 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js',
+    /* Vendored, not from a CDN. Same reasoning as the fonts: this audience is
+       inside Iran and jsdelivr is another host that may not answer. The hero
+       does fall back to the static poster when three.js fails to load, so this
+       was never a blank page - but it meant the most persuasive thing on the
+       page silently degraded for the visitors it was built for. */
+    threeSrc: 'assets/vendor/three@0.160.0.min.js',
     /* Below this viewport width the 3D stage never initialises and the static
        poster is used instead. Set low enough that phones DO get the 3D: the
        people this prototype is shown to open links on a phone, and the hero is
