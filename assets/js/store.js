@@ -116,7 +116,14 @@ SUPPEX.store = (function () {
 
       state.items = state.items.map(function (item) {
         var fresh = bySlug[item.slug];
-        if (!fresh) { return item; }
+        /* ?r=prices omits slugs it does not know rather than reporting them as
+           unavailable, so a product deleted while the cart sat in localStorage
+           came back as "unchanged" and was quoted to the customer at a price
+           the server would refuse to honour. Absent means gone. */
+        if (!fresh) {
+          changes.push({ nameFa: item.nameFa, from: item.price, to: null, gone: true });
+          return Object.assign({}, item, { unavailable: true });
+        }
 
         if (!fresh.available) {
           changes.push({ nameFa: item.nameFa, from: item.price, to: null, gone: true });
@@ -154,8 +161,15 @@ SUPPEX.store = (function () {
 
     /* Totals are computed here, never in a template. */
     snapshot: function () {
-      var subtotal = state.items.reduce(function (sum, i) { return sum + i.price * i.qty; }, 0);
-      var count = state.items.reduce(function (sum, i) { return sum + i.qty; }, 0);
+      /* Only what can actually be bought counts. An unavailable line stays in
+         `items` so the drawer can show the shopper what was dropped and why,
+         but it must not reach the subtotal, the free-shipping threshold or the
+         order text - the server drops it too, and the two numbers have to be
+         the same number. */
+      var live = state.items.filter(function (i) { return !i.unavailable; });
+      var subtotal = live.reduce(function (sum, i) { return sum + i.price * i.qty; }, 0);
+      var count = live.reduce(function (sum, i) { return sum + i.qty; }, 0);
+      var blocked = state.items.length - live.length;
       var freeShipping = subtotal >= cfg.freeShippingThreshold;
       var shipping = count === 0 || freeShipping ? 0 : cfg.shippingFlatRate;
 
@@ -165,6 +179,9 @@ SUPPEX.store = (function () {
           return Object.assign({}, i, { key: keyOf(i), lineTotal: i.price * i.qty });
         }),
         count: count,
+        /* How many lines cannot be ordered. The checkout uses this to refuse to
+           send an order that the server would silently shrink. */
+        blocked: blocked,
         subtotal: subtotal,
         shipping: shipping,
         total: subtotal + shipping,
@@ -182,7 +199,7 @@ SUPPEX.store = (function () {
       var unit = cfg.currency.label;
       var lines = [cfg.ordering.intro, ''];
 
-      snap.items.forEach(function (item, i) {
+      snap.items.filter(function (it) { return !it.unavailable; }).forEach(function (item, i) {
         lines.push((i + 1) + ') ' + item.nameFa);
         if (item.variantLabel) { lines.push('   ' + item.variantLabel); }
         lines.push('   ' + item.qty + ' × ' + money(item.price) +
@@ -221,7 +238,9 @@ SUPPEX.store = (function () {
        edit localStorage and set your own price. */
     asOrderPayload: function (channelId) {
       return {
-        items: state.items.map(function (i) {
+        /* The server would refuse these anyway; sending them just makes the
+           response disagree with what the shopper was shown. */
+        items: state.items.filter(function (i) { return !i.unavailable; }).map(function (i) {
           return {
             slug: i.slug,
             flavorId: i.flavorId || null,

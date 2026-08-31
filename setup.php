@@ -16,6 +16,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/lib/bootstrap.php';
+require_once __DIR__ . '/lib/migrate.php';
 
 header('Content-Type: text/html; charset=utf-8');
 
@@ -60,6 +61,32 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 if (!$hasTables) {
                     db_run_sql_file(__DIR__ . '/db/schema.sql');
                     $done[] = 'جدول‌های دیتابیس ساخته شد.';
+                }
+
+                /* --- Migrations ---------------------------------------------
+                   schema.sql is the shape this project started with; the dirham
+                   pricing, the cost and profit snapshot and the partnership
+                   commission all arrived as migrations afterwards. Without this
+                   call a brand new shop comes up ten columns and one table
+                   short, everything looks installed, and the first customer's
+                   checkout dies inside a transaction with "Unknown column
+                   'profit_total'" - no order row, no notification, nothing to
+                   reconcile. Every step is idempotent, so this is also safe on
+                   a database that already has them. */
+                $mlog = [];
+                migrate_run($mlog);
+                $applied = count(array_filter($mlog, static fn(array $l): bool => $l[0] === 'done'));
+                $mfailed = array_filter($mlog, static fn(array $l): bool => $l[0] === 'fail');
+                if ($applied > 0) {
+                    $done[] = 'ساختار دیتابیس به‌روز شد (' . $applied . ' مورد).';
+                }
+                if ($mfailed) {
+                    /* Loud, not silent: a half-migrated database takes orders
+                       right up until the one column it is missing is needed. */
+                    foreach ($mfailed as $l) {
+                        $errors[] = 'مهاجرت ناموفق: ' . $l[1];
+                    }
+                    throw new RuntimeException('migration failed during setup');
                 }
 
                 /* --- Admin --------------------------------------------------- */

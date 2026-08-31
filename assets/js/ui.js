@@ -443,12 +443,22 @@ SUPPEX.ui = (function () {
   function paymentPanel(snapshot, channel, route, server) {
     var p = cfg.payment;
     var pay = (server && server.payment) || {};
-    var bankName   = pay.bankName   || p.bankName   || '';
-    var cardHolder = pay.cardHolder || p.cardHolder || '—';
     var appName = (channel && channel.label) || 'همان گفتگو';
     var needsPaste = route ? route.needsPaste : !(channel && channel.prefillParam);
-    var digits = String(pay.cardNumber || p.cardNumber || '').replace(/\D/g, '');
+
+    /* ONLY the server's card, with no fallback of any kind.
+
+       This used to read `pay.cardNumber || p.cardNumber`, and an empty string
+       is falsy - so a shop that had not set its card yet fell through to the
+       sample number in config.js and showed the customer a plausible, grouped,
+       copyable 16-digit number belonging to nobody. That is the exact failure
+       the comment above warns about, committed by the guard meant to prevent
+       it. A shop with no card must say it has no card. */
+    var digits = String(pay.cardNumber || '').replace(/\D/g, '');
+    var hasCard = digits.length >= 12;
     var grouped = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+    var bankName   = hasCard ? (pay.bankName || '') : '';
+    var cardHolder = hasCard ? (pay.cardHolder || '—') : '';
 
     return '' +
       '<div class="pay">' +
@@ -503,14 +513,21 @@ SUPPEX.ui = (function () {
           '</span> ' + esc(cfg.currency.label) + '</strong>' +
         '</div>' +
 
-        '<div class="pay__card">' +
-          '<div class="pay__card-head">' +
-            '<span class="u-eyebrow u-eyebrow--bare">' + esc(bankName) + '</span>' +
-            '<button class="pay__copy" type="button" data-copy-card="' + esc(digits) + '">کپی شماره</button>' +
-          '</div>' +
-          '<div class="pay__number num" dir="ltr">' + esc(grouped) + '</div>' +
-          '<div class="pay__holder">به نام ' + esc(cardHolder) + '</div>' +
-        '</div>' +
+        /* No card configured: say so. Never a number, never a copy button -
+           a customer who copies a number believes they can pay with it. */
+        (hasCard
+          ? '<div class="pay__card">' +
+              '<div class="pay__card-head">' +
+                '<span class="u-eyebrow u-eyebrow--bare">' + esc(bankName) + '</span>' +
+                '<button class="pay__copy" type="button" data-copy-card="' + esc(digits) + '">کپی شماره</button>' +
+              '</div>' +
+              '<div class="pay__number num" dir="ltr">' + esc(grouped) + '</div>' +
+              '<div class="pay__holder">به نام ' + esc(cardHolder) + '</div>' +
+            '</div>'
+          : '<div class="pay__card pay__card--pending">' +
+              '<div class="pay__holder">شماره کارت در همان گفتگوی ' + esc(appName) +
+              ' برایتان فرستاده می‌شود. تا آن موقع مبلغی واریز نکنید.</div>' +
+            '</div>') +
 
         '<p class="pay__note">' + esc(String(p.note || '').replace('{channel}', appName)) + '</p>' +
       '</div>';

@@ -45,6 +45,43 @@ try { $n = db_run_sql_file(SUPPEX_ROOT . "/db/schema.sql"); }
 catch (Throwable $e) { $schemaErr = $e->getMessage(); }
 ok("schema.sql runs", $n > 10, $schemaErr ?: "$n statements");
 
+/* The gap that made a brand new shop unable to take money: schema.sql is the
+   shape this project started with, and everything the dirham pricing and the
+   profit snapshot added since arrived as migrations. setup.php used to run the
+   schema and stop, so order_create() died on the first customer with "Unknown
+   column 'profit_total'" inside a transaction - no row, no notification.
+
+   This asserts the shape a fresh install actually needs, straight after the
+   schema and before any migration has run, so the assertion below has meaning. */
+$orderCols = static fn(): array => array_column(
+    db_all("SHOW COLUMNS FROM orders"), "Field");
+ok("straight from schema.sql, orders has no profit_total",
+   !in_array("profit_total", $orderCols(), true),
+   "if this fails, schema.sql has caught up and the migration below is moot");
+
+require_once SUPPEX_ROOT . "/lib/migrate.php";
+$freshLog = [];
+migrate_run($freshLog);
+$applied = count(array_filter($freshLog, static fn(array $l): bool => $l[0] === "done"));
+$failed  = array_filter($freshLog, static fn(array $l): bool => $l[0] === "fail");
+ok("migrate_run() applies the missing steps on a fresh schema", $applied >= 10, (string) $applied);
+ok("and none of them fail", $failed === [],
+   implode(" | ", array_map(static fn(array $l): string => $l[1], $failed)));
+
+/* The exact INSERT lib/orders.php performs. This is the check that would have
+   caught the whole thing: it fails on schema.sql alone and passes after the
+   migrations, which is precisely the difference setup.php was missing. */
+$orderErr = "";
+try {
+    db_query("INSERT INTO orders (code, customer_name, phone, address, subtotal,
+                                  shipping, total, profit_total, commission_basis,
+                                  rate_at_order, status)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+             ["SPX-FRESHTEST", "t", "09120000000", "a", 1, 0, 1, 0, "profit", 30000, "new"]);
+} catch (Throwable $e) { $orderErr = $e->getMessage(); }
+ok("a fresh install can record an order", $orderErr === "", $orderErr);
+db_query("DELETE FROM orders WHERE code = ?", ["SPX-FRESHTEST"]);
+
 db_query("INSERT INTO admins (id, username, password_hash, name, role)
           VALUES (1, ?, ?, ?, ?)", ["tester", password_hash("x", PASSWORD_DEFAULT), "tester", "owner"]);
 auth_start_session();

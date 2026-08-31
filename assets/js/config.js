@@ -136,9 +136,14 @@ SUPPEX.config = {
      is not a valid 16-digit card number. */
   payment: {
     method: 'card',                        // 'card' | 'gateway' | 'none'
-    cardNumber: '6037 9911 0000 0000',     // ← شماره کارت واقعی را اینجا بگذارید
-    cardHolder: 'نام صاحب حساب',           // ← نام دقیقاً همان‌طور که در بانک ثبت شده
-    bankName: 'بانک ملی',
+    /* Deliberately empty, and they must stay empty. The card is set in the
+       admin panel and travels with the order response; anything written here
+       would be a number the site could show when the real one is missing,
+       which is how a customer ends up transferring to an account nobody owns.
+       There is nothing to fall back to on purpose. */
+    cardNumber: '',
+    cardHolder: '',
+    bankName: '',
     /* {channel} is replaced with the app the shopper actually chose, so a
        Bale customer is never told to go and find Telegram. */
     note: 'پس از واریز، رسید را در همان گفتگوی {channel} بفرستید تا سفارش نهایی شود.',

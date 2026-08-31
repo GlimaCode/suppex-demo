@@ -34,7 +34,7 @@ $php = [
     /* Rebuilds a database from nothing; needs the throwaway one. */
     ['test-migrate.php',   'fresh-config.php'],
 ];
-$node = ['test-herolabels.mjs', 'test-quickspec.mjs'];
+$node = ['test-herolabels.mjs', 'test-quickspec.mjs', 'test-checkout.mjs'];
 
 $only = $argv[1] ?? null;          // php tests/run.php pricing  -> just that one
 $pass = 0; $fail = 0; $skipped = [];
