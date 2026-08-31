@@ -922,3 +922,122 @@ li:lang(fa) {
   line-height: 1.9;
   color: var(--text-dim);
 }
+
+/* --------------------------------------------------------------------------
+   Order tracking
+   -------------------------------------------------------------------------- */
+.track__form { display: grid; gap: var(--sp-4); max-width: 42ch; margin-block-end: var(--sp-6); }
+
+.track__error {
+  margin-block: var(--sp-5) 0;
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+  line-height: 1.9;
+}
+
+.track__result {
+  margin-block-start: var(--sp-8);
+  padding: var(--sp-6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.track__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+.track__code {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  margin: 6px 0 0;
+}
+
+.track__badge {
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  background: var(--surface-3);
+  color: var(--text);
+  white-space: nowrap;
+}
+/* Only two states get a colour: the one that needs the customer to act, and
+   the one that ended badly. Colouring all six would make none of them read. */
+.track__badge--new       { background: rgba(249,124,61,0.16); color: var(--amber); }
+.track__badge--cancelled,
+.track__badge--expired   { background: rgba(242,89,20,0.14); color: var(--accent); }
+
+.track__note {
+  margin-block: var(--sp-5) 0;
+  font-size: var(--fs-sm);
+  line-height: 1.9;
+  color: var(--text-dim);
+}
+
+/* The rail is horizontal on a phone too - four steps fit, and stacking them
+   would make a finished order look like a long list of things still to do. */
+.track__rail {
+  list-style: none;
+  display: flex;
+  gap: var(--sp-2);
+  margin: var(--sp-6) 0 0;
+  padding: 0;
+}
+.track__step {
+  flex: 1;
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  color: var(--text-faint);
+  text-align: center;
+}
+.track__step.is-done { color: var(--text); }
+.track__dot {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  margin-block-end: 8px;
+}
+.track__step.is-done .track__dot { background: var(--accent); }
+
+.track__items {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block-start: var(--sp-6);
+  font-size: var(--fs-sm);
+}
+.track__items td {
+  padding: var(--sp-3) 0;
+  border-block-start: 1px solid var(--line);
+  vertical-align: top;
+}
+.track__items td .u-xs { display: block; margin-block-start: 3px; }
+.track__total td { font-weight: 700; color: var(--text); }
+
+.track__ship {
+  margin-block-start: var(--sp-6);
+  font-size: var(--fs-xs);
+  line-height: 1.9;
+  color: var(--text-dim);
+}
+.track__ship .u-eyebrow { display: block; margin-block-end: 4px; }
+
+.track__last { font-size: var(--fs-xs); color: var(--text-dim); margin-block: 0 var(--sp-5); }
+.track__last-btn {
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  color: var(--amber);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

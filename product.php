@@ -156,7 +156,7 @@ $unit   = 'تومان';
       <button class="icon-btn" type="button" data-open="search" aria-label="جستجو در محصولات">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
       </button>
-      <a class="icon-btn" href="#" aria-label="حساب کاربری">
+      <a class="icon-btn" href="track.php" aria-label="پیگیری سفارش">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
       </a>
       <button class="icon-btn" type="button" data-open="cart" aria-label="سبد خرید">

@@ -35,7 +35,12 @@ function db(): PDO
                payable at a dirham rate that had moved. Both clocks now agree.
                +03:30 rather than a named zone: shared hosts usually have not
                loaded the MySQL timezone tables, and a named zone would fail. */
-            PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '+03:30'",
+            /* NAMES and time_zone in one statement.
+               The charset is already set by the DSN and this repeats it, so the
+               two connection settings travel together and a later edit cannot
+               add a second INIT_COMMAND and silently drop one - the attribute
+               takes a single value. */
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4, time_zone = '+03:30'",
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 
             /* Real prepared statements, not the driver emulating them by

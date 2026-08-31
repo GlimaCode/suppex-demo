@@ -452,10 +452,64 @@ SUPPEX.app = (function () {
        dashboard, which is the lesser of the two problems. */
     repo.createOrder(store.asOrderPayload(channelId)).then(function (server) {
       if (server && server.ok) {
+        rememberOrderCode(server.code);
         showPaymentStep(snapshot, channel, route, server);
       }
     }, function (err) {
       console.warn('[suppex] order was not recorded server-side:', err && err.message);
+    });
+  }
+
+  /* The customer's own copy of their order code.
+
+     Everything else about the order survives on the server, but the code is the
+     only handle the customer has on it, and until now it existed solely in the
+     drawer that was about to be closed. Kept separately from the cart so
+     clearing the cart does not throw away the reference to an order that has
+     already been placed.
+
+     Wrapped because localStorage throws outright in some private modes, and
+     failing to remember a code must never break the checkout that produced it. */
+  var LAST_ORDER_KEY = 'suppex.lastOrder.v1';
+
+  function rememberOrderCode(code) {
+    if (!code) { return; }
+    try {
+      window.localStorage.setItem(LAST_ORDER_KEY, JSON.stringify({
+        code: String(code),
+        at: Date.now(),
+      }));
+    } catch (e) { /* private mode, quota, or storage disabled */ }
+  }
+
+  function lastOrderCode() {
+    try {
+      var raw = window.localStorage.getItem(LAST_ORDER_KEY);
+      if (!raw) { return ''; }
+      var v = JSON.parse(raw);
+      /* Two weeks. After that it is more likely to confuse than to help - the
+         order is long settled and the code on screen would be stale. */
+      if (!v || !v.code || Date.now() - (v.at || 0) > 14 * 864e5) { return ''; }
+      return String(v.code);
+    } catch (e) { return ''; }
+  }
+
+  /* Offer the way back, on any page, once there is something to go back to. */
+  function initLastOrder() {
+    var code = lastOrderCode();
+    if (!code) { return; }
+    $$('[data-last-order]').forEach(function (el) {
+      el.hidden = false;
+      var out = $('[data-last-order-code]', el);
+      if (out) { out.textContent = code; }
+    });
+    /* One tap fills the field, rather than asking someone to copy a code by
+       hand on a phone - which is where almost all of this traffic is. */
+    $$('[data-fill-code]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var field = document.getElementById('code');
+        if (field) { field.value = code; field.focus(); }
+      });
     });
   }
 
@@ -1133,6 +1187,9 @@ SUPPEX.app = (function () {
       initChrome();
       initHome();
       initProduct();
+      /* Every page, not only the homepage: the point of remembering the code is
+         that the way back to an order is there wherever the customer lands. */
+      initLastOrder();
       observeReveals(document);
       if (SUPPEX.hero3d) { SUPPEX.hero3d.init(); }
     },
