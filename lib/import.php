@@ -61,6 +61,80 @@ const IMPORT_OPTIONAL = [
    No supplement the shop resells is bought for less. */
 const IMPORT_MIN_COST_TOMAN = 10000;
 
+/* The characters a Persian keyboard and an Arabic keyboard disagree about.
+   Both sides of every comparison go through this; nothing stored is changed. */
+const IMPORT_NORMALISE = [
+    "\u{064A}" => "\u{06CC}",   // ARABIC YEH      -> FARSI YEH
+    "\u{0649}" => "\u{06CC}",   // ALEF MAKSURA    -> FARSI YEH
+    "\u{0643}" => "\u{06A9}",   // ARABIC KAF      -> KEHEH
+    "\u{0629}" => "\u{0647}",   // TEH MARBUTA     -> HEH
+    "\u{200C}" => '',            // ZWNJ: «مولتی‌ویتامین» and «مولتی ویتامین»
+    "\u{200F}" => '',            // RLM
+    "\u{200E}" => '',            // LRM
+];
+
+/**
+ * A product name reduced to what two people typing the same name would share.
+ *
+ * For MATCHING only. The stored name is whatever the sheet said - the shop's
+ * own spelling is not the importer's to correct, and a name silently rewritten
+ * on import is a worse surprise than one that looks slightly different.
+ */
+function import_name_key(string $name): string
+{
+    $n = strtr($name, IMPORT_NORMALISE);
+    /* Collapse whitespace so «کراتین  مونوهیدرات» and «کراتین مونوهیدرات» meet. */
+    $n = preg_replace('/\s+/u', ' ', $n);
+    return mb_strtolower(trim((string) $n));
+}
+
+/**
+ * Find an existing product by name and brand.
+ *
+ * The SQL normalises the stored side the same way import_name_key() normalises
+ * the sheet side, so the two agree without needing a stored key column. The
+ * catalogue is small enough that a full scan here costs nothing, and an index
+ * that only works for one spelling would be worse than none.
+ *
+ * Brand is part of the identity because this is a multi-brand reseller: two
+ * brands' «کراتین مونوهیدرات» are two products, and matching on name alone let
+ * an import of one quietly overwrite the other.
+ */
+function import_find_product(string $nameFa, string $brand): ?int
+{
+    $key = import_name_key($nameFa);
+
+    $sql = "SELECT id, brand FROM products
+             WHERE LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(name_fa,
+                     '\u{064A}', '\u{06CC}'),
+                     '\u{0649}', '\u{06CC}'),
+                     '\u{0643}', '\u{06A9}'),
+                     '\u{0629}', '\u{0647}'),
+                     '\u{200C}', ''),
+                     '  ', ' '))) = ?";
+
+    $rows = db_all($sql, [$key]);
+    if (!$rows) {
+        return null;
+    }
+
+    /* Same name, different brand: a different product. Same name and no brand
+       on either side: the same one. */
+    $brandKey = import_name_key($brand);
+    foreach ($rows as $r) {
+        if (import_name_key((string) ($r['brand'] ?? '')) === $brandKey) {
+            return (int) $r['id'];
+        }
+    }
+    /* A sheet that names no brand should still update a product that has one,
+       rather than creating a second copy - that is the ordinary case of a price
+       list that only carries names and prices. */
+    if ($brandKey === '' && count($rows) === 1) {
+        return (int) $rows[0]['id'];
+    }
+    return null;
+}
+
 /**
  * Read a CSV into rows keyed by our column names.
  *
@@ -400,7 +474,7 @@ function import_plan(array $rows, array $columns = []): array
         if (!$unnamed) {
             continue;
         }
-        $existingId = db_value('SELECT id FROM products WHERE name_fa = ?', [$p['name_fa']]);
+        $existingId = import_find_product($p['name_fa'], (string) ($p['brand'] ?? ''));
         if ($existingId === null) {
             continue;
         }
@@ -595,7 +669,7 @@ function import_apply(array $products, array $admin): array
             /* Matched on the Persian name, because that is what the seller
                retypes when they send an updated sheet — a slug would change
                with every edit to the name and re-import as a new product. */
-            $existing = db_value('SELECT id FROM products WHERE name_fa = ?', [$p['name_fa']]);
+            $existing = import_find_product($p['name_fa'], (string) ($p['brand'] ?? ''));
 
             if ($existing !== null) {
                 $id = (int) $existing;

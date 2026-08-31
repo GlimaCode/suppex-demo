@@ -388,8 +388,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         }
     }
 
-    /* Validation failed: re-render with what was typed, so nothing is retyped. */
-    $product = array_merge($product ?? [], $_POST);
+    /* Validation failed: re-render with what was typed, so nothing is retyped.
+
+       array_merge only reaches the scalar columns, and it is not enough on its
+       own: it also drops the raw textarea text into $product['features'], which
+       the display block below json_decode_array()s into an empty array. So the
+       flag, and the four rebuilds under "Load for display" - without them a
+       refused save silently emptied the feature bullets and threw away every
+       size, flavour and nutrition row the operator had just typed. */
+    $product  = array_merge($product ?? [], $_POST);
+    $refused  = true;
 }
 
 /* --------------------------------------------------------------------------
@@ -401,6 +409,61 @@ $flavors    = $isNew ? [] : db_all('SELECT * FROM product_flavors WHERE product_
 $sizes      = $isNew ? [] : db_all('SELECT * FROM product_sizes  WHERE product_id = ? ORDER BY sort_order, id', [$id]);
 $nutrition  = json_decode_array($product['nutrition_rows'] ?? null);
 $features   = $product ? json_decode_array($product['features'] ?? null) : [];
+
+/* A refused save re-renders from what was typed, not from the database.
+
+   Each of these is built in the exact shape its template reads, so the form
+   comes back as the operator left it. Rows are kept even when incomplete - a
+   half-typed size is what they were in the middle of, and dropping it while
+   showing an error about a different field is how work disappears. */
+if (!empty($refused)) {
+    $features = lines_to_array($_POST['features'] ?? '');
+
+    $nLabels = (array) ($_POST['nutrition_label'] ?? []);
+    $nValues = (array) ($_POST['nutrition_value'] ?? []);
+    $nutrition = [];
+    foreach ($nLabels as $i => $lab) {
+        $lab = clean_text((string) $lab, 120);
+        $val = clean_text((string) ($nValues[$i] ?? ''), 120);
+        if ($lab === '' && $val === '') { continue; }
+        $nutrition[] = ['label' => $lab, 'value' => $val];
+    }
+
+    $fIds   = (array) ($_POST['flavor_id'] ?? []);
+    $fNames = (array) ($_POST['flavor_name'] ?? []);
+    $flavors = [];
+    foreach ($fNames as $i => $name) {
+        $name = clean_text((string) $name, 120);
+        $ext  = clean_text((string) ($fIds[$i] ?? ''), 60);
+        if ($name === '' && $ext === '') { continue; }
+        $flavors[] = ['ext_id' => $ext, 'name' => $name];
+    }
+
+    $sIds     = (array) ($_POST['size_id'] ?? []);
+    $sLabels  = (array) ($_POST['size_label'] ?? []);
+    $sServ    = (array) ($_POST['size_servings'] ?? []);
+    $sAed     = (array) ($_POST['size_cost_aed'] ?? []);
+    $sToman   = (array) ($_POST['size_cost_toman'] ?? []);
+    $sProfit  = (array) ($_POST['size_profit'] ?? []);
+    $sPrice   = (array) ($_POST['size_price'] ?? []);
+    $sCompare = (array) ($_POST['size_compare'] ?? []);
+    $sizes = [];
+    foreach ($sLabels as $i => $label) {
+        $label = clean_text((string) $label, 120);
+        $ext   = clean_text((string) ($sIds[$i] ?? ''), 60);
+        if ($label === '' && $ext === '') { continue; }
+        $sizes[] = [
+            'ext_id'       => $ext,
+            'label'        => $label,
+            'servings'     => clean_text((string) ($sServ[$i] ?? ''), 20),
+            'cost_aed'     => clean_text((string) ($sAed[$i] ?? ''), 20),
+            'cost_toman'   => clean_text((string) ($sToman[$i] ?? ''), 20),
+            'profit_toman' => clean_text((string) ($sProfit[$i] ?? ''), 20),
+            'price'        => clean_text((string) ($sPrice[$i] ?? ''), 20),
+            'compare_at'   => clean_text((string) ($sCompare[$i] ?? ''), 20),
+        ];
+    }
+}
 
 /** Field value, preferring what was just posted. */
 function v(?array $product, string $key, $default = ''): string

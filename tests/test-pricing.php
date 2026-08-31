@@ -208,6 +208,44 @@ $o4 = order_create(['items' => [['slug' => 'creatine-mono', 'qty' => 1]],
 ok('falls back to goods when cost is unknown', $o4['order']['commission_basis'] === 'goods',
    $o4['order']['commission_basis']);
 ok('and the share is not zero', (int) $o4['order']['commission_amount'] > 0);
+
+/* One costed line beside an uncosted one. This is the case the whole-order
+   fallback got wrong: profit_total was above zero because of the costed line,
+   so the basis stayed 'profit' and the uncosted line - whose line_profit is 0 -
+   paid the partner nothing at all. */
+$o5 = order_create(['items' => [
+                        ['slug' => 'whey-original', 'sizeId' => '2270', 'qty' => 1],
+                        ['slug' => 'creatine-mono', 'qty' => 1],
+                    ],
+                    'customer' => $customer, 'channel' => 'telegram']);
+$ord5  = $o5['order'];
+$lines = db_all('SELECT slug, line_total, line_profit, commission_basis, commission_amount
+                   FROM order_items WHERE order_id = ? ORDER BY id', [$ord5['id']]);
+$bySlug = [];
+foreach ($lines as $l) { $bySlug[$l['slug']] = $l; }
+
+ok('a mixed order says it is mixed', $ord5['commission_basis'] === 'mixed',
+   $ord5['commission_basis']);
+ok('the costed line is charged on profit',
+   ($bySlug['whey-original']['commission_basis'] ?? '') === 'profit',
+   json_encode($bySlug['whey-original'] ?? null));
+ok('the uncosted line falls back to goods on its own',
+   ($bySlug['creatine-mono']['commission_basis'] ?? '') === 'goods');
+/* The whole point: this used to be zero. */
+ok('so the uncosted line pays the partner something',
+   (int) ($bySlug['creatine-mono']['commission_amount'] ?? 0) > 0,
+   (string) ($bySlug['creatine-mono']['commission_amount'] ?? 'null'));
+ok('and it is 20% of that line goods total',
+   (int) $bySlug['creatine-mono']['commission_amount']
+     === (int) round((int) $bySlug['creatine-mono']['line_total'] * 0.20));
+ok('while the costed line is 20% of its profit',
+   (int) $bySlug['whey-original']['commission_amount']
+     === (int) round((int) $bySlug['whey-original']['line_profit'] * 0.20));
+ok('the order total is the sum of the lines',
+   (int) $ord5['commission_amount']
+     === (int) $bySlug['whey-original']['commission_amount']
+       + (int) $bySlug['creatine-mono']['commission_amount']);
+
 settings_save(['commission_basis' => 'goods']);
 
 /* --- staleness ----------------------------------------------------------- */

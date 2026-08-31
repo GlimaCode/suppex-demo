@@ -598,6 +598,32 @@ ok("the toman cost survived",
    json_encode(array_column($after, "cost_toman")));
 ok("the discount survived", (int) ($after[0]["promo_toman"] ?? 0) === 20000,
    json_encode(array_column($after, "promo_toman")));
+
+echo "\n== a refused save gives the operator their work back ==\n";
+/* The product editor is where someone adds three sizes and six flavours in one
+   sitting. A refused save used to re-read all of that from the database, and
+   json_decode the raw features textarea into an empty array - so one bad
+   compare_at threw it all away while description and nutrition_serving
+   survived, making the loss both silent and inconsistent.
+
+   Own process again: the page renders a whole document, and the harness prints
+   KEPT/LOST per token so the assertions here stay readable. */
+$refuser = __DIR__ . "/editrefuse.php";
+ok("the refused-save harness exists", is_file($refuser), $refuser);
+$out = (string) shell_exec(
+    escapeshellarg(PHP_BINARY) . " " . escapeshellarg($refuser) . " " . $pid . " 2>&1");
+
+$kept = static fn(string $token): bool => strpos($out, "KEPT " . $token) !== false;
+
+ok("the typed feature bullets come back",
+   $kept("AAA-TYPED-FEATURE") && $kept("BBB-SECOND-FEATURE"), $out);
+ok("the description comes back", $kept("CCC-TYPED-DESCRIPTION"));
+ok("the renamed flavours come back", $kept("DDD-") && $kept("EEE-"), $out);
+ok("the renamed sizes come back", $kept("FFF-"), $out);
+ok("both size rows come back, not just the first", $kept("GGG-"), $out);
+ok("the per-size profit typed into the form comes back", $kept("1705000"), $out);
+ok("the nutrition row comes back", $kept("HHH-") && $kept("III-24 g"), $out);
+ok("nothing was reported lost", strpos($out, "LOST ") === false, $out);
 ok("the agreed share survived",
    (float) ($after[0]["commission_percent"] ?? 0) === 12.0
    && (float) ($after[1]["commission_percent"] ?? 0) === 8.0,

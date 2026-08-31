@@ -323,6 +323,36 @@ function migrate_run(array &$log): void
         $log
     );
 
+    /* 2026-08 — per-line commission basis --------------------------------- */
+
+    step(
+        "orders.commission_basis — allow 'mixed'",
+        static fn(): bool => (bool) db_one(
+            "SELECT 1 FROM information_schema.columns
+              WHERE table_schema = DATABASE() AND table_name = 'orders'
+                AND column_name = 'commission_basis' AND column_type LIKE '%mixed%' LIMIT 1"),
+        static function (): void {
+            /* An order whose lines were charged on different bases is neither
+               'goods' nor 'profit', and saying either would be a quiet lie on
+               the one record the partnership settles from. */
+            db()->exec("ALTER TABLE orders
+                MODIFY COLUMN commission_basis ENUM('goods','profit','mixed')
+                NOT NULL DEFAULT 'goods'");
+        },
+        $log
+    );
+
+    step(
+        'order_items.commission_basis — which basis each line was charged on',
+        static fn(): bool => column_exists('order_items', 'commission_basis'),
+        static function (): void {
+            db()->exec("ALTER TABLE order_items
+                ADD COLUMN commission_basis VARCHAR(8) NOT NULL DEFAULT 'goods'
+                AFTER commission_percent");
+        },
+        $log
+    );
+
     /* 2026-08 — the order endpoint's duplicate guard ---------------------- */
 
     step(

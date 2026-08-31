@@ -338,9 +338,13 @@ function order_create(array $payload): array
        fallback visible on the order instead of silent. */
     $profitTotal = array_sum(array_column($items, 'line_profit'));
     $basis = setting('commission_basis', 'goods') === 'profit' ? 'profit' : 'goods';
-    if ($basis === 'profit' && $profitTotal <= 0) {
-        $basis = 'goods';
-    }
+    /* The fallback used to look at the whole order: one costed line kept the
+       order on the profit basis and every uncosted line beside it computed a
+       commission of zero. Nine active products have no cost, so that was the
+       normal case - and because it depended on what else was in the basket, the
+       same product paid differently from one order to the next. The decision
+       moved into the loop below, where each line knows whether it has a cost.
+       This stays as the order's headline basis: what the agreement says. */
 
     /* Commission is summed per line, not applied once to the order total.
 
@@ -353,18 +357,47 @@ function order_create(array $payload): array
     $commissionBase   = 0;
     $commissionAmount = 0;
 
+    $anyGoodsFallback = false;
+    $anyProfitLine    = false;
+
     foreach ($items as $i => $it) {
         $rate = $it['rate_override'] ?? $commissionPercent;
         $rate = max(0.0, min(100.0, (float) $rate));
 
-        $lineBase = $basis === 'profit' ? $it['line_profit'] : $it['line_total'];
+        /* Profit only where a profit is actually known. A line with no recorded
+           cost has line_profit = 0, and charging a percentage of zero is not an
+           agreement to take nothing - it is missing data wearing the costume of
+           a number. Those lines fall back to goods, one line at a time. */
+        $lineBasis = ($basis === 'profit' && (int) ($it['unit_cost'] ?? 0) > 0)
+            ? 'profit'
+            : 'goods';
+        if ($basis === 'profit' && $lineBasis === 'goods') {
+            $anyGoodsFallback = true;
+        }
+        if ($lineBasis === 'profit') {
+            $anyProfitLine = true;
+        }
+
+        $lineBase = $lineBasis === 'profit' ? $it['line_profit'] : $it['line_total'];
         $lineComm = (int) round($lineBase * $rate / 100);
 
         $items[$i]['commission_percent'] = $rate;
         $items[$i]['commission_amount']  = $lineComm;
+        $items[$i]['commission_basis']   = $lineBasis;
 
         $commissionBase   += $lineBase;
         $commissionAmount += $lineComm;
+    }
+
+    /* Say what actually happened, rather than leaving the partner to work it
+       out from the arithmetic.
+
+       'mixed' only when the order genuinely was mixed. If EVERY line fell back
+       - an order of nothing but uncosted products - then the order was charged
+       on goods and should say goods, which is also what the old whole-order
+       fallback did and what the settlement expects to read. */
+    if ($anyGoodsFallback) {
+        $basis = $anyProfitLine ? 'mixed' : 'goods';
     }
 
     /* Reported back as the rate that actually applied, so the order page does
@@ -420,12 +453,13 @@ function order_create(array $payload): array
                 'INSERT INTO order_items
                     (order_id, product_id, slug, name_fa, variant_label, qty,
                      unit_price, unit_cost, unit_profit, line_total, line_profit,
-                     commission_percent, commission_amount)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     commission_percent, commission_basis, commission_amount)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [$orderId, $it['product_id'], $it['slug'], $it['name_fa'],
                  $it['variant_label'], $it['qty'], $it['unit_price'],
                  $it['unit_cost'], $it['unit_profit'], $it['line_total'], $it['line_profit'],
-                 $it['commission_percent'], $it['commission_amount']]
+                 $it['commission_percent'], $it['commission_basis'] ?? 'goods',
+                 $it['commission_amount']]
             );
         }
 
