@@ -29,6 +29,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $status = (string) ($_POST['status'] ?? '');
     $note   = (string) ($_POST['note'] ?? '');
 
+    /* Saved whatever the status change does, and before it: the tracking
+       number is a fact about the parcel, not about the workflow, and it should
+       not be lost because the status happened to be rejected. */
+    $trackingBefore = (string) $order['tracking_code'];
+    order_set_tracking($id, (string) ($_POST['tracking_code'] ?? ''));
+    $trackingAfter  = (string) db_value('SELECT tracking_code FROM orders WHERE id = ?', [$id]);
+
     /* A status change moves goods on and off a shelf, and the badge on its
        own does not say so. Measured either side rather than returned by
        order_set_status(), which has one job and should keep it. */
@@ -47,6 +54,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $msg .= ' ' . fa_digits((string) ($heldBefore - $heldAfter)) . ' عدد به موجودی برگشت.';
         } elseif ($heldAfter > $heldBefore) {
             $msg .= ' ' . fa_digits((string) ($heldAfter - $heldBefore)) . ' عدد دوباره از موجودی کم شد.';
+        }
+        if ($trackingAfter !== $trackingBefore) {
+            $msg .= $trackingAfter === ''
+                ? ' کد رهگیری پاک شد.'
+                : ' کد رهگیری ثبت شد و برای مشتری قابل دیدن است.';
         }
         flash('ok', $msg);
 
@@ -212,6 +224,19 @@ admin_head('سفارش ' . $order['code'], ['user' => $user]);
               </option>
             <?php endforeach; ?>
           </select>
+        </div>
+        <div class="field" style="margin-block-start:12px">
+          <!-- In the same form as the status, deliberately. The moment he has
+               the barcode in his hand is the moment he is marking the order
+               shipped, and a second screen for it is a second thing to forget. -->
+          <label for="tracking_code">کد رهگیری مرسوله پستی</label>
+          <input type="text" id="tracking_code" name="tracking_code" dir="ltr"
+                 inputmode="numeric" value="<?= e((string) $order['tracking_code']) ?>">
+          <span class="hint">
+            بعد از ثبت، مشتری آن را در صفحه پیگیری سفارش خودش می‌بیند و لازم
+            نیست از شما بپرسد. فقط رقم‌ها ذخیره می‌شود. خالی بگذارید تا نمایش
+            داده نشود.
+          </span>
         </div>
         <div class="field" style="margin-block-start:12px">
           <label for="note">یادداشت</label>

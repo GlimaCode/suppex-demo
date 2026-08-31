@@ -131,6 +131,28 @@ $url   = seo_origin() . '/track.php';
 
           <p class="track__note"><?= e(track_status_note($st)) ?></p>
 
+          <?php /* The barcode, when there is one. Printed only then: a heading
+                   over an empty space reads as something that failed to load
+                   rather than something that has not happened yet.
+
+                   Not gated on the status. A parcel handed to the post office
+                   has a number whether or not the panel has caught up, and the
+                   customer holding the number is better off than the customer
+                   waiting for a status to change. */ ?>
+          <?php $tracking = trim((string) ($order['tracking_code'] ?? '')); ?>
+          <?php if ($tracking !== ''): ?>
+            <div class="track__parcel">
+              <span class="u-eyebrow u-eyebrow--bare">کد رهگیری مرسوله</span>
+              <p class="track__parcel-code num" dir="ltr"><?= e($tracking) ?></p>
+              <p class="u-xs u-dim">
+                این کد را در
+                <a href="https://tracking.post.ir/" target="_blank" rel="noopener noreferrer">سامانه رهگیری پست</a>
+                وارد کنید تا ببینید مرسوله کجاست. تا چند ساعت بعد از تحویل به پست،
+                ممکن است هنوز در سامانه ثبت نشده باشد.
+              </p>
+            </div>
+          <?php endif; ?>
+
           <?php /* The steps a normal order walks. A cancelled or expired order
                    is not on this path, so it does not get a rail that would
                    imply it is still moving. */ ?>

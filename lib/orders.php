@@ -590,6 +590,27 @@ function order_set_status(int $id, string $status, array $admin, string $note = 
     return true;
 }
 
+/**
+ * Record the postal tracking number for an order.
+ *
+ * Digits only, and Persian digits are folded to Latin first: the number is
+ * copied off a receipt, and a keyboard set to Persian produces ۰۹ where the
+ * post office's own site expects 09. Storing both shapes would mean the
+ * customer's copy did not match what they type into tracking.post.ir.
+ *
+ * An empty string clears it, which is how a number typed into the wrong order
+ * gets taken back.
+ */
+function order_set_tracking(int $id, string $code): bool
+{
+    $code = digits_only($code);
+    if (mb_strlen($code) > 40) {
+        return false;
+    }
+    return db_query('UPDATE orders SET tracking_code = ? WHERE id = ?', [$code, $id])
+        ->rowCount() >= 0;
+}
+
 /** @param array{status?:string,q?:string,from?:string,to?:string,limit?:int,offset?:int} $f */
 function orders_list(array $f = []): array
 {

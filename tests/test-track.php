@@ -146,6 +146,79 @@ ok("a cancelled order still resolves", strpos($cancelled, 'track__result') !== f
 ok("but gets no progress rail", strpos($cancelled, 'track__rail') === false);
 ok("and says what to do about it", strpos($cancelled, 'لغو شده') !== false);
 
+head("the postal tracking number");
+/* The shipping page tells the customer this appears on their own tracking
+   page. Before this it had nowhere to be stored, so the page said it arrived
+   in the chat - a message somebody had to remember to send. */
+ok("an order starts with no tracking number",
+   (string) db_value("SELECT tracking_code FROM orders WHERE code = ?", [$code]) === "");
+
+order_set_tracking((int) $made["order"]["id"], "1234567890123456789012");
+ok("it is stored",
+   (string) db_value("SELECT tracking_code FROM orders WHERE code = ?", [$code])
+   === "1234567890123456789012");
+
+/* Copied off a receipt with a Persian keyboard. The post office's own site
+   expects Latin digits, so storing ۰۹ would hand the customer a number that
+   does not work where they are told to paste it. */
+order_set_tracking((int) $made["order"]["id"], "۱۲۳۴۵۶۷۸۹۰");
+ok("Persian digits are folded to Latin",
+   (string) db_value("SELECT tracking_code FROM orders WHERE code = ?", [$code]) === "1234567890");
+
+order_set_tracking((int) $made["order"]["id"], " 1234 5678-90 ");
+ok("spaces and dashes off a printed label are stripped",
+   (string) db_value("SELECT tracking_code FROM orders WHERE code = ?", [$code]) === "1234567890");
+
+ok("something absurdly long is refused rather than truncated",
+   order_set_tracking((int) $made["order"]["id"], str_repeat("9", 60)) === false);
+ok("  and the stored value is untouched by the refusal",
+   (string) db_value("SELECT tracking_code FROM orders WHERE code = ?", [$code]) === "1234567890");
+
+order_set_tracking((int) $made["order"]["id"], "");
+ok("an empty value clears it, so a number typed on the wrong order can be taken back",
+   (string) db_value("SELECT tracking_code FROM orders WHERE code = ?", [$code]) === "");
+
+head("the customer sees it, and only when there is one");
+db_query("UPDATE orders SET status = ?, tracking_code = ? WHERE code = ?",
+         ["shipped", "", $code]);
+db_query("DELETE FROM login_attempts WHERE username = ?", [TRACK_THROTTLE_USER]);
+$noCode = $render(["code" => $code, "phone" => $phone]);
+ok("no tracking block while there is no number",
+   strpos($noCode, "track__parcel") === false);
+/* A heading over an empty space reads as something that failed to load. */
+ok("  and no heading for it either",
+   strpos($noCode, "کد رهگیری مرسوله") === false);
+
+db_query("UPDATE orders SET tracking_code = ? WHERE code = ?", ["990012345678", $code]);
+db_query("DELETE FROM login_attempts WHERE username = ?", [TRACK_THROTTLE_USER]);
+$withCode = $render(["code" => $code, "phone" => $phone]);
+ok("the block appears once there is a number", strpos($withCode, "track__parcel") !== false);
+ok("  the number itself is on the page", strpos($withCode, "990012345678") !== false);
+ok("  printed left-to-right, because it is pasted into a Latin-digit form",
+   strpos($withCode, 'class="track__parcel-code num" dir="ltr"') !== false);
+/* Its own class. The first version reused .track__code, which already meant
+   the ORDER code in the panel head - so the new CSS rule silently restyled a
+   number the customer copies, shrinking it and letting it break mid-run. */
+ok("  under its own class, not the order code's",
+   substr_count($withCode, 'class="track__code ') === 1,
+   (string) substr_count($withCode, 'class="track__code '));
+/* Pointing at the post office is a link this shop can make without claiming
+   anything about itself. */
+ok("  with the post office's own tracking service to paste it into",
+   strpos($withCode, "tracking.post.ir") !== false);
+ok("  opened safely", strpos($withCode, 'rel="noopener noreferrer"') !== false);
+
+/* Not gated on the status: a parcel handed over has a number whether or not
+   the panel has caught up, and the customer holding it is better off. */
+db_query("UPDATE orders SET status = ? WHERE code = ?", ["paid", $code]);
+db_query("DELETE FROM login_attempts WHERE username = ?", [TRACK_THROTTLE_USER]);
+$paidWithCode = $render(["code" => $code, "phone" => $phone]);
+ok("a number set before the status catches up is still shown",
+   strpos($paidWithCode, "990012345678") !== false);
+
+db_query("UPDATE orders SET status = ?, tracking_code = ? WHERE code = ?",
+         ["new", "", $code]);
+
 /* Clean up the fixture. */
 db_query("DELETE oi FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.code = ?", [$code]);
 db_query("DELETE FROM orders WHERE code = ?", [$code]);

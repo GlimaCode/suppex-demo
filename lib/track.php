@@ -100,6 +100,9 @@ function track_status_note(string $status): string
         case 'paid':
             return 'پرداخت شما تأیید شد. سفارش در نوبت بسته‌بندی است.';
         case 'shipped':
+            /* The tracking number itself is printed by the page, which knows
+               whether there is one. This stays a sentence about what happened
+               rather than one that promises a number that may not be there. */
             return 'سفارش تحویل پست داده شده است.';
         case 'done':
             return 'سفارش تکمیل شده است.';

@@ -1041,3 +1041,25 @@ li:lang(fa) {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* The postal barcode. Its own block rather than a line in the table, because
+   it is the one thing on this page the customer came to copy - and a number
+   meant to be copied wants room and a left-to-right run of its own. */
+.track__parcel {
+  margin-block-start: var(--sp-5);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+/* NOT .track__code - that already existed, for the ORDER code in the panel
+   head, and reusing the name silently restyled it: 20px Archivo Black became
+   18.4px with break-all wrapping, on a code the customer copies. Two things
+   that look similar are still two things. */
+.track__parcel-code {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 6px 0 8px;
+  word-break: break-all;
+}

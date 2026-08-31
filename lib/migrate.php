@@ -439,6 +439,22 @@ function migrate_run(array &$log): void
         },
         $log
     );
+
+    /* 2026-08 - the postal tracking number ---------------------------------- */
+
+    step(
+        'orders.tracking_code - the barcode the customer would otherwise have to ask for',
+        static fn(): bool => column_exists('orders', 'tracking_code'),
+        static function (): void {
+            /* VARCHAR, not BIGINT. Iran Post's barcode is twenty-four digits,
+               which overflows a signed 64-bit integer, and a leading zero on a
+               tracking number is part of the number. Nothing arithmetic is
+               ever done with it. */
+            db()->exec("ALTER TABLE orders
+                ADD COLUMN tracking_code VARCHAR(40) NOT NULL DEFAULT '' AFTER channel");
+        },
+        $log
+    );
 }
 
 /** Which migrations are present. Used by the panel and by preflight. */
@@ -460,5 +476,6 @@ function migrate_pending(): array
         'orders.items_hash'          => column_exists('orders', 'items_hash'),
         'products.stock_qty'         => column_exists('products', 'stock_qty'),
         'order_items.stock_held'     => column_exists('order_items', 'stock_held'),
+        'orders.tracking_code'       => column_exists('orders', 'tracking_code'),
     ];
 }
