@@ -166,6 +166,16 @@ function preflight_checks(): array
         $setup ? 'هنوز روی سرور است' : 'حذف شده',
         'این اسکریپت حساب مدیر می‌سازد. بعد از نصب حتماً حذفش کنید.');
 
+    /* Same reasoning as setup.php, and the same severity: a page that can set
+       an administrator's password is worth what one that creates an
+       administrator is worth. It is gated by a phrase, but a gate is not a
+       reason to leave it lying about. */
+    $reset = is_file(SUPPEX_ROOT . '/admin-reset.php');
+    $add('فایل‌ها', 'حذف admin-reset.php',
+        $reset ? 'blocker' : 'ok',
+        $reset ? 'هنوز روی سرور است' : 'روی سرور نیست',
+        'این اسکریپت رمز مدیر را عوض می‌کند. بعد از استفاده حتماً حذفش کنید.');
+
     $add('فایل‌ها', 'فایل .htaccess',
         is_file(SUPPEX_ROOT . '/.htaccess') ? 'ok' : 'blocker', '',
         'بدون آن پوشه lib و db از اینترنت قابل خواندن‌اند.');

@@ -259,6 +259,34 @@ foreach ($dir as $file) {
 ok('no bare $var runs into a multibyte character in any PHP file',
    $interp === 0, implode(' | ', $offenders));
 
+head('no real credential is sitting in a tracked file');
+/* config.sample.php is the file people edit by mistake: it is the one they open
+   to copy from, so filling it in instead of copying it is the natural slip -
+   and unlike suppex-config.php it is tracked, so the password goes to the
+   repository with the next commit. This caught exactly that, once. */
+$sample = (array) @include $root . '/config.sample.php';
+ok('config.sample.php has an empty database password',
+   ($sample['db']['pass'] ?? '') === '', 'a real password is in the sample config');
+ok('  and placeholder names',
+   strpos((string) ($sample['db']['name'] ?? ''), 'CPANELUSER') === 0,
+   (string) ($sample['db']['name'] ?? ''));
+foreach (['telegram_bot' => 'token', 'sms' => 'api_key'] as $grp => $key) {
+    ok("  and no $grp $key", (string) ($sample[$grp][$key] ?? '') === '');
+}
+/* The real config legitimately sits beside the code on a development machine -
+   that is how the site runs there without an environment variable. What must
+   never happen is git taking it, so THAT is what is asserted: if the file
+   exists, .gitignore names it. On the server it lives above public_html and
+   this is moot. */
+if (is_file($root . '/suppex-config.php')) {
+    $ignore = (string) @file_get_contents($root . '/.gitignore');
+    ok('the real config exists here, and .gitignore refuses it',
+       strpos($ignore, 'suppex-config.php') !== false,
+       'a file holding the database password is one commit from the repository');
+    ok('  and so are archives of the whole tree',
+       strpos($ignore, '*.zip') !== false);
+}
+
 head('the footer is structurally sound');
 /* The legal row and the watermark rendered OUTSIDE .container on every page,
    because four of the five copies of this footer carried one closing </div>

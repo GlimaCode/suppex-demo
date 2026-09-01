@@ -12,3 +12,15 @@ tests/tmp/
 # committed copy is stale the moment a price moves. The directory makes
 # itself.
 uploads/og/
+
+# The real config, which holds the database password. config.sample.php is
+# the tracked one and must stay full of placeholders; this is never tracked,
+# and on the server it lives ABOVE public_html anyway.
+suppex-config.php
+
+# Archives made for uploading. They contain the whole tree, including any
+# config sitting in it at the time.
+*.zip
+*.tar
+*.tar.gz
+*.rar
