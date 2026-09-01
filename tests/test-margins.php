@@ -20,7 +20,7 @@ require_once SUPPEX_ROOT . '/lib/pricing.php';
 auth_start_session();
 $_SESSION['admin_id']   = 1;
 $_SESSION['admin_name'] = 'tester';
-$_SESSION['admin_role'] = 'owner';
+$_SESSION['admin_role'] = 'support';
 
 settings_save(['commission_basis' => 'profit', 'commission_percent' => '20']);
 

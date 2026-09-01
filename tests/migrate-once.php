@@ -17,7 +17,7 @@ $_SERVER["SCRIPT_NAME"]    = "/admin/migrate.php";
 require __DIR__ . "/../lib/bootstrap.php";
 require_once SUPPEX_ROOT . "/lib/auth.php";
 auth_start_session();
-$_SESSION["admin_id"] = 1; $_SESSION["admin_name"] = "tester"; $_SESSION["admin_role"] = "owner";
+$_SESSION["admin_id"] = 1; $_SESSION["admin_name"] = "tester"; $_SESSION["admin_role"] = "support";
 
 ob_start();
 include SUPPEX_ROOT . "/admin/migrate.php";

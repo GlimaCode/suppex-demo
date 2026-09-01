@@ -71,7 +71,7 @@ foreach (['orders', 'order_items', 'order_events', 'rate_history'] as $t) {
 db()->exec('SET FOREIGN_KEY_CHECKS = 1');
 
 db_query('INSERT INTO admins (id, username, password_hash, name, role)
-          VALUES (1, "tester", ?, "tester", "owner")
+          VALUES (1, "tester", ?, "tester", "support")
           ON DUPLICATE KEY UPDATE username = username', [password_hash('x', PASSWORD_DEFAULT)]);
 $admin = ['id' => 1, 'name' => 'tester'];
 

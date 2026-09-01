@@ -32,7 +32,7 @@ require_once SUPPEX_ROOT . '/lib/preflight.php';
 $adminState = preflight_admin_state();
 $chrome     = $adminState['has'] || !$adminState['known'];
 if ($chrome) {
-    auth_require();
+    auth_require_can('maintenance');
     require_once __DIR__ . '/partials/layout.php';
 }
 

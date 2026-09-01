@@ -25,7 +25,10 @@ CREATE TABLE IF NOT EXISTS admins (
   username       VARCHAR(64)  NOT NULL,
   password_hash  VARCHAR(255) NOT NULL,   -- password_hash(), never a plain or md5 password
   name           VARCHAR(120) NOT NULL DEFAULT '',
-  role           ENUM('owner','staff') NOT NULL DEFAULT 'staff',
+  -- support «پشتیبان» keeps the software running and needs everything.
+  -- manager «مدیرکل» runs the shop and has no use for a database dump or a
+  -- deployment readiness page. See ROLE_CAPABILITIES in lib/auth.php.
+  role           ENUM('support','manager') NOT NULL DEFAULT 'manager',
   is_active      TINYINT(1)   NOT NULL DEFAULT 1,
   last_login_at  DATETIME     NULL,
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,

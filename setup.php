@@ -111,7 +111,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
                 /* --- Admin --------------------------------------------------- */
                 db_query(
-                    'INSERT INTO admins (username, password_hash, name, role) VALUES (?, ?, ?, "owner")',
+                    /* The first account is the one that has to be able to fix
+                       everything, including the things that go wrong during
+                       installation. */
+                    'INSERT INTO admins (username, password_hash, name, role) VALUES (?, ?, ?, "support")',
                     [$username, password_hash($password, PASSWORD_DEFAULT),
                      $name !== '' ? mb_substr($name, 0, 120) : $username]
                 );

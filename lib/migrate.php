@@ -480,6 +480,34 @@ function migrate_run(array &$log): void
         },
         $log
     );
+
+    /* 2026-09 - roles that mean something ---------------------------------- */
+
+    step(
+        "admins.role - 'support' and 'manager' replace 'owner' and 'staff'",
+        static fn(): bool => (string) db_value(
+            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admins'
+                AND COLUMN_NAME = 'role'") === "enum('support','manager')",
+        static function (): void {
+            /* Widened before anything is remapped: an ENUM rejects a value it
+               does not yet know, so remapping first would set every row to ''
+               and lock everybody out of the maintenance tools at once. */
+            db()->exec("ALTER TABLE admins MODIFY role
+                ENUM('owner','staff','support','manager') NOT NULL DEFAULT 'manager'");
+
+            /* owner kept full access, so it becomes support; staff becomes
+               manager. Nobody loses anything they had yesterday. */
+            db()->exec("UPDATE admins SET role = 'support' WHERE role = 'owner'");
+            db()->exec("UPDATE admins SET role = 'manager' WHERE role = 'staff'");
+
+            /* And now the old names go, so there is one vocabulary rather than
+               four values where two are dead. */
+            db()->exec("ALTER TABLE admins MODIFY role
+                ENUM('support','manager') NOT NULL DEFAULT 'manager'");
+        },
+        $log
+    );
 }
 
 /** Which migrations are present. Used by the panel and by preflight. */
@@ -503,5 +531,9 @@ function migrate_pending(): array
         'order_items.stock_held'     => column_exists('order_items', 'stock_held'),
         'orders.tracking_code'       => column_exists('orders', 'tracking_code'),
         'categories seeded'          => (int) db_value('SELECT COUNT(*) FROM categories') > 0,
+        'admins.role support/manager'=> (string) db_value(
+            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admins'
+                AND COLUMN_NAME = 'role'") === "enum('support','manager')",
     ];
 }

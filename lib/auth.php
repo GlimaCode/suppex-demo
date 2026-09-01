@@ -56,6 +56,66 @@ function auth_user(): ?array
 }
 
 /** Guard at the top of every admin page. */
+/* --- Roles ------------------------------------------------------------------
+   The role column has existed since the first schema and nothing ever read it,
+   so until now every signed-in admin could open backup.php - which streams
+   every customer's name, phone and address, and every admin password hash.
+
+   Two roles, and the naming is deliberate even though it inverts the usual
+   ranking: «پشتیبان» is whoever keeps the software running and needs
+   everything; «مدیرکل» runs the shop and has no use for a database dump or a
+   deployment readiness page. */
+const ROLES = ['support' => 'پشتیبان', 'manager' => 'مدیرکل'];
+
+/* What each role may do beyond the ordinary running of the shop.
+
+   Only the exceptions are listed. Everything not named here - products,
+   orders, categories, pricing, stock, settings, reports, import - is open to
+   both roles, because both people genuinely need it and a permission system
+   that has to be consulted for ordinary work is one that gets switched off. */
+const ROLE_CAPABILITIES = [
+    'support' => ['maintenance'],
+    'manager' => [],
+];
+
+/** May the signed-in admin do this? */
+function auth_can(string $capability): bool
+{
+    $user = auth_user();
+    if ($user === null) {
+        return false;
+    }
+    $role = (string) $user['role'];
+    /* An unknown role gets nothing extra rather than everything. A row whose
+       role was hand-edited to something misspelled must fail closed. */
+    return in_array($capability, ROLE_CAPABILITIES[$role] ?? [], true);
+}
+
+/**
+ * Require a capability, or send them somewhere they are allowed to be.
+ *
+ * Called as the FIRST act of every gated page. Hiding the nav item alone would
+ * be theatre - the URL still works, and a bookmark or a guessed path reaches
+ * it - so the page refuses, and the nav merely stops advertising what cannot
+ * be opened.
+ */
+function auth_require_can(string $capability): array
+{
+    $user = auth_require();
+    if (!auth_can($capability)) {
+        /* flash() lives in admin/partials/layout.php, which some pages load
+           AFTER auth - preflight.php does. Guarded rather than required, so
+           the refusal never turns into a fatal error on the one path where
+           the refusal is the point. */
+        if (function_exists('flash')) {
+            flash('error', 'این بخش برای نقش شما در دسترس نیست.');
+        }
+        header('Location: index.php');
+        exit;
+    }
+    return $user;
+}
+
 function auth_require(): array
 {
     $user = auth_user();

@@ -14,7 +14,7 @@ require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/backup.php';
 require_once __DIR__ . '/partials/layout.php';
 
-$user = auth_require();
+$user = auth_require_can('maintenance');
 
 /* --- Downloads ------------------------------------------------------------
    Served before a byte of HTML, or the page would be welded to the file. */

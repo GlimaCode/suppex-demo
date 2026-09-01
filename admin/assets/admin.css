@@ -568,3 +568,44 @@ select {
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* --------------------------------------------------------------------------
+   Bulk actions and quick edit
+   -------------------------------------------------------------------------- */
+.bulkbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  margin-block-end: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-mid);
+  border-radius: 10px;
+}
+.bulkbar__count { font-size: .85rem; color: var(--text-dim); white-space: nowrap; }
+.bulkbar select { width: auto; min-width: 11rem; margin: 0; }
+
+/* The quick-edit row is a table row, so the grid lives in the cell. */
+.quickrow > td { background: var(--surface-2); padding: 0; }
+.quick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 12px 16px;
+  align-items: end;
+  padding: 16px 18px;
+  border-block-start: 2px solid var(--accent);
+}
+.quick__f { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.quick__f label { font-size: .74rem; color: var(--text-dim); font-weight: 600; }
+.quick__f input, .quick__f select { margin: 0; }
+.quick__f--checks { flex-direction: row; gap: 16px; align-items: center; }
+.quick__f--go { flex-direction: row; gap: 8px; align-items: center; }
+.quick__ro {
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: .9rem; padding: .45rem 0;
+}
+.quick__ro a { font-size: .74rem; }

@@ -22,7 +22,7 @@ require __DIR__ . "/../lib/bootstrap.php";
 require_once SUPPEX_ROOT . "/lib/auth.php";
 
 auth_start_session();
-$_SESSION["admin_id"] = 1; $_SESSION["admin_name"] = "tester"; $_SESSION["admin_role"] = "owner";
+$_SESSION["admin_id"] = 1; $_SESSION["admin_name"] = "tester"; $_SESSION["admin_role"] = "support";
 $_SESSION["csrf"] = "t";
 
 $id = (int) ($argv[1] ?? 0);

@@ -558,7 +558,7 @@ db()->exec("DELETE FROM products");
 db()->exec("SET FOREIGN_KEY_CHECKS = 1");
 db_query("INSERT INTO admins (id, username, password_hash, name, role)
           VALUES (1, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE username = username",
-         ["tester", password_hash("x", PASSWORD_DEFAULT), "tester", "owner"]);
+         ["tester", password_hash("x", PASSWORD_DEFAULT), "tester", "support"]);
 
 $plan = import_plan(import_read_csv(sheet([
     ["name_fa" => "ویرایش تست", "name_en" => "Edit Guard", "category" => "کراتین",

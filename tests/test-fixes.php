@@ -46,7 +46,7 @@ foreach ([
 echo "\n== throttle no longer allows remote lockout (lib/auth.php) ==\n";
 db_query('DELETE FROM login_attempts');
 db_query('INSERT INTO admins (id, username, password_hash, name, role)
-          VALUES (99, "victim", ?, "victim", "owner")
+          VALUES (99, "victim", ?, "victim", "support")
           ON DUPLICATE KEY UPDATE username = username',
          [password_hash('a-long-enough-passphrase', PASSWORD_DEFAULT)]);
 

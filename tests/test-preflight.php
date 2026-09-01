@@ -34,7 +34,7 @@ function state_of(string $label): string { return check_for($label)['state'] ?? 
 function detail_of(string $label): string { return check_for($label)['detail'] ?? ''; }
 
 db_query('INSERT INTO admins (id, username, password_hash, name, role)
-          VALUES (1, "tester", ?, "tester", "owner")
+          VALUES (1, "tester", ?, "tester", "support")
           ON DUPLICATE KEY UPDATE username = username', [password_hash('x', PASSWORD_DEFAULT)]);
 
 /* A known-good baseline, so each test can break exactly one thing. */
@@ -124,7 +124,7 @@ ok('and the leftover installer blocks',
 
 echo "\n== the page renders ==\n";
 auth_start_session();
-$_SESSION['admin_id'] = 1; $_SESSION['admin_name'] = 'tester'; $_SESSION['admin_role'] = 'owner';
+$_SESSION['admin_id'] = 1; $_SESSION['admin_name'] = 'tester'; $_SESSION['admin_role'] = 'support';
 ob_start(); include SUPPEX_ROOT . '/admin/preflight.php'; $html = ob_get_clean();
 ok('renders a page', strlen($html) > 4000, (string) strlen($html));
 /* Matched on a fragment that does not straddle the template's line break. */

@@ -115,15 +115,25 @@ function db_sql_statements(string $sql): array
        no م, which is the only reason this went unnoticed. */
     $eol = '(?:\r\n|\n|\r)';
 
+    /* Comments go FIRST, before the split.
+
+       They used to be stripped afterwards, per chunk - which meant a semicolon
+       inside a comment still terminated a statement. One «...needs everything;»
+       in a column comment cut a CREATE TABLE into two invalid halves, both
+       failed, and the error surfaced as a completely different table not
+       existing several statements later. Removing them first makes the inside
+       of a comment unable to affect the parse at all. */
+    $lines = [];
+    foreach (preg_split('/' . $eol . '/', $sql) ?: [] as $line) {
+        if (!str_starts_with(ltrim($line), '--')) {
+            $lines[] = $line;
+        }
+    }
+    $sql = implode("\n", $lines);
+
     $out = [];
     foreach (preg_split('/;[ \t]*' . $eol . '/', $sql) ?: [] as $chunk) {
-        $lines = [];
-        foreach (preg_split('/' . $eol . '/', $chunk) ?: [] as $line) {
-            if (!str_starts_with(ltrim($line), '--')) {
-                $lines[] = $line;
-            }
-        }
-        $statement = trim(implode("\n", $lines));
+        $statement = trim($chunk);
         if ($statement !== '') {
             $out[] = $statement;
         }

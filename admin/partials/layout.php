@@ -28,7 +28,7 @@ function flash_take(): array
 
 function admin_nav_items(): array
 {
-    return [
+    $items = [
         ['href' => 'index.php',    'label' => 'داشبورد',  'icon' => 'grid'],
         ['href' => 'orders.php',   'label' => 'سفارش‌ها', 'icon' => 'box'],
         ['href' => 'products.php', 'label' => 'محصولات',  'icon' => 'tag'],
@@ -38,10 +38,21 @@ function admin_nav_items(): array
         ['href' => 'pricing.php',  'label' => 'قیمت‌گذاری', 'icon' => 'coins'],
         ['href' => 'margins.php',  'label' => 'حاشیه سود',  'icon' => 'scale'],
         ['href' => 'report.php',   'label' => 'گزارش مالی', 'icon' => 'chart'],
+        ['href' => 'users.php',    'label' => 'کاربران پنل', 'icon' => 'users',
+         'capability' => 'maintenance'],
         ['href' => 'settings.php', 'label' => 'تنظیمات',  'icon' => 'gear'],
-        ['href' => 'backup.php',   'label' => 'پشتیبان‌گیری', 'icon' => 'save'],
-        ['href' => 'preflight.php','label' => 'آمادگی راه‌اندازی', 'icon' => 'check'],
+        /* Maintenance. Hidden from «مدیرکل» - and hiding is only the polite
+           half, because a hidden link is still a working URL. Each of these
+           pages refuses on its own with auth_require_can(). */
+        ['href' => 'backup.php',   'label' => 'پشتیبان‌گیری', 'icon' => 'save',
+         'capability' => 'maintenance'],
+        ['href' => 'preflight.php','label' => 'آمادگی راه‌اندازی', 'icon' => 'check',
+         'capability' => 'maintenance'],
     ];
+
+    return array_values(array_filter($items, static function (array $i): bool {
+        return !isset($i['capability']) || auth_can($i['capability']);
+    }));
 }
 
 function admin_icon(string $name): string
@@ -53,6 +64,7 @@ function admin_icon(string $name): string
         'grid'   => '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
         'box'    => '<path d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/>',
         /* Stacked crates: one box is an order, several are a shelf. */
+        'users'  => '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.2 2.7-5 6-5s6 1.8 6 5"/><path d="M16.5 5.6a3.2 3.2 0 0 1 0 5.8"/><path d="M18 14.6c2 .7 3 2.3 3 4.4"/>',
         'boxes'  => '<rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><rect x="8" y="3" width="8" height="8" rx="1.5"/>',
         'tag'    => '<path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.4"/>',
         'layers' => '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',

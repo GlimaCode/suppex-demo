@@ -178,7 +178,7 @@ settings_save(['free_shipping_threshold' => '1500000']);
 
 echo "\n== status changes and audit trail ==\n";
 db_query('INSERT INTO admins (id, username, password_hash, name, role)
-          VALUES (1, "tester", ?, "تستر", "owner")
+          VALUES (1, "tester", ?, "تستر", "support")
           ON DUPLICATE KEY UPDATE username = username',
          [password_hash('x', PASSWORD_DEFAULT)]);
 $admin = ['id' => 1, 'name' => 'تستر'];

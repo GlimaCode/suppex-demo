@@ -27,7 +27,7 @@ require_once SUPPEX_ROOT . "/lib/orders.php";
 require_once SUPPEX_ROOT . "/lib/pricing.php";
 
 auth_start_session();
-$_SESSION["admin_id"] = 1; $_SESSION["admin_name"] = "tester"; $_SESSION["admin_role"] = "owner";
+$_SESSION["admin_id"] = 1; $_SESSION["admin_name"] = "tester"; $_SESSION["admin_role"] = "support";
 
 $pass = 0; $fail = 0; $out = [];
 function ok(string $l, bool $c, ?string $x = ""): void {
@@ -54,7 +54,7 @@ db()->exec("DELETE FROM products");
 db()->exec("SET FOREIGN_KEY_CHECKS = 1");
 db_query("INSERT INTO admins (id, username, password_hash, name, role)
           VALUES (1, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE username = username",
-         ["tester", password_hash("x", PASSWORD_DEFAULT), "tester", "owner"]);
+         ["tester", password_hash("x", PASSWORD_DEFAULT), "tester", "support"]);
 
 /* --- A catalogue using every pricing route the sheet supports ----------- */
 require_once SUPPEX_ROOT . "/lib/import.php";
