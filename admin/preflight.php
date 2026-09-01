@@ -18,7 +18,19 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/preflight.php';
 
-$chrome = preflight_has_admin();
+/* Fail CLOSED. The only unauthenticated window is a database that positively
+   reports zero administrators - a shop nobody has claimed yet, where there is
+   no login that could be required. Any other answer, INCLUDING NO ANSWER,
+   requires one.
+
+   Before this the gate was preflight_has_admin(), which returned false both
+   for "no administrator" and for "the database did not answer" - and the
+   second is routine on shared hosting: wrong credentials, MySQL restarting,
+   max_user_connections. On that day this page became anonymous, and what it
+   hands a stranger is the PHP version, the loaded extension list, the upload
+   limits and the absolute path of the config file. */
+$adminState = preflight_admin_state();
+$chrome     = $adminState['has'] || !$adminState['known'];
 if ($chrome) {
     auth_require();
     require_once __DIR__ . '/partials/layout.php';

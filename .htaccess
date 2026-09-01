@@ -8,7 +8,11 @@
 # ever breaks — a bad handler, a failed upgrade — every .php file is served as
 # plain text, and lib/db.php would then reveal how the database is reached.
 RedirectMatch 404 ^/(lib|db)/
-<FilesMatch "\.(sql|json|md|ini|log)$">
+# csv and xlsx are here for a commercial reason, not a technical one: the
+# product sheet carries the DIRHAM PURCHASE PRICE and the per-product margin for
+# the whole catalogue. Those two files belong nowhere near the web root, and
+# this line is the backstop for the day one is uploaded by accident.
+<FilesMatch "\.(sql|json|md|ini|log|csv|xlsx|xls|tsv|bak|old|orig|swp)$">
   Require all denied
 </FilesMatch>
 # db/catalog-seed.json is only read from disk by seed.php, never over HTTP.

@@ -62,9 +62,17 @@ function preflight_checks(): array
         if (is_file($p)) { $cfgPath = $p; break; }
     }
     $inside = $cfgPath !== null && strpos($cfgPath, SUPPEX_ROOT) === 0;
+    /* The VERDICT, not the path. This line renders during the pre-setup window,
+       which is the one moment this page has no login - and an absolute path
+       like /home/suppexir/suppex-config.php hands over the cPanel account name
+       and the home directory layout to anyone who loads it. Whether the file
+       sits outside public_html is the entire question here; exactly where it
+       sits is the operator's business, and he is the one who put it there. */
     $add('تنظیمات', 'محل فایل تنظیمات',
         $cfgPath === null ? 'blocker' : ($inside ? 'warn' : 'ok'),
-        (string) $cfgPath,
+        $cfgPath === null
+            ? 'پیدا نشد'
+            : ($inside ? 'داخل public_html' : 'بیرون از public_html'),
         $inside
             ? 'فایل داخل public_html است. اگر روزی اجرای PHP خراب شود، رمز دیتابیس به‌صورت متن ساده به بازدیدکننده نمایش داده می‌شود. یک پوشه بالاتر ببریدش.'
             : 'از config.sample.php کپی بگیرید و یک پوشه بالاتر از public_html بگذارید.');
@@ -85,7 +93,25 @@ function preflight_checks(): array
         return $out;
     }
 
-    /* --- Schema ----------------------------------------------------------- */
+    /* --- Schema -----------------------------------------------------------
+       Asks lib/migrate.php rather than keeping a second list. The hand-written
+       one here had eight pairs against migrate_pending()'s sixteen, and the
+       eight were the old ones - it knew nothing about stock_qty, stock_held,
+       items_hash or tracking_code, so a database missing every recent
+       migration passed this check and then failed at the first order. */
+    require_once SUPPEX_ROOT . '/lib/migrate.php';
+    $pending = [];
+    try {
+        foreach (migrate_pending() as $label => $present) {
+            if (!$present) { $pending[] = $label; }
+        }
+    } catch (Throwable $e) {
+        $pending = ['(بررسی نشد)'];
+    }
+    $add('دیتابیس', 'مهاجرت‌های انجام‌نشده', $pending ? 'blocker' : 'ok',
+        $pending ? implode('، ', $pending) : 'همه انجام شده',
+        'صفحه migrate.php را یک بار باز کنید و دکمه‌اش را بزنید.');
+
     $missing = [];
     /* A list of pairs, not a map keyed by table: two columns on the same
        table are now worth checking, and a map can only hold one of them.
@@ -117,6 +143,24 @@ function preflight_checks(): array
         'دسترسی پوشه را روی 755 بگذارید. 777 لازم نیست و نباید استفاده شود.');
 
     $setup = is_file(SUPPEX_ROOT . '/setup.php');
+    /* Every server-rendered page includes partials/chrome-top.php; without it
+       product, category, page, journal, article and track all fatal on the
+       include. These are the two directories DEPLOY.md's upload tree used to
+       omit, which is how the guide and the check managed to be wrong about the
+       same thing at the same time. */
+    foreach ([
+        'partials/chrome-top.php'  => 'قالب مشترک بالای صفحه',
+        'partials/chrome-foot.php' => 'قالب مشترک پایین صفحه',
+        'content/pages'            => 'صفحه‌های قوانین',
+        'content/categories'       => 'راهنمای دسته‌بندی‌ها',
+        'content/journal'          => 'مقاله‌ها',
+    ] as $rel => $label) {
+        $there = file_exists(SUPPEX_ROOT . '/' . $rel);
+        $add('فایل‌ها', $label, $there ? 'ok' : 'blocker',
+            $there ? 'هست' : 'آپلود نشده',
+            'پوشه ' . $rel . ' را هم آپلود کنید — بدون آن صفحه‌های سایت باز نمی‌شوند.');
+    }
+
     $add('فایل‌ها', 'حذف setup.php',
         $setup ? ($hasAdmin ? 'blocker' : 'warn') : 'ok',
         $setup ? 'هنوز روی سرور است' : 'حذف شده',
@@ -182,6 +226,28 @@ function preflight_checks(): array
         'SELECT (SELECT COUNT(*) FROM products WHERE price_mode = "aed" AND cost_aed > 0)
               + (SELECT COUNT(*) FROM product_sizes WHERE cost_aed > 0)');
     $rate = trim((string) setting('aed_rate', ''));
+    /* The fifteen invented products. «آیا محصول فعالی هست» is satisfied
+       perfectly by a catalogue nobody ever stocked - so a shop could pass
+       every check on this page and be selling «وی پروتئین اورجینال» at a
+       made-up price to somebody who is about to transfer real money.
+
+       Matched on the seed's own slugs rather than on a flag, because there is
+       no flag: setup.php writes these rows through the ordinary product
+       insert and nothing marks them afterwards. */
+    $demoSlugs = ['whey-original', 'iso-zero', 'casein-night', 'creatine-mono',
+                  'creatine-hcl', 'mass-builder', 'serious-bulk', 'pre-blast',
+                  'pump-extreme', 'bcaa-211', 'eaa-complete', 'glutamine-pure',
+                  'multi-sport', 'zma-recovery', 'omega-3-sport'];
+    $in    = implode(',', array_fill(0, count($demoSlugs), '?'));
+    $demos = (int) db_value(
+        'SELECT COUNT(*) FROM products WHERE is_active = 1 AND slug IN (' . $in . ')',
+        $demoSlugs);
+    $add('کاتالوگ', 'محصولات نمونه', $demos === 0 ? 'ok' : 'blocker',
+        $demos === 0 ? 'حذف شده' : $demos . ' محصول ساختگی هنوز فعال است',
+        'این‌ها محصولات نمونه‌اند — نام و قیمت و مشخصاتشان واقعی نیست و مشتری '
+      . 'می‌تواند سفارششان بدهد. از صفحه محصولات حذفشان کنید یا تیک «در سایت '
+      . 'نمایش داده شود» را بردارید، و کاتالوگ واقعی را از «ورود گروهی» وارد کنید.');
+
     $add('کاتالوگ', 'نرخ درهم',
         $aed === 0 ? 'ok' : ($rate === '' ? 'blocker' : 'ok'),
         $aed === 0 ? 'هیچ محصولی درهمی نیست'
@@ -218,6 +284,26 @@ function preflight_checks(): array
 }
 
 /** Whether any admin account exists yet. Safe before the schema is created. */
+/**
+ * Whether an administrator exists — and whether we could tell.
+ *
+ * The boolean version of this could not distinguish "no administrator yet"
+ * from "the database did not answer", and admin/preflight.php gated its
+ * authentication on it. So an unreachable database - routine on shared
+ * hosting: wrong credentials, MySQL restarting, max_user_connections - turned
+ * the readiness page into an unauthenticated page.
+ *
+ * @return array{known:bool,has:bool}
+ */
+function preflight_admin_state(): array
+{
+    try {
+        return ['known' => true, 'has' => (int) db_value('SELECT COUNT(*) FROM admins') > 0];
+    } catch (Throwable $e) {
+        return ['known' => false, 'has' => false];
+    }
+}
+
 function preflight_has_admin(): bool
 {
     try {

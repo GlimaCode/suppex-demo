@@ -31,13 +31,50 @@ header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 
 /* Catalogue responses are safe to cache briefly; an order response never is. */
-function api_send($data, int $status = 200, int $cacheSeconds = 0): void
+/**
+ * Send the response and stop.
+ *
+ * $after runs AFTER the customer's browser has the answer and the connection
+ * is closed. Only one caller needs it - the order route, which notifies the
+ * owner - but that one matters: the notification is an HTTP call to a third
+ * party, and on an Iranian host the Telegram API is blocked at the network
+ * level, so it does not merely take a moment, it burns its full timeout every
+ * time. Doing it before the response meant the customer waited six seconds for
+ * an order code at the exact moment they were deciding whether to trust the
+ * shop with a bank transfer.
+ *
+ * fastcgi_finish_request() is the real mechanism and exists under PHP-FPM and
+ * LiteSpeed, which between them are almost all cPanel hosting. Where it does
+ * not exist the work still runs - just in the old order, which is no worse
+ * than before.
+ */
+function api_send($data, int $status = 200, int $cacheSeconds = 0, ?callable $after = null): void
 {
     http_response_code($status);
     header($cacheSeconds > 0
         ? 'Cache-Control: public, max-age=' . $cacheSeconds
         : 'Cache-Control: no-store');
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    $body = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    header('Content-Length: ' . strlen((string) $body));
+    echo $body;
+
+    if ($after !== null) {
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } else {
+            /* Best effort elsewhere: flush what we have so the bytes are at
+               least on their way before the slow call starts. */
+            if (ob_get_level() > 0) { @ob_end_flush(); }
+            @flush();
+        }
+        try {
+            $after();
+        } catch (Throwable $e) {
+            /* Nothing can be reported now - the response has already gone. */
+            error_log('[suppex] post-response task failed: ' . $e->getMessage());
+        }
+    }
     exit;
 }
 
@@ -209,7 +246,10 @@ try {
             }
 
             $order = $result['order'];
-            notify_new_order($order);
+
+            /* The notification moved BELOW the response - see the $after
+               parameter on api_send(). It used to run here, and every order
+               waited on it. */
 
             /* The card details go out only now, attached to a real order. */
             api_send([
@@ -229,7 +269,13 @@ try {
                     'cardHolder' => setting('card_holder'),
                     'bankName'   => setting('bank_name'),
                 ],
-            ], 201);
+            /* Notified after the customer has their code and the connection is
+               closed. See api_send(): on an Iranian host the Telegram API is
+               blocked outright, so this call burns its whole timeout every
+               time - which is fine once nobody is waiting on it. */
+            ], 201, 0, static function () use ($order): void {
+                notify_new_order($order);
+            });
 
         default:
             api_error('Unknown route.', 404);

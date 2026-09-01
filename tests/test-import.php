@@ -1142,5 +1142,46 @@ ok('catalogue restored for the next suite',
    (string) db_value('SELECT COUNT(*) FROM products'));
 
 @unlink($tmp);
+echo "\n== the wrong CSV out of Excel is named, not misdiagnosed ==\n";
+/* Excel offers «CSV (Comma delimited)» and «CSV UTF-8 (Comma delimited)», and
+   only the second is UTF-8. Picking the first is the normal mistake, because it
+   is the one called simply "CSV" - and on a Persian Windows it writes the
+   system ANSI codepage, which cannot represent Persian ی at all.
+
+   The import already refused such a file safely: no mojibake ever reached the
+   products table. It just blamed the column headers, which sends somebody who
+   used the sample file and changed nothing looking for a problem that is not
+   there. */
+$tmpDir  = sys_get_temp_dir();
+$utf8Csv = $tmpDir . "/suppex-enc-utf8.csv";
+$ansiCsv = $tmpDir . "/suppex-enc-ansi.csv";
+
+$headerLine = implode(",", array_values(IMPORT_COLUMNS));
+$dataLine   = "تست کدگذاری,Enc Test,برند,پروتئین,900 گرم,40,,1500000,,,,بله,وانیل,30,,,";
+file_put_contents($utf8Csv, "\xEF\xBB\xBF" . $headerLine . "\n" . $dataLine . "\n");
+
+/* Raw high bytes rather than mb_convert_encoding(): mbstring is not built with
+   windows-1256 everywhere, and the check under test is "is this valid UTF-8",
+   not "is this specifically 1256". A lone high byte is what every legacy
+   codepage looks like from here. */
+file_put_contents($ansiCsv, "\xE4\xC7\xE5 \xDD\xC7\xD1\xD3\xED,Enc Test\n\xCA\xD3\xCA,x\n");
+
+$okRead = import_read_csv($utf8Csv);
+/* import_read_csv() returns error => null on success, not an empty string. */
+ok("a UTF-8 file still reads", $okRead["error"] === null && count($okRead["rows"]) === 1,
+   (string) $okRead["error"]);
+
+$badRead = import_read_csv($ansiCsv);
+ok("a legacy-encoded file is refused", count($badRead["rows"]) === 0);
+/* The message is the whole point of this check. */
+ok("  and the message names the encoding",
+   mb_strpos($badRead["error"], "UTF-8") !== false, $badRead["error"]);
+ok("  and names the exact Excel menu entry to pick",
+   mb_strpos($badRead["error"], "CSV UTF-8") !== false, $badRead["error"]);
+ok("  and does not blame the column headers",
+   mb_strpos($badRead["error"], "عنوان ستون") === false, $badRead["error"]);
+@unlink($utf8Csv);
+@unlink($ansiCsv);
+
 echo "\n----------------------------------------\npassed: $pass    failed: $fail\n";
 exit($fail > 0 ? 1 : 0);

@@ -23,15 +23,29 @@ header('Content-Type: text/html; charset=utf-8');
 /* ---------------------------------------------------------------------------
    Does the schema already exist, and does it already have an admin?
    --------------------------------------------------------------------------- */
+/* Three states, not two. $knowState is the important one: it is false when
+   the database DECLINED TO ANSWER, which is different from answering "there is
+   no administrator" - and only one of those two is a safe basis for creating
+   an owner account.
+
+   Before this, a query failure with the connection still up left $hasAdmin at
+   its initialised false, and the installer read that as an empty shop. The
+   state that produces it is not hypothetical: a dropped, renamed or
+   mid-restore admins table is exactly what this guide's own restore procedure
+   passes through. */
 $hasTables = false;
 $hasAdmin  = false;
+$knowState = false;
 try {
     $hasTables = db_value("SHOW TABLES LIKE 'products'") !== null;
-    if ($hasTables) {
-        $hasAdmin = (int) db_value('SELECT COUNT(*) FROM admins') > 0;
-    }
+    $hasAdmin  = $hasTables && (int) db_value('SELECT COUNT(*) FROM admins') > 0;
+    $knowState = true;
 } catch (Throwable $e) {
-    $hasTables = false;
+    /* Deliberately leaves $knowState false. lib/db.php turns an unreachable
+       server into a hard exit, so anything caught here is a query that failed
+       against a live connection - which means the schema is in a state nobody
+       has established, and that is the last moment to be writing to it. */
+    error_log('[suppex] setup.php cannot determine installation state: ' . $e->getMessage());
 }
 
 $done   = [];
@@ -39,7 +53,13 @@ $errors = [];
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
-    if ($hasAdmin) {
+    if (!$knowState) {
+        /* Refuse rather than guess. Creating an administrator is the one
+           action here that cannot be undone by re-running anything. */
+        $errors[] = 'وضعیت نصب قابل تشخیص نیست — دیتابیس به پرسش جواب نداد. '
+                  . 'تا وقتی مشخص نشده که جدول‌ها در چه حالی هستند، این اسکریپت '
+                  . 'چیزی نمی‌سازد. اتصال دیتابیس و فایل تنظیمات را بررسی کنید.';
+    } elseif ($hasAdmin) {
         $errors[] = 'یک حساب مدیر از قبل وجود دارد. این اسکریپت دوباره اجرا نمی‌شود. '
                   . 'فایل setup.php را حذف کنید.';
     } else {

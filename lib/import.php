@@ -169,6 +169,25 @@ function import_read_csv(string $path): array
         return ['rows' => [], 'error' => 'فایل خالی است.', 'columns' => []];
     }
 
+    /* The wrong CSV out of Excel, named before anything else can misdiagnose it.
+
+       Excel offers «CSV (Comma delimited)» and «CSV UTF-8 (Comma delimited)»,
+       and only the second is UTF-8; the first writes the system ANSI codepage,
+       which for a Persian Windows is windows-1256 - a codepage that cannot
+       represent Persian ی at all. The file that comes out is not merely
+       differently encoded, it has already lost characters.
+
+       Without this the failure still happened, safely, but as «ستون «نام
+       فارسی» پیدا نشد» - which sends somebody who used the sample file and
+       changed nothing looking for a problem that is not there. */
+    if (!mb_check_encoding($first, 'UTF-8')) {
+        fclose($fh);
+        return ['rows' => [], 'columns' => [], 'error' =>
+            'این فایل با کدگذاری UTF-8 ذخیره نشده و متن فارسی‌اش خوانده نمی‌شود. '
+          . 'در اکسل موقع ذخیره، گزینه «CSV UTF-8 (Comma delimited)» را انتخاب کنید، '
+          . 'نه «CSV (Comma delimited)» را — این دو یکی نیستند و دومی حرف «ی» فارسی را از دست می‌دهد.'];
+    }
+
     /* Whichever separator appears more often in the header line is the one in
        use. Counting beats guessing from the locale, which we cannot see. */
     $delimiter = substr_count($first, ';') > substr_count($first, ',') ? ';' : ',';
