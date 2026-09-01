@@ -76,6 +76,17 @@ const ROLES = ['support' => 'پشتیبان', 'manager' => 'مدیرکل'];
 const ROLE_CAPABILITIES = [
     'support' => ['maintenance'],
     'manager' => [],
+
+    /* The legacy value, for the minutes between uploading this code and
+       running the migration that renames it. Without this line the panel
+       silently loses three menu items during that window - and the person
+       staring at the reduced menu is the one who has to go and run the
+       migration, from a page that is not in the menu either.
+
+       It costs nothing afterwards: once migrate has run, no row holds 'owner'
+       and this entry can never match again. It is an explicit legacy name, not
+       a fallback - an unknown role still gets nothing. */
+    'owner'   => ['maintenance'],
 ];
 
 /** May the signed-in admin do this? */

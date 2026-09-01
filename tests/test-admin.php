@@ -57,6 +57,18 @@ $as('Support');
 ok('a mis-cased role gets nothing', auth_can('maintenance') === false);
 $as('');
 ok('an empty role gets nothing', auth_can('maintenance') === false);
+/* The upgrade window: new code is uploaded, the migration that renames the
+   role has not run yet, and the person who has to go and run it is signed in
+   as the old value. Without this the panel silently drops three menu items at
+   exactly that moment - including the page that would explain why. */
+$as('owner');
+ok('the legacy role keeps its access until the migration renames it',
+   auth_can('maintenance') === true);
+/* And that page has to stay reachable during the window, or the upgrade
+   bricks the panel it is upgrading. */
+ok('admin/migrate.php is not gated on a capability',
+   strpos((string) file_get_contents(SUPPEX_ROOT . '/admin/migrate.php'),
+          'auth_require_can') === false);
 
 head('the nav advertises only what the role can open');
 $as('support');
