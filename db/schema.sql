@@ -245,6 +245,26 @@ CREATE TABLE IF NOT EXISTS settings (
   PRIMARY KEY (setting_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- The six categories are STRUCTURE, not sample data.
+--
+-- They used to exist only in db/catalog-seed.json, which is the invented
+-- products file and is opt-in. So a shop installed correctly - samples
+-- declined - had no categories at all: an empty section on the home page, six
+-- category pages answering 404, and the six written buying guides in
+-- content/categories/ unable to render, since they are keyed to exactly these
+-- slugs.
+--
+-- INSERT IGNORE on the unique slug: this adds what is missing and never
+-- overwrites a name the owner has since changed.
+INSERT IGNORE INTO categories (slug, name_fa, name_latin, blurb, image, sort_order) VALUES
+  ('protein', 'پروتئین', 'Protein', 'وی، ایزوله و کازئین برای ریکاوری و رشد عضله', 'assets/images/categories/protein.svg', 1),
+  ('creatine', 'کراتین', 'Creatine', 'افزایش قدرت، توان انفجاری و حجم سلولی', 'assets/images/categories/creatine.svg', 2),
+  ('mass-gainer', 'افزایش وزن', 'Mass Gainer', 'کالری متراکم برای دوره حجم', 'assets/images/categories/mass-gainer.svg', 3),
+  ('pre-workout', 'قبل تمرین', 'Pre-Workout', 'انرژی، تمرکز و پامپ برای جلسات سنگین', 'assets/images/categories/pre-workout.svg', 4),
+  ('amino', 'آمینو و BCAA', 'Amino', 'حفظ عضله در تمرین و کات', 'assets/images/categories/amino.svg', 5),
+  ('vitamins', 'ویتامین و مکمل', 'Vitamins', 'پایه سلامت، خواب و ریکاوری روزانه', 'assets/images/categories/vitamins.svg', 6);
+
+
 INSERT INTO settings (setting_key, setting_value) VALUES
   ('shop_name',              'SUPPEX'),
   ('shop_phone',             ''),

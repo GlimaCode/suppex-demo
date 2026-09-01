@@ -455,6 +455,31 @@ function migrate_run(array &$log): void
         },
         $log
     );
+
+    /* 2026-08 - the six categories, which were only ever demo data ---------- */
+
+    step(
+        'categories - the six the guides and the home page are written against',
+        static fn(): bool => (int) db_value('SELECT COUNT(*) FROM categories') > 0,
+        static function (): void {
+            /* Keyed to the slugs content/categories/*.md are named after, so
+               the guides can render at all. INSERT IGNORE, so a shop that has
+               renamed one keeps its own name.
+
+               The guard above is "are there ANY categories" rather than "are
+               these six there": a shop that built its own taxonomy and deleted
+               these must not have them pushed back every time this runs. */
+            db()->exec("INSERT IGNORE INTO categories
+                    (slug, name_fa, name_latin, blurb, image, sort_order) VALUES
+                     ('protein', 'پروتئین', 'Protein', 'وی، ایزوله و کازئین برای ریکاوری و رشد عضله', 'assets/images/categories/protein.svg', 1),
+                     ('creatine', 'کراتین', 'Creatine', 'افزایش قدرت، توان انفجاری و حجم سلولی', 'assets/images/categories/creatine.svg', 2),
+                     ('mass-gainer', 'افزایش وزن', 'Mass Gainer', 'کالری متراکم برای دوره حجم', 'assets/images/categories/mass-gainer.svg', 3),
+                     ('pre-workout', 'قبل تمرین', 'Pre-Workout', 'انرژی، تمرکز و پامپ برای جلسات سنگین', 'assets/images/categories/pre-workout.svg', 4),
+                     ('amino', 'آمینو و BCAA', 'Amino', 'حفظ عضله در تمرین و کات', 'assets/images/categories/amino.svg', 5),
+                     ('vitamins', 'ویتامین و مکمل', 'Vitamins', 'پایه سلامت، خواب و ریکاوری روزانه', 'assets/images/categories/vitamins.svg', 6)");
+        },
+        $log
+    );
 }
 
 /** Which migrations are present. Used by the panel and by preflight. */
@@ -477,5 +502,6 @@ function migrate_pending(): array
         'products.stock_qty'         => column_exists('products', 'stock_qty'),
         'order_items.stock_held'     => column_exists('order_items', 'stock_held'),
         'orders.tracking_code'       => column_exists('orders', 'tracking_code'),
+        'categories seeded'          => (int) db_value('SELECT COUNT(*) FROM categories') > 0,
     ];
 }
