@@ -287,7 +287,7 @@ admin_head('تصاویر محصولات', ['user' => $user]);
 <?php $reviewedPhotos = catalog_photos_status(); if ($reviewedPhotos): ?>
 <div class="card">
   <h2 class="card__title">عکس‌های بررسی‌شدهٔ محصولات</h2>
-  <p class="hint">مدل، اندازه و طعم این عکس‌ها بررسی شده است. فقط جای عکس خالی یا تصویر نمونه را پر می‌کنند؛ عکس‌های انتخاب‌شدهٔ قبلی حفظ می‌شوند. عکس هر طعم به همان طعم وصل می‌شود.</p>
+  <p class="hint">عکس‌ها WebP با پس‌زمینهٔ شفاف و ۱۰۰ پیکسل فاصلهٔ خالی در بالا و پایین فایل اصلی‌اند. عکس هر طعم به همان طعم وصل می‌شود. نسخهٔ قبلی همین بسته نیز اصلاح می‌شود و عکس‌هایی که خودتان انتخاب کرده‌اید حفظ می‌شوند.</p>
   <form method="post">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="catalog-photos">
@@ -298,7 +298,7 @@ admin_head('تصاویر محصولات', ['user' => $user]);
         <tr>
           <td><input type="checkbox" name="catalog_slugs[]" value="<?= e($reviewed['slug']) ?>"
                      <?= $reviewed['matches'] && $reviewed['valid'] ? '' : 'disabled' ?>
-                     <?= $reviewed['missing'] && $reviewed['valid'] ? 'checked' : '' ?>></td>
+                     <?= ($reviewed['missing'] || $reviewed['upgrade']) && $reviewed['valid'] ? 'checked' : '' ?>></td>
           <td><img src="<?= e('../' . ($reviewed['pack']['photos'][0]['file'] ?? '')) ?>"
                    alt="<?= e($reviewed['pack']['label']) ?>" width="72" height="72" loading="lazy"
                    style="object-fit:contain"></td>
@@ -306,7 +306,8 @@ admin_head('تصاویر محصولات', ['user' => $user]);
               <span class="hint"><?= e($reviewed['pack']['label']) ?> · <?= count($reviewed['pack']['photos']) ?> عکس</span></td>
           <td><?= !$reviewed['matches'] ? 'محصول یا برند مطابق بسته نیست'
                   : (!$reviewed['valid'] ? 'فایل تصویر ناقص است؛ ZIP را کامل استخراج کنید'
-                  : ($reviewed['missing'] ? 'بدون تصویر — آمادهٔ اتصال' : 'تصویر اصلی دارد — انتخاب نشده')) ?></td>
+                  : ($reviewed['upgrade'] ? 'نسخهٔ قبلی این بسته — آمادهٔ اصلاح'
+                  : ($reviewed['missing'] ? 'بدون تصویر — آمادهٔ اتصال' : 'تصویر اصلی دارد — انتخاب نشده'))) ?></td>
         </tr>
       <?php endforeach; ?>
       </tbody>

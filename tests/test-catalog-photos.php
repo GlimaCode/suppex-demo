@@ -33,6 +33,22 @@ ok('a changed photograph fails checksum validation', $refused);
 $bad = ['file' => 'config.sample.php', 'sha256' => hash_file('sha256', SUPPEX_ROOT . '/config.sample.php')];
 try { catalog_photos_source($bad); $refused = false; } catch (RuntimeException $e) { $refused = true; }
 ok('a valid hash does not permit files outside the product asset directory', $refused);
+foreach ($manifest as $pack) { foreach ($pack['photos'] as $photo) {
+    $file = catalog_photos_source($photo);
+    ok(basename($file) . ' is WebP', getimagesize($file)[2] === IMAGETYPE_WEBP);
+    $im = imagecreatefromwebp($file); $w = imagesx($im); $h = imagesy($im);
+    $paddingClear = true; $topProduct = false; $bottomProduct = false;
+    for ($x = 0; $x < $w; $x++) {
+        $topProduct = $topProduct || (((imagecolorat($im, $x, 100) >> 24) & 127) < 127);
+        $bottomProduct = $bottomProduct || (((imagecolorat($im, $x, $h - 101) >> 24) & 127) < 127);
+        for ($y = 0; $y < 100; $y++) {
+            if (((imagecolorat($im, $x, $y) >> 24) & 127) !== 127
+                || ((imagecolorat($im, $x, $h - 1 - $y) >> 24) & 127) !== 127) { $paddingClear = false; }
+        }
+    }
+    ok(basename($file) . ' has exactly 100 transparent rows above and below the product', $paddingClear && $topProduct && $bottomProduct);
+    imagedestroy($im);
+} }
 
 $ids = [];
 try {
@@ -75,6 +91,34 @@ try {
     $again = catalog_photos_apply(array_keys($manifest));
     ok('repeated installation has zero changes and no duplicate gallery rows',
        $again['products'] === 0 && $again['gallery'] === 0 && $again['slots'] === 0 && !$again['errors']);
+    // Emulate the previous PNG/JPEG pack, including main and flavour links.
+    foreach ($manifest as $slug => $pack) { foreach ($pack['photos'] as $photo) {
+        $id = $ids[$slug]; $path = catalog_photos_store($photo);
+        $old = catalog_photos_previous_paths($photo)[0];
+        foreach (['products' => 'id', 'product_images' => 'product_id', 'product_flavors' => 'product_id', 'product_variants' => 'product_id'] as $table => $key) {
+            $column = $table === 'product_images' ? 'path' : 'image';
+            db_query('UPDATE ' . $table . ' SET ' . $column . ' = ? WHERE ' . $key . ' = ? AND ' . $column . ' = ?', [$old, $id, $path]);
+        }
+        db_query('UPDATE product_attribute_values v JOIN product_attributes a ON a.id = v.attribute_id SET v.image = ? WHERE a.product_id = ? AND v.image = ?', [$old, $id, $path]);
+    } }
+    $oldStatus = catalog_photos_status();
+    ok('the old pack is offered for upgrade even with a real main photo', count(array_filter($oldStatus, static fn($r) => $r['upgrade'])) === 2);
+    $upgraded = catalog_photos_apply(array_keys($manifest));
+    ok('the old gallery is upgraded in place', $upgraded['products'] === 2 && $upgraded['gallery'] === 6 && !$upgraded['errors']);
+    ok('upgrading preserves commercial data and gallery count', commercial_snapshot($zoom) === $before[$zoom]
+       && commercial_snapshot($mutant) === $before[$mutant]
+       && (int) db_value('SELECT COUNT(*) FROM product_images WHERE product_id IN (?, ?)', [$zoom, $mutant]) === 6);
+    $linksUpdated = true;
+    foreach ($manifest as $slug => $pack) { foreach ($pack['photos'] as $photo) {
+        $old = catalog_photos_previous_paths($photo)[0]; $id = $ids[$slug];
+        $linksUpdated = $linksUpdated && db_value('SELECT 1 FROM product_images WHERE product_id = ? AND path = ?', [$id, $old]) === null
+            && db_value('SELECT 1 FROM products WHERE id = ? AND image = ?', [$id, $old]) === null
+            && db_value('SELECT 1 FROM product_flavors WHERE product_id = ? AND image = ?', [$id, $old]) === null
+            && db_value('SELECT 1 FROM product_variants WHERE product_id = ? AND image = ?', [$id, $old]) === null;
+    } }
+    ok('old main, gallery and flavour links all point to the new WebP photos', $linksUpdated);
+    $again = catalog_photos_apply(array_keys($manifest));
+    ok('an upgraded pack is also idempotent', $again['products'] === 0 && $again['gallery'] === 0 && $again['slots'] === 0);
     db_query('UPDATE products SET image = ? WHERE id = ?', ['/uploads/products/owner-main.jpg', $zoom]);
     db_query('UPDATE product_attribute_values SET image = ? WHERE attribute_id = ? AND ext_id = ?',
              ['/uploads/products/owner-mango.jpg', $attr, 'mad-mango']);
@@ -83,6 +127,7 @@ try {
     ok('an owner-selected main image is retained', db_value('SELECT image FROM products WHERE id = ?', [$zoom]) === '/uploads/products/owner-main.jpg');
     ok('a chosen flavour photograph remains authoritative for an empty variant',
        db_value("SELECT image FROM product_variants WHERE product_id = ? AND ext_id = 'mad-mango'", [$zoom]) === '/uploads/products/owner-mango.jpg');
+    ok('an untrusted previous filename cannot replace arbitrary uploads', catalog_photos_previous_paths(['previous_files' => ['../../owner.jpg', 'owner.jpg', str_repeat('a', 24) . '.php']]) === []);
     db_query("UPDATE products SET brand = 'Another brand' WHERE id = ?", [$mutant]);
     $wrong = catalog_photos_apply(['mutant-amino']);
     ok('a matching slug with a different brand is refused', count($wrong['errors']) === 1 && $wrong['products'] === 0);

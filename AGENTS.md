@@ -20,6 +20,7 @@
 - Use `assets/js/repo.js` for frontend data access, `store.js` for cart state, `ui.js` for shared rendering, and `app.js` for controllers/events.
 - `lib/boot.php::boot_key()` and `repo.js::bootKey()` must agree. Maintain their shared fixture in `tests/boot-keys.json` when changing the protocol.
 - Prices are integer toman. Storefront display uses Persian digits; admin/accounting paths can use Latin digits. Preserve RTL and mixed Persian/Latin text handling.
+- New and replacement product photos must be WebP, fully cut out on true transparency, with exactly 100 transparent pixels above and below the visible product in the original file. Verify the alpha bounding box. Preserve the original packaging/label pixels; use generated cutout alpha only when needed. Responsive copies scale this original spacing proportionally.
 - The deployed frontend currently uses `api.baseUrl: 'api/index.php'` and `productPage: 'product.php'`. Do not switch them to static demo settings for a production release.
 - Payment is currently card-to-card with order tracking and receipt upload. A receipt is evidence awaiting review, not an automatic payment confirmation.
 - Server-side price calculation, stock reservation and release, quote expiry, idempotent order retries, and historical profit/commission snapshots must remain authoritative.
