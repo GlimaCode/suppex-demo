@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-14",
+  "products": {
+    "zoomad-labs-one-raw-creatine": {
+      "brand_slug": "zoomad-labs",
+      "label": "Zoomad ONE RAW Creatine — 300 g",
+      "photos": [
+        {
+          "file": "assets/images/products/verified-20261014/zoomad-mad-mango.png",
+          "sha256": "c5e80da8baa686fe00561001b28af95028e5d53059cddc90cf0875dcd6e059b3",
+          "label": "Mad Mango — 300 g",
+          "flavor": "mad-mango",
+          "source_url": "https://www.supspace.fr/products/zoomad-one-raw-creatine"
+        },
+        {
+          "file": "assets/images/products/verified-20261014/zoomad-candy-coke.png",
+          "sha256": "8f5a93cc4475d08d10fbe4b25c3995b7c111b5c3cb97cc3dbe8e4ab8bf44ad28",
+          "label": "Candy Coke — 300 g",
+          "flavor": "candy-coke",
+          "source_url": "https://www.supspace.fr/products/zoomad-one-raw-creatine"
+        },
+        {
+          "file": "assets/images/products/verified-20261014/zoomad-pina-colada.png",
+          "sha256": "128ec1dca2c94bc6b408ba28cdb48cbb8e4168e8113fbecc8f13be08a0071133",
+          "label": "Piña Colada — 300 g",
+          "flavor": "piña-colada",
+          "source_url": "https://www.supspace.fr/products/zoomad-one-raw-creatine"
+        },
+        {
+          "file": "assets/images/products/verified-20261014/zoomad-sandia-loca.png",
+          "sha256": "4b16908564e033b1c303ea3220f24806f8f011a72a0921b6eece64104b9bfb59",
+          "label": "Sandía Loca — 300 g",
+          "flavor": "sandía-loca",
+          "source_url": "https://thesupplementlablb.com/products/zoomad-labs-one-raw%C2%AE-creatine-300-g-flavored"
+        },
+        {
+          "file": "assets/images/products/verified-20261014/zoomad-neutro.png",
+          "sha256": "fb10ac51f1fa39ba9b5107a792c948ba96ca0d8f528276e347c2f6883efcd522",
+          "label": "Neutro — 300 g",
+          "flavor": "neutro",
+          "source_url": "https://zoomad.eu/products/one-raw-creatina"
+        }
+      ]
+    },
+    "mutant-amino": {
+      "brand_slug": "mutant",
+      "label": "MUTANT AMINO — 300 tablets / 150 servings / 2000 mg",
+      "photos": [
+        {
+          "file": "assets/images/products/verified-20261014/mutant-amino-300.jpg",
+          "sha256": "9107530c431ea2ad3a6c9f964fff227ec440abd2f0b3e7a9f313e937a1426f81",
+          "label": "300 tablets / 150 servings",
+          "flavor": null,
+          "source_url": "https://mutantthailand.com/sites/11023/files/s/products/o_1gb6v8hai7rv1djbfje4171v0l.jpg"
+        }
+      ]
+    }
+  }
+}

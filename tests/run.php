@@ -47,6 +47,7 @@ $php = [
     ['test-admin.php',     'test-config.php'],
     ['test-chrome.php',    'test-config.php'],
     ['test-variants.php',  'test-config.php'],
+    ['test-catalog-photos.php', 'test-config.php'],
     ['test-receipts.php',  'test-config.php'],
     ['test-brands.php',    'test-config.php'],
     ['test-autoprice.php', 'test-config.php'],

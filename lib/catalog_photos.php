@@ -1,0 +1,150 @@
+<?php
+/* Reviewed product photographs, installed explicitly from admin/images.php.
+   The manifest ships with the release; no image URL or filename comes from a
+   request. Existing photographs and all commercial fields are preserved. */
+declare(strict_types=1);
+
+require_once __DIR__ . '/brands.php';
+require_once __DIR__ . '/images.php';
+
+function catalog_photos_manifest(): array
+{
+    $file = SUPPEX_ROOT . '/db/catalog-photos.json';
+    if (!is_file($file)) { return []; }
+    $data = json_decode((string) file_get_contents($file), true);
+    return is_array($data['products'] ?? null) ? $data['products'] : [];
+}
+
+function catalog_photos_is_real(string $path): bool
+{
+    return trim($path) !== '' && !str_ends_with(strtolower(trim($path)), '.svg');
+}
+
+/** A corrupted or incomplete ZIP must not attach a different photograph. */
+function catalog_photos_source(array $photo): string
+{
+    $base = realpath(SUPPEX_ROOT . '/assets/images/products');
+    $file = realpath(SUPPEX_ROOT . '/' . (string) ($photo['file'] ?? ''));
+    if (!$base || !$file || !str_starts_with($file, $base . DIRECTORY_SEPARATOR)
+        || !is_file($file)
+        || !hash_equals((string) ($photo['sha256'] ?? ''), (string) hash_file('sha256', $file))) {
+        throw new RuntimeException('Photo file missing or checksum mismatch');
+    }
+    $info = @getimagesize($file);
+    if (!$info || !in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) {
+        throw new RuntimeException('Invalid reviewed photograph');
+    }
+    return $file;
+}
+
+/** Copy into the normal media store; the existing pipeline makes WebP sizes. */
+function catalog_photos_store(array $photo): string
+{
+    $source = catalog_photos_source($photo);
+    $name = substr((string) $photo['sha256'], 0, 24) . '.' . strtolower(pathinfo($source, PATHINFO_EXTENSION));
+    $folder = 'products/verified-20261014';
+    $dir = uploads_dir() . '/' . $folder;
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+        throw new RuntimeException('Cannot create product media directory');
+    }
+    $target = $dir . '/' . $name;
+    if (is_file($target)) {
+        if (!hash_equals((string) $photo['sha256'], (string) hash_file('sha256', $target))) {
+            throw new RuntimeException('Existing media file differs; refusing to replace it');
+        }
+    } elseif (!@copy($source, $target)) {
+        throw new RuntimeException('Cannot copy product photograph');
+    }
+    @chmod($target, 0644);
+    $web = uploads_url() . '/' . $folder . '/' . $name;
+    image_make_variants($web);
+    return $web;
+}
+
+function catalog_photos_status(): array
+{
+    $out = [];
+    foreach (catalog_photos_manifest() as $slug => $pack) {
+        $product = db_one('SELECT id, slug, name_fa, brand, image FROM products WHERE slug = ?', [$slug]);
+        $match = $product !== null && brand_slug((string) $product['brand']) === ($pack['brand_slug'] ?? '');
+        $valid = !empty($pack['photos']);
+        foreach ($pack['photos'] ?? [] as $photo) {
+            try { catalog_photos_source($photo); }
+            catch (Throwable $e) { $valid = false; }
+        }
+        $out[] = ['slug' => $slug, 'pack' => $pack, 'product' => $product,
+                  'matches' => $match, 'valid' => $valid,
+                  'missing' => $match && !catalog_photos_is_real((string) $product['image'])];
+    }
+    return $out;
+}
+
+/** Only missing slots are filled. Locking the product makes retries idempotent. */
+function catalog_photos_apply(array $selected): array
+{
+    $result = ['products' => 0, 'gallery' => 0, 'slots' => 0, 'errors' => []];
+    foreach (catalog_photos_manifest() as $slug => $pack) {
+        if (!in_array($slug, $selected, true)) { continue; }
+        $pdo = db();
+        try {
+            // Validate every file before preparing any media or writing a row.
+            foreach ($pack['photos'] as $photo) { catalog_photos_source($photo); }
+            $stored = [];
+            foreach ($pack['photos'] as $photo) { $stored[] = catalog_photos_store($photo); }
+            $pdo->beginTransaction();
+            $product = db_one('SELECT id, brand, image FROM products WHERE slug = ? FOR UPDATE', [$slug]);
+            if (!$product || brand_slug((string) $product['brand']) !== $pack['brand_slug']) {
+                throw new RuntimeException('Product slug and brand do not match');
+            }
+            $id = (int) $product['id'];
+            $gallery = 0; $slots = 0;
+            foreach ($pack['photos'] as $i => $photo) {
+                $path = $stored[$i];
+                $flavor = $photo['flavor'] ?? null;
+                // A flavour absent from this product is never invented by a photo pack.
+                $legacy = $flavor === null ? [] : db_one(
+                    'SELECT image FROM product_flavors WHERE product_id = ? AND ext_id = ?', [$id, $flavor]);
+                $attribute = $flavor === null ? [] : db_one(
+                    "SELECT v.image FROM product_attribute_values v JOIN product_attributes a ON a.id = v.attribute_id
+                     WHERE a.product_id = ? AND a.ext_id = 'flavor' AND v.ext_id = ?", [$id, $flavor]);
+                if ($flavor !== null && $legacy === null && $attribute === null) { continue; }
+                if (db_value('SELECT 1 FROM product_images WHERE product_id = ? AND path = ?', [$id, $path]) === null) {
+                    $sort = (int) db_value('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM product_images WHERE product_id = ?', [$id]);
+                    db_query('INSERT INTO product_images (product_id, path, sort_order) VALUES (?, ?, ?)', [$id, $path, $sort]);
+                    $gallery++;
+                }
+                if (!catalog_photos_is_real((string) $product['image'])) {
+                    db_query('UPDATE products SET image = ? WHERE id = ?', [$path, $id]);
+                    $product['image'] = $path;
+                    $slots++;
+                }
+                if ($flavor === null) { continue; }
+                // Keep a chosen flavour photograph authoritative across both
+                // the legacy and attributes representation of the same flavour.
+                $effective = catalog_photos_is_real((string) ($attribute['image'] ?? ''))
+                    ? (string) $attribute['image']
+                    : (catalog_photos_is_real((string) ($legacy['image'] ?? '')) ? (string) $legacy['image'] : $path);
+                $slots += db_query("UPDATE product_flavors SET image = ? WHERE product_id = ? AND ext_id = ?
+                                    AND (image = '' OR image LIKE '%.svg')", [$effective, $id, $flavor])->rowCount();
+                $slots += db_query("UPDATE product_attribute_values v JOIN product_attributes a ON a.id = v.attribute_id
+                                    SET v.image = ? WHERE a.product_id = ? AND a.ext_id = 'flavor' AND v.ext_id = ?
+                                    AND (v.image = '' OR v.image LIKE '%.svg')", [$effective, $id, $flavor])->rowCount();
+                $slots += db_query("UPDATE product_variants pv
+                                    JOIN product_variant_values vv ON vv.variant_id = pv.id
+                                    JOIN product_attribute_values v ON v.id = vv.value_id
+                                    JOIN product_attributes a ON a.id = v.attribute_id
+                                    SET pv.image = ? WHERE pv.product_id = ? AND a.ext_id = 'flavor' AND v.ext_id = ?
+                                    AND (pv.image = '' OR pv.image LIKE '%.svg')", [$effective, $id, $flavor])->rowCount();
+            }
+            $pdo->commit();
+            if ($gallery || $slots) { $result['products']++; }
+            $result['gallery'] += $gallery;
+            $result['slots'] += $slots;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) { $pdo->rollBack(); }
+            error_log('[suppex] reviewed photos ' . $slug . ': ' . $e->getMessage());
+            $result['errors'][] = $pack['label'] . ' — فایل‌ها، تطابق برند و دسترسی پوشه آپلود را بررسی کنید.';
+        }
+    }
+    return $result;
+}
