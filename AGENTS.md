@@ -6,6 +6,7 @@
 - Repository: `https://github.com/GlimaCode/suppex-demo`, branch `main`.
 - The user has requested that project changes be pushed to this repository.
 - Production uses cPanel, PHP and MySQL/MariaDB. Deliver requested website changes as a ZIP with paths relative to `public_html`, accompanied by concise Persian extraction/migration instructions. A Git push does not deploy the website.
+- Always state the exact upload destination, including the filename, and the extraction directory separately when delivering a file. Include its absolute local source path. For cPanel, identify the File Manager directory relative to the account Home; use a full server filesystem path only when verified. Specify any different destination for cron or private files individually.
 - Preserve existing work and Git history. Inspect status before editing or committing; stage explicit relevant paths rather than the entire workspace.
 - Communicate with the user in Persian unless they ask otherwise.
 - Read `PROJECT_MAP.md` for the current architecture and deployment boundaries. Parts of `README.md` describe earlier prototype phases and are historical.

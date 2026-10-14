@@ -10,7 +10,13 @@
 
 ## نصب روی cPanel
 
-1. `suppex-product-photos-2026-10-14.zip` را در `public_html` آپلود و همان‌جا استخراج کنید. مسیرهای `admin/`، `lib/`، `db/` و `assets/` مستقیم در ریشهٔ ZIP هستند.
+فایل روی کامپیوتر: `C:\Users\Asus\Desktop\UI Workout\suppex-product-photos-2026-10-14.zip`.
+
+مسیر آپلود در File Manager، نسبت به Home حساب cPanel: `public_html/suppex-product-photos-2026-10-14.zip`.
+
+مسیر استخراج، نسبت به Home حساب cPanel: `public_html/`.
+
+1. در cPanel → File Manager → `public_html` فایل ZIP را آپلود کنید، روی آن Extract بزنید و پوشهٔ مقصد را همان `public_html` قرار دهید. مسیرهای `admin/`، `lib/`، `db/` و `assets/` مستقیم در ریشهٔ ZIP هستند.
 2. وارد [صفحهٔ تصاویر محصولات](https://suppex.ir/admin/images.php) شوید. بخش «عکس‌های بررسی‌شدهٔ محصولات» دو محصول مطابق کاتالوگ را نشان می‌دهد.
 3. دو ردیف آماده را انتخاب و «وصل کردن عکس‌های بررسی‌شده» را بزنید.
 4. صفحهٔ محصول و کارت‌ها را بررسی کنید؛ در Zoomad با تغییر طعم، عکس همان بسته نمایش داده می‌شود.
