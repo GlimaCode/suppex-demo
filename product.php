@@ -33,6 +33,23 @@ if ($product === null) {
 
 $meta = seo_product_meta($product);
 
+/* What app.js asks for on this page, answered now (lib/boot.php): the
+   product, keyed by the ?p= the script reads, and the «معمولاً با هم خریده
+   می‌شوند» shelf - the same two calls, with the same arguments, in the same
+   order initProduct() makes them, the second only when the first comes up
+   short. */
+$bootRequests = [];
+if ($product !== null) {
+    $bootRequests[] = ['product', ['slug' => (string) ($_GET['p'] ?? '')], $product];
+    $relatedArgs = ['notCategory' => $product['category'] ?? null,
+                    'exclude' => (string) $product['slug'], 'limit' => 4];
+    $related = products_list($relatedArgs);
+    $bootRequests[] = ['products', $relatedArgs, $related];
+    if (count($related) < 4) {
+        $bootRequests[] = ['products', ['exclude' => (string) $product['slug'], 'limit' => 8]];
+    }
+}
+
 /* The body below is server-rendered for the same reason the head is, and it is
    a separate problem from the head.
 
@@ -48,9 +65,16 @@ $meta = seo_product_meta($product);
 $pName  = $product === null ? '' : (string) $product['nameFa'];
 $pLatin = $product === null ? '' : trim((string) ($product['name'] ?? ''));
 $pBrand = $product === null ? '' : (string) ($product['brand'] ?? '');
-$pImage = $product === null ? '' : (string) ($product['image'] ?? '');
+/* The picture the script opens on, not simply the product's own: when the
+   first flavour or combination has a photograph, that is what app.js shows,
+   and drawing another one here cost a phone a second download and the
+   shopper a picture that changed under them (product_opening_image()). */
+$pImage = $product === null ? '' : product_opening_image($product);
 $pPrice = $product === null ? 0  : (int) $product['price'];
 $pWas   = ($product === null || empty($product['onSale'])) ? null : (int) $product['compareAt'];
+/* The saving beside the struck price - what app.js repaints there too, so the
+   page does not jump when the script takes over. */
+$pOff   = ($pWas !== null && $pWas > $pPrice) ? (int) ($product['discountPercent'] ?? 0) : 0;
 $pStock = $product !== null && !empty($product['inStock']);
 $unit   = 'تومان';
 ?>
@@ -63,13 +87,9 @@ $unit   = 'تومان';
 <meta name="theme-color" content="#131210">
 
 
-<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<?php include __DIR__ . '/partials/head-assets.php'; ?>
 
 
-<link rel="stylesheet" href="assets/css/tokens.css">
-<link rel="stylesheet" href="assets/css/base.css">
-<link rel="stylesheet" href="assets/css/components.css">
-<link rel="stylesheet" href="assets/css/layout.css">
 <title><?= e($meta['title']) ?></title>
 <meta name="description" content="<?= e($meta['description']) ?>">
 <meta name="robots" content="<?= e($meta['robots']) ?>">
@@ -110,9 +130,9 @@ $unit   = 'تومان';
              batch certificate, the shipping terms all belong to a thing that is
              not here. Saying so and pointing onward is the whole page. */ ?>
     <nav class="breadcrumb" aria-label="مسیر صفحه">
-      <a href="index.html">خانه</a>
+      <a href="./">خانه</a>
       <span aria-hidden="true">/</span>
-      <a href="index.html#categories">محصولات</a>
+      <a href="./#categories">محصولات</a>
     </nav>
 
     <section class="notfound">
@@ -123,16 +143,16 @@ $unit   = 'تومان';
         همین جنس را می‌خواهید؟ در فهرست محصولات پیدایش کنید یا به ما پیام بدهید.
       </p>
       <div class="notfound__actions">
-        <a class="btn btn--primary" href="index.html#categories">دیدن محصولات</a>
-        <a class="btn btn--ghost" href="index.html">صفحه اصلی</a>
+        <a class="btn btn--primary" href="./#categories">دیدن محصولات</a>
+        <a class="btn btn--ghost" href="./">صفحه اصلی</a>
       </div>
     </section>
 <?php else: ?>
 
     <nav class="breadcrumb" aria-label="مسیر صفحه">
-      <a href="index.html">خانه</a>
+      <a href="./">خانه</a>
       <span aria-hidden="true">/</span>
-      <a href="index.html#categories">محصولات</a>
+      <a href="./#categories">محصولات</a>
       <span aria-hidden="true">/</span>
       <span aria-current="page" data-p-breadcrumb><?= e($pName) ?></span>
     </nav>
@@ -140,22 +160,70 @@ $unit   = 'تومان';
     <!-- ═════════════════════════════════════ Product ═══ -->
     <article class="pdp">
 
-      <!-- Gallery -->
-      <div class="pdp__gallery">
-        <div class="gallery__main media media--1x1 media--lit" style="border-radius:var(--r-xl)">
-          <img data-p-image src="<?= e($pImage) ?>" alt="<?= e(trim($pName . " " . $pLatin)) ?>" width="640" height="640">
+      <!-- Gallery.
+           The photograph opens the enlarged view - openLightbox() in app.js -
+           and the arrows step through the pictures without leaving the page.
+           On a desktop the whole column is its own scroll area: see
+           .pdp__gallery in layout.css.
+
+           The arrows and the magnifier start hidden, and app.js shows them
+           once they work. A phone holding an older app.js in its cache got
+           this page with a magnifier that did nothing and no arrows. -->
+      <div class="pdp__gallery" data-gallery>
+        <div class="gallery__main media media--1x1 media--lit" style="border-radius:var(--r-xl)" data-gallery-main>
+          <?php /* The largest thing on the page, so fetched first: PageSpeed
+                   found it waiting 1.9 s behind the gallery's thumbnails.
+                   The sizes are ui.js's SIZES_MAIN, character for character,
+                   or the script taking over would fetch it a second time. */ ?>
+          <img data-p-image src="<?= e(product_image_or_placeholder($pImage)) ?>"<?= image_srcset_attr($pImage, '(min-width: 1024px) 560px, 100vw') ?> alt="<?= e(trim($pName . " " . $pLatin)) ?>" width="640" height="640" fetchpriority="high" draggable="false">
           <div class="pcard__flags" data-p-flags style="inset-block-start:var(--sp-5);inset-inline:var(--sp-5)"></div>
+          <button class="gallery__nav gallery__nav--prev" type="button" data-gallery-step="-1" aria-label="تصویر قبلی" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></button>
+          <button class="gallery__nav gallery__nav--next" type="button" data-gallery-step="1" aria-label="تصویر بعدی" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <button class="gallery__zoom" type="button" data-gallery-open aria-label="نمایش بزرگ تصویر" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M11 8v6M8 11h6"/></svg></button>
+          <span class="gallery__count num" data-gallery-count hidden></span>
         </div>
         <div class="gallery__thumbs" data-p-thumbs></div>
       </div>
 
       <!-- Buy box -->
       <div class="pdp__info">
-        <p class="u-eyebrow" data-p-eyebrow><?= e($pBrand !== '' ? $pBrand : setting('shop_name', 'SUPPEX')) ?></p>
-        <h1 class="u-h1" data-p-title><?= e($pName) ?></h1>
+        <?php $pBrandSlug = $pBrand === '' ? null : brand_link_slug($pBrand); ?>
+        <!-- The brand leads to its page (brand.php), unless the owner hid it. -->
+        <p class="u-eyebrow" data-p-eyebrow><?php if ($pBrandSlug !== null): ?><a class="pdp__brand" href="<?= e(brand_url($pBrandSlug)) ?>"><?= e($pBrand) ?></a><?php else: ?><?= e($pBrand !== '' ? $pBrand : setting('shop_name', 'SUPPEX')) ?><?php endif; ?></p>
+        <h1 class="u-h1 pdp__title" data-p-title><?= e($pName) ?></h1>
 
         <div class="row" style="gap:14px" data-p-rating></div>
 
+        <!-- Stock state in the markup, not only as a disabled button: a crawler
+             reading text has no other way to tell a listable product from one
+             that is out of stock. -->
+        <p class="sr-only" data-p-stock><?= $pStock ? 'موجود در انبار' : 'ناموجود' ?></p>
+
+        <div class="pdp__field">
+          <span class="pdp__field-label">طعم</span>
+          <div class="row" style="gap:8px" data-p-flavors></div>
+        </div>
+
+        <!-- Axes beyond size and flavour, built by app.js from the
+             product's own attributes. Empty, and hidden, for a product
+             that has none - which is every product until one is given
+             an attribute in the panel. -->
+        <div class="pdp__field" data-p-attrs-field hidden>
+          <div data-p-attrs></div>
+        </div>
+
+        <div class="pdp__field">
+          <span class="pdp__field-label">وزن بسته</span>
+          <div class="stack" style="--gap:10px" data-p-sizes></div>
+        </div>
+
+        <!-- The price follows the choices it depends on and sits on the button
+             it leads to: flavour, then size, then what that costs, then
+             «افزودن به سبد خرید». Above the flavours it read as the price of
+             something not yet chosen, and the owner asked for this order. -->
+        <!-- The price, the quantity, the button and the two lines under it are
+             one decision, so they sit in one panel (.pdp__purchase). -->
+        <div class="pdp__purchase">
         <div class="price price--lg" data-p-price>
           <?php if ($pPrice > 0): ?>
             <?php /* The isolate belongs on the digits alone. On the whole
@@ -163,29 +231,14 @@ $unit   = 'تومان';
                      right of the number - the first thing a Persian
                      reader meets. Server-rendered, so this is also what
                      a Telegram preview and Torob read. */ ?>
-            <span class="price__now"><span class="num"><?= money($pPrice) ?></span>&nbsp;<span class="price__unit"><?= e($unit) ?></span></span>
+            <span class="price__now"><span class="num"><?= money_fa($pPrice) ?></span>&nbsp;<?= price_unit_html($unit) ?></span>
             <?php if ($pWas !== null && $pWas > $pPrice): ?>
-              <span class="price__was num"><?= money($pWas) ?></span>
+              <span class="price__was num"><?= money_fa($pWas) ?></span>
+            <?php endif; ?>
+            <?php if ($pOff > 0): ?>
+              <span class="badge badge--accent num price__off">&minus;<?= fa_digits((string) $pOff) ?>٪</span>
             <?php endif; ?>
           <?php endif; ?>
-        </div>
-        <!-- Stock state in the markup, not only as a disabled button: a crawler
-             reading text has no other way to tell a listable product from one
-             that is out of stock. -->
-        <p class="sr-only" data-p-stock><?= $pStock ? 'موجود در انبار' : 'ناموجود' ?></p>
-
-        <p class="u-lead" data-p-desc></p>
-
-        <ul data-p-features style="margin-top:4px"></ul>
-
-        <div class="pdp__field">
-          <span class="pdp__field-label">طعم</span>
-          <div class="row" style="gap:8px" data-p-flavors></div>
-        </div>
-
-        <div class="pdp__field">
-          <span class="pdp__field-label">وزن بسته</span>
-          <div class="stack" style="--gap:10px" data-p-sizes></div>
         </div>
 
         <div class="pdp__buy">
@@ -206,17 +259,17 @@ $unit   = 'تومان';
                green tick, on all fifteen products, in the server-rendered
                HTML - while the shop's own returns, FAQ and terms pages say in
                plain Persian that there is no laboratory and no batch is
-               tested. What replaces it is the thing he actually does before
-               packing, which index.html now describes as well.
+               tested. What replaced it promised something the shop does not do
+               either, so it went too: the strip keeps only what is true.
 
                «مرجوعی ۷ روزه» became «۷ روز کاری»: the withdrawal right in
                ماده ۳۷ is in WORKING days, so the old wording was narrower than
                both the law and the shop's own returns page. -->
           <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> مرجوعی ۷ روز کاری</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> عکس سری تولید پیش از ارسال</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> قوطی پلمب‌شده</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> اورجینال و پلمب‌شده</span>
         </div>
 
+        </div>
         <!-- Details -->
         <div class="acc" style="margin-top:12px">
           <div class="acc__item is-open">
@@ -232,7 +285,7 @@ $unit   = 'تومان';
               مواد تشکیل‌دهنده
               <svg class="acc__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             </button>
-            <div class="acc__panel"><div><p class="acc__body" data-p-ingredients></p></div></div>
+            <div class="acc__panel"><div><p class="acc__body acc__body--lines" data-p-ingredients></p></div></div>
           </div>
 
           <div class="acc__item">
@@ -240,7 +293,7 @@ $unit   = 'تومان';
               روش مصرف
               <svg class="acc__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             </button>
-            <div class="acc__panel"><div><p class="acc__body" data-p-usage></p></div></div>
+            <div class="acc__panel"><div><p class="acc__body acc__body--lines" data-p-usage></p></div></div>
           </div>
 
           <div class="acc__item">
@@ -257,15 +310,76 @@ $unit   = 'تومان';
 
                    The two shipping numbers stay: those are real, and the
                    server enforces them when it recomputes the order. -->
-              ارسال بالای <span class="num">1,500,000</span> تومان رایگان است و در غیر این صورت
-              <span class="num">65,000</span> تومان محاسبه می‌شود. زمان ارسال هر سفارش را در
+              ارسال بالای <span class="num">۱,۵۰۰,۰۰۰</span> تومان رایگان است و در غیر این صورت
+              <span class="num">۶۵,۰۰۰</span> تومان محاسبه می‌شود. زمان ارسال هر سفارش را در
               همان گفتگو می‌گوییم. مرجوعی تا ۷ روز کاری پذیرفته می‌شود؛ شرایط و
               استثناهایش در صفحه مرجوعی و بازگشت وجه نوشته شده است.
             </p></div></div>
           </div>
         </div>
+
+        <!-- The description used to sit between the price and the flavour
+             chips. It is five or six lines of prose on most products, which
+             put «افزودن به سبد خرید» the better part of a screen further
+             down for somebody who had already decided what they wanted.
+
+             Below the panels it is still on the page, still crawlable, and
+             still the first thing an undecided reader reaches after the
+             specification. It needs the heading because a paragraph that
+             follows four collapsed panels with no label reads as an
+             orphan. -->
+        <section class="pdp__about" aria-labelledby="pdp-about">
+          <h2 class="u-h3" id="pdp-about">توضیحات تکمیلی</h2>
+          <p class="u-sm u-muted" data-p-desc></p>
+          <ul data-p-features></ul>
+        </section>
       </div>
     </article>
+
+    <?php if ($product !== null):
+        /* What buyers wrote (lib/reviews.php): approved ones only. With none,
+           the page says where a buyer can write one rather than showing an
+           empty box - or stars nobody gave. */
+        $reviews    = reviews_for_product((int) $product['id']);
+        $reviewSum  = review_summaries([(int) $product['id']])[(int) $product['id']] ?? null; ?>
+    <!-- ══════════════════════════════ Reviews ═══ -->
+    <section class="section section--flush-top reviews" id="reviews" aria-labelledby="reviews-title">
+      <div class="section__head">
+        <div>
+          <p class="u-eyebrow">نظر خریداران</p>
+          <h2 class="u-h2" id="reviews-title" style="margin-top:8px">نظر کسانی که خریده‌اند</h2>
+        </div>
+      </div>
+      <?php if ($reviewSum !== null): ?>
+        <div class="reviews__summary">
+          <span class="reviews__avg num"><?= e(fa_digits((string) $reviewSum['avg'])) ?></span>
+          <?= review_stars_html((float) $reviewSum['avg']) ?>
+          <span class="u-sm u-muted">از <span class="num"><?= e(fa_digits((string) $reviewSum['count'])) ?></span> نظر خریدار</span>
+        </div>
+        <ul class="reviews__list">
+          <?php foreach ($reviews as $r): ?>
+            <li class="review">
+              <div class="review__head">
+                <?= review_stars_html((float) $r['rating']) ?>
+                <span class="sr-only"><?= (int) $r['rating'] ?> از ۵</span>
+                <span class="review__author"><?= e(trim((string) $r['author']) !== '' ? (string) $r['author'] : 'خریدار') ?></span>
+                <span class="review__badge">خرید تأییدشده</span>
+                <time datetime="<?= e(date('Y-m-d', (int) strtotime((string) $r['created_at']))) ?>"><?= e(review_date_fa((string) $r['created_at'])) ?></time>
+              </div>
+              <?php if (trim((string) $r['body']) !== ''): ?>
+                <p class="review__body"><?= e((string) $r['body']) ?></p>
+              <?php endif; ?>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      <?php else: ?>
+        <p class="reviews__empty u-sm u-muted">
+          هنوز نظری برای این محصول ثبت نشده. اگر آن را از ما خریده‌اید، بعد از ارسال سفارش در
+          <a href="track.php">صفحهٔ پیگیری سفارش</a> با شمارهٔ پیگیری و موبایلتان نظرتان را بنویسید.
+        </p>
+      <?php endif; ?>
+    </section>
+    <?php endif; ?>
 
     <!-- ══════════════════════════════ Pairs well with ═══ -->
     <section class="section section--flush-top" aria-labelledby="rel-title">
@@ -274,7 +388,7 @@ $unit   = 'تومان';
           <p class="u-eyebrow">پیشنهاد تکمیلی</p>
           <h2 class="u-h2" id="rel-title" style="margin-top:8px">معمولاً با هم خریده می‌شوند</h2>
         </div>
-        <a class="link-more" href="index.html#featured">
+        <a class="link-more" href="./#featured">
           همه محصولات
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </a>
@@ -284,6 +398,21 @@ $unit   = 'تومان';
 <?php endif; ?>
 
   </div>
+
+<?php if ($product !== null): ?>
+  <!-- On a phone, once the buy button has scrolled away: the product, what
+       the current choice costs, and a button that presses the real one - so
+       there is one set of rules for what goes into the basket (app.js,
+       initProduct). Not on a desktop, where the buy box stays beside the
+       gallery. -->
+  <div class="buybar" data-buybar hidden>
+    <div class="buybar__info">
+      <span class="buybar__name"><?= e($pName) ?></span>
+      <span class="buybar__meta"><span class="price" data-buybar-price></span><span class="buybar__choice" data-buybar-choice></span></span>
+    </div>
+    <button class="btn btn--primary buybar__btn" type="button" data-buybar-add>افزودن به سبد</button>
+  </div>
+<?php endif; ?>
 </main>
 
 <!-- ══════════════════════════════════════════ Footer ═══ -->

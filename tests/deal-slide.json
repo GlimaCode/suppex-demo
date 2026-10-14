@@ -1,0 +1,44 @@
+[
+  {
+    "why": "on sale, a brand with & and ', a quote in the name, lighter copies",
+    "i": 0,
+    "total": 3,
+    "product": {
+      "slug": "cell-tech-creactor",
+      "nameFa": "کراتین «ویژه» 'ماسل' <تک>",
+      "brand": "MuscleTech & Co's",
+      "price": 6900000,
+      "compareAt": 7420000,
+      "onSale": true,
+      "discountPercent": 7,
+      "image": "/uploads/products/2026/09/20260925-211700-beebbeef.jpg",
+      "imgv": {
+        "/uploads/products/2026/09/20260925-211700-beebbeef.jpg": [
+          160,
+          320,
+          640,
+          960,
+          1200
+        ]
+      }
+    },
+    "html": "<div class=\"deal is-on\" role=\"group\" aria-roledescription=\"اسلاید\" aria-label=\"۱ از ۳\"><a class=\"deal__link\" href=\"product.php?p=cell-tech-creactor\"><span class=\"deal__photo\"><img src=\"/uploads/products/2026/09/20260925-211700-beebbeef.jpg\" srcset=\"/uploads/products/2026/09/20260925-211700-beebbeef-w160.webp 160w, /uploads/products/2026/09/20260925-211700-beebbeef-w320.webp 320w, /uploads/products/2026/09/20260925-211700-beebbeef-w640.webp 640w, /uploads/products/2026/09/20260925-211700-beebbeef-w960.webp 960w, /uploads/products/2026/09/20260925-211700-beebbeef-w1200.webp 1200w\" sizes=\"(min-width: 1024px) 480px, 88vw\" alt=\"\" width=\"480\" height=\"480\" decoding=\"async\"><span class=\"deal__off\"><span class=\"num\">۷٪</span> تخفیف</span></span><div class=\"deal__info\"><div class=\"deal__title\"><span class=\"deal__brand lat\">MuscleTech &amp; Co&#39;s</span><span class=\"deal__name\">کراتین «ویژه» &#39;ماسل&#39; &lt;تک&gt;</span></div><div class=\"deal__foot\"><div class=\"price\"><span class=\"price__now\"><span class=\"num\">۶,۹۰۰,۰۰۰</span> <span class=\"price__unit\" data-head=\"ن\" data-tail=\"توما\"><span class=\"sr-only\">تومان</span></span></span><span class=\"price__was num\">۷,۴۲۰,۰۰۰</span></div><span class=\"deal__go\" aria-hidden=\"true\"><svg class=\"\" viewBox=\"0 0 24 24\" width=\"1em\" height=\"1em\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M5 12h14M13 6l6 6-6 6\"/></svg></span></div></div></a></div>"
+  },
+  {
+    "why": "not on sale, no brand, a drawing with no copies, the second of two",
+    "i": 1,
+    "total": 2,
+    "product": {
+      "slug": "whey-original",
+      "nameFa": "وی پروتئین",
+      "brand": "",
+      "price": 4430000,
+      "compareAt": null,
+      "onSale": false,
+      "discountPercent": 0,
+      "image": "assets/images/products/whey-original.svg",
+      "imgv": {}
+    },
+    "html": "<div class=\"deal\" role=\"group\" aria-roledescription=\"اسلاید\" aria-label=\"۲ از ۲\"><a class=\"deal__link\" href=\"product.php?p=whey-original\"><span class=\"deal__photo\"><img src=\"assets/images/products/whey-original.svg\" alt=\"\" width=\"480\" height=\"480\" decoding=\"async\"></span><div class=\"deal__info\"><div class=\"deal__title\"><span class=\"deal__name\">وی پروتئین</span></div><div class=\"deal__foot\"><div class=\"price\"><span class=\"price__now\"><span class=\"num\">۴,۴۳۰,۰۰۰</span> <span class=\"price__unit\" data-head=\"ن\" data-tail=\"توما\"><span class=\"sr-only\">تومان</span></span></span></div><span class=\"deal__go\" aria-hidden=\"true\"><svg class=\"\" viewBox=\"0 0 24 24\" width=\"1em\" height=\"1em\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M5 12h14M13 6l6 6-6 6\"/></svg></span></div></div></a></div>"
+  }
+]

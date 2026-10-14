@@ -57,7 +57,7 @@ ok('og:image is absolute', str_starts_with($imgA, 'https://suppex.ir/'), $imgA);
    preview, which for a shop that sells through Telegram is the listing. */
 $imgB = tagOf($b, '~og:image" content="(.*?)"~');
 ok('og:image is a generated card', str_contains($imgA, '/og.php?p=whey-original'), $imgA);
-ok('not the shared brand cover',   !str_ends_with($imgA, '/og-cover.png'), $imgA);
+ok('not the shared brand cover',   strpos($imgA, '/og-cover.') === false, $imgA);
 ok('and a different product gets a different one', $imgA !== $imgB, $imgA . ' vs ' . $imgB);
 
 db_query("UPDATE products SET image = '/uploads/products/2026/08/real-whey.jpg'
@@ -164,6 +164,7 @@ ok('urls are absolute', mb_strpos($sitemap, 'https://suppex.ir/') !== false);
    reason a bare "at least two urls" check above is not enough. */
 require_once SUPPEX_ROOT . '/lib/journal.php';
 require_once SUPPEX_ROOT . '/lib/pages.php';
+require_once SUPPEX_ROOT . '/lib/goals.php';
 $expected = 1
     + (int) db_value('SELECT COUNT(*) FROM products WHERE is_active = 1')
     + count(journal_all())
@@ -173,7 +174,14 @@ $expected = 1
     // is dropped here and says noindex on its own page, and those two
     // decisions living in different files is how they come to disagree.
     + count(array_filter(categories_list(),
-        static fn(array $c): bool => (int) $c['count'] > 0));
+        static fn(array $c): bool => (int) $c['count'] > 0))
+    // Brands: the wall, when there is one, and a page per brand on sale -
+    // brands_list() leaves out the hidden and the empty, as the pages do.
+    + (brands_list() ? 1 : 0)
+    + count(brands_list())
+    // Goals: a page for each with something on sale (lib/goals.php) - the
+    // same rule the home page shows them by and goal.php answers 404 by.
+    + count(goals_live());
 ok('lists exactly the homepage, the products, the articles and the standing pages',
    $count === $expected, $count . ' vs ' . $expected);
 
@@ -204,10 +212,28 @@ $whey = render('whey-original');
 $iso  = render('iso-zero');
 
 /* Torob and Emalls run no JS. A product page with no price in the markup
-   cannot be listed on a price-comparison engine at all. */
+   cannot be listed on a price-comparison engine at all.
+
+   Two prices live in that markup and they are no longer the same string.
+   What a person reads is Persian - the owner asked for «۳,۲۹۰,۰۰۰ تومان» -
+   and what a machine reads is the JSON-LD offer, which lib/seo.php builds
+   straight from the integer in Rial and which never passed through money().
+   Checking only one of them would let the other break silently, and each
+   breaks a different customer. */
 $p = (int) db_value("SELECT price FROM products WHERE slug='whey-original'");
-ok('the price is in the raw HTML', mb_strpos($whey, number_format($p)) !== false,
-   number_format($p));
+ok('a reader sees the price in the raw HTML, in Persian digits',
+   mb_strpos($whey, fa_digits(number_format($p))) !== false,
+   fa_digits(number_format($p)));
+ok('  and no Latin-digit copy of it is left lying beside that',
+   mb_strpos((string) preg_replace('~<script[^>]*>.*?</script>~s', '', $whey),
+             number_format($p)) === false,
+   'the shop and the panel formatters have been mixed up on this page');
+/* Rial, ten times the Toman figure, Latin digits, plain integer: exactly
+   what schema.org/Offer requires and what a price engine ranks on. */
+ok('a machine reads it from the JSON-LD offer',
+   mb_strpos($whey, '"price":"' . ($p * 10) . '"') !== false
+   || mb_strpos($whey, '"price": "' . ($p * 10) . '"') !== false,
+   (string) ($p * 10));
 ok('the h1 names THIS product',
    preg_match('~<h1[^>]*>(.*?)</h1>~s', $whey, $m) && mb_strpos($m[1], 'وی پروتئین') !== false,
    trim($m[1] ?? ''));
@@ -241,6 +267,25 @@ ok('svg product image falls back to the cover',
 ok('dimensions are declared', mb_strpos($whey, 'og:image:width') !== false);
 ok('alt is declared', mb_strpos($whey, 'og:image:alt') !== false);
 
+echo "\n== the shared cover is a picture a chat will still preview (2026-10-05) ==\n";
+/* Telegram showed the old cover as a plain card; the owner asked for a real
+   one. Photographs made it a JPEG: WhatsApp quietly drops a preview image much
+   past 300 KB, and the shop takes orders there too. */
+$cover = SUPPEX_ROOT . '/assets/images/og-cover.jpg';
+$info  = @getimagesize($cover);
+ok('og-cover.jpg is a 1200x630 JPEG', $info !== false && $info[0] === 1200 && $info[1] === 630
+   && $info[2] === IMAGETYPE_JPEG);
+ok('  under the ~300 KB WhatsApp still previews', is_file($cover) && filesize($cover) < 300 * 1024,
+   (string) @filesize($cover));
+ok('  at an address that changes when it does',
+   preg_match('~/assets/images/og-cover\.jpg\?v=[0-9a-z]+$~', seo_cover()) === 1, seo_cover());
+$pagesSrc = '';
+foreach (['index.php', 'article.php', 'category.php', 'brand.php', 'brands.php', 'goal.php', 'page.php',
+          'journal.php', 'lib/seo.php'] as $f) {
+    $pagesSrc .= (string) file_get_contents(SUPPEX_ROOT . '/' . $f);
+}
+ok('  and no page still names the old png', strpos($pagesSrc, "'assets/images/og-cover.png'") === false);
+
 echo "\n== robots.txt ==\n";
 $_GET = [];
 ob_start(); include SUPPEX_ROOT . '/robots.php'; $raw = ob_get_clean();
@@ -268,7 +313,7 @@ ok("the title says the product is missing",
 ok("it is not indexable", mb_strpos($gone, 'name="robots" content="noindex') !== false);
 ok("it explains itself", mb_strpos($gone, "این محصول دیگر نیست") !== false);
 ok("and offers a way onward",
-   mb_strpos($gone, 'href="index.html#categories"') !== false);
+   mb_strpos($gone, 'href="./#categories"') !== false);
 
 ok("no add-to-cart for a product that is not there",
    mb_strpos($gone, "افزودن به سبد") === false);

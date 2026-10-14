@@ -1,0 +1,13 @@
+[
+  {"why": "a route on its own",                  "route": "config",   "params": {},                                                    "key": "config"},
+  {"why": "the home page's featured list",       "route": "products", "params": {"limit": 12},                                         "key": "products?limit=12"},
+  {"why": "the hero's deals",                    "route": "products", "params": {"badge": "topdeal"},                                  "key": "products?badge=topdeal"},
+  {"why": "sorted by name, not as written",      "route": "products", "params": {"limit": 60, "category": "protein"},                  "key": "products?category=protein&limit=60"},
+  {"why": "the product page's shelf",            "route": "products", "params": {"notCategory": "protein", "exclude": "whey-original", "limit": 4}, "key": "products?exclude=whey-original&limit=4&notCategory=protein"},
+  {"why": "empty, null and false are left out",  "route": "products", "params": {"category": "", "badge": null, "brand": false, "limit": 24}, "key": "products?limit=24"},
+  {"why": "zero is a value, not an absence",     "route": "products", "params": {"limit": 0},                                          "key": "products?limit=0"},
+  {"why": "true is 1, as PHP writes it",         "route": "products", "params": {"inStock": true},                                     "key": "products?inStock=1"},
+  {"why": "a brand's list",                      "route": "products", "params": {"brand": "optimum-nutrition", "limit": 60},           "key": "products?brand=optimum-nutrition&limit=60"},
+  {"why": "a product by the slug the URL has",   "route": "product",  "params": {"slug": "whey-original"},                             "key": "product?slug=whey-original"},
+  {"why": "a Persian slug, as it is",            "route": "product",  "params": {"slug": "وی-پروتئین"},                                "key": "product?slug=وی-پروتئین"}
+]

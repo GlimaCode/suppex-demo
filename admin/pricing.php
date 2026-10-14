@@ -13,6 +13,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/pricing.php';
+require_once SUPPEX_ROOT . '/lib/rate.php';
 require_once __DIR__ . '/partials/layout.php';
 
 $user = auth_require();
@@ -63,7 +64,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
            moment of writing. */
         $onlyKeys = array_values(array_filter(
             array_map('strval', (array) ($_POST['ids'] ?? [])),
-            static fn(string $k): bool => (bool) preg_match('/^(product|size):[0-9]+$/', $k)
+            /* Combinations too: every product converted to them is priced
+               on its combinations (pricing_units()), and leaving «variant:»
+               out of here dropped every one of their rows - a manual apply on
+               a converted catalogue changed nothing and said «nothing was
+               ticked». */
+            static fn(string $k): bool => (bool) preg_match('/^(product|size|variant):[0-9]+$/', $k)
         ));
 
         /* Nothing ticked is an instruction, not an oversight: refuse rather
@@ -98,6 +104,16 @@ if (!$preview && $rateIn !== null) {
 
 $stale   = pricing_staleness();
 $history = db_all('SELECT * FROM rate_history ORDER BY id DESC LIMIT 10');
+
+/* The automatic side. Guarded on the table existing, because this page has to
+   keep working on a database that has not been migrated yet — the alternative
+   is that the one screen explaining how to fix the migration is itself broken
+   by the missing migration. */
+$autoOn = db_value(
+    'SELECT 1 FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "rate_polls"') !== null;
+$rs     = $autoOn ? rate_status() : null;
+$pollLog = $autoOn ? rate_poll_log(36) : [];
 $manualCount = (int) db_value(
     'SELECT COUNT(*) FROM products WHERE is_active = 1 AND (price_mode <> "aed" OR cost_aed IS NULL OR cost_aed <= 0)'
 );
@@ -290,6 +306,174 @@ admin_head('قیمت‌گذاری بر اساس درهم', ['user' => $user]);
 
 <div class="split">
   <div>
+    <?php if ($autoOn): ?>
+    <div class="card">
+      <h2 class="card__title">نرخ خودکار</h2>
+
+      <?php
+      /* The heartbeat is first because it is the only failure with no other
+         symptom. Everything else at least writes a row somewhere. */
+      $beat = $rs['cron_age_hours'];
+      ?>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-block-end:14px">
+        <div style="flex:1 1 190px;padding:10px 12px;border-radius:var(--r-md);
+             background:var(--surface-2);
+             border:1px solid <?= $rs['cron_healthy'] ? 'var(--success)' : 'var(--danger)' ?>">
+          <div class="u-dim" style="font-size:.82rem">آخرین اجرای زمان‌بند</div>
+          <div style="font-weight:600;margin-block-start:2px">
+            <?php if ($beat === null): ?>
+              هرگز اجرا نشده
+            <?php elseif ($beat < 1.5): ?>
+              همین ساعت
+            <?php else: ?>
+              <span class="num"><?= e(number_format($beat, 1)) ?></span> ساعت پیش
+            <?php endif; ?>
+          </div>
+          <?php if (!$rs['cron_healthy']): ?>
+            <div class="u-dim" style="font-size:.8rem;margin-block-start:4px">
+              زمان‌بند باید هر ساعت اجرا شود. اگر بیش از سه ساعت گذشته،
+              کرون در cPanel را بررسی کنید.
+            </div>
+          <?php endif; ?>
+        </div>
+
+        <div style="flex:1 1 190px;padding:10px 12px;border-radius:var(--r-md);
+             background:var(--surface-2);
+             border:1px solid <?= $rs['ready'] ? 'var(--success)' : 'var(--amber)' ?>">
+          <div class="u-dim" style="font-size:.82rem">آمادگی قیمت‌گذاری</div>
+          <div style="font-weight:600;margin-block-start:2px">
+            <?php if ($rs['ready']): ?>
+              آماده — برآورد <span class="num"><?= e(number_format((float) $rs['estimate'])) ?></span> تومان
+            <?php else: ?>
+              فعلاً نه
+            <?php endif; ?>
+          </div>
+          <?php if (!$rs['ready']): ?>
+            <div class="u-dim" style="font-size:.8rem;margin-block-start:4px">
+              <?= e($rs['ready_reason']) ?>
+            </div>
+          <?php endif; ?>
+        </div>
+
+        <div style="flex:1 1 150px;padding:10px 12px;border-radius:var(--r-md);
+             background:var(--surface-2);border:1px solid var(--line)">
+          <div class="u-dim" style="font-size:.82rem">خوانش ۲۴ ساعت اخیر</div>
+          <div style="font-weight:600;margin-block-start:2px">
+            <span class="num"><?= (int) $rs['accepted_24h'] ?></span>
+            پذیرفته از
+            <span class="num"><?= (int) $rs['polls_24h'] ?></span>
+          </div>
+        </div>
+      </div>
+
+      <?php
+      /* What the hourly job does, and what it did at its last check - the
+         owner asked on 2026-10-02 for every hourly reading to reach the
+         prices there and then (tools/rate-cron.php). */
+      /* In Persian digits, like the sentence they sit in: Latin ones with the
+         Persian percent sign were drawn the wrong way round. */
+      $bandFa   = static fn(float $pct): string =>
+          fa_digits(str_replace('.', '٫', rtrim(rtrim(number_format($pct, 1), '0'), '.'))) . '٪';
+      $bandUp   = $bandFa(RATE_DEADBAND_UP_PCT);
+      $bandDown = $bandFa(RATE_DEADBAND_DOWN_PCT);
+      ?>
+      <div class="hint" style="margin-block-end:14px;line-height:2.1">
+        هر ساعت نرخ تازه خوانده می‌شود و اگر از نرخی که قیمت‌ها با آن ساخته شده‌اند
+        <?= e($bandUp) ?> بالاتر یا
+        <?= e($bandDown) ?> پایین‌تر باشد،
+        همان ساعت روی قیمت همهٔ محصولات درهمی اعمال می‌شود.
+        <?php if ($rs['last_check'] !== null && $rs['last_note'] !== ''): ?>
+          <br>
+          آخرین بررسی
+          <span class="num"><?= e(date('H:i', (int) $rs['last_check'])) ?></span>:
+          <?= e($rs['last_note']) ?>
+        <?php endif; ?>
+      </div>
+
+      <?php if (!$rs['armed']): ?>
+        <div class="flash flash--warn" style="margin-block-end:12px">
+          قیمت‌گذاری خودکار هنوز مسلح نشده. یک‌بار نرخ را از همین صفحه دستی
+          اعمال کنید؛ اولین قیمت فروشگاه یک تصمیم است، نه یک خوانش.
+        </div>
+      <?php endif; ?>
+
+      <?php
+      /* A sparkline of the accepted readings, oldest to newest. Drawn inline
+         rather than with a charting library: it is twenty numbers, and a
+         dependency downloaded by every panel visit to draw twenty numbers is
+         not a trade worth making. */
+      $spark = [];
+      foreach (array_reverse($pollLog) as $p) {
+          if ((int) $p['accepted'] === 1 && $p['rate'] !== null) { $spark[] = (float) $p['rate']; }
+      }
+      if (count($spark) >= 3):
+          $lo = min($spark); $hi = max($spark);
+          $range = ($hi - $lo) > 0 ? ($hi - $lo) : 1.0;
+          $w = 100.0; $h = 26.0;
+          $pts = [];
+          foreach ($spark as $i => $v) {
+              $x = count($spark) > 1 ? ($i / (count($spark) - 1)) * $w : 0;
+              $pts[] = round($x, 2) . ',' . round($h - (($v - $lo) / $range) * $h, 2);
+          }
+      ?>
+        <div style="display:flex;align-items:center;gap:10px;margin-block-end:14px">
+          <svg viewBox="0 0 100 26" preserveAspectRatio="none"
+               style="flex:1;height:44px;direction:ltr" role="img"
+               aria-label="روند نرخ درهم">
+            <polyline points="<?= e(implode(' ', $pts)) ?>"
+                      fill="none" stroke="var(--accent)" stroke-width="1.2"
+                      vector-effect="non-scaling-stroke" />
+          </svg>
+          <div class="u-dim u-nowrap" style="font-size:.8rem;direction:ltr;text-align:left">
+            <div class="num"><?= e(number_format($hi)) ?></div>
+            <div class="num"><?= e(number_format($lo)) ?></div>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <?php if (!$pollLog): ?>
+        <div class="empty">هنوز خوانشی ثبت نشده است.</div>
+      <?php else: ?>
+        <div class="table-wrap" style="border:0;max-height:340px;overflow:auto">
+          <table style="min-width:0">
+            <thead>
+              <tr><th>زمان</th><th>نرخ</th><th>منبع دوم</th><th>وضعیت</th></tr>
+            </thead>
+            <tbody>
+              <?php foreach ($pollLog as $p): ?>
+                <tr>
+                  <td class="num u-nowrap u-dim">
+                    <?= e(date('m/d H:i', strtotime((string) $p['created_at']))) ?>
+                  </td>
+                  <td class="num u-nowrap">
+                    <?= $p['rate'] === null ? '—' : money((int) $p['rate']) ?>
+                  </td>
+                  <td class="num u-nowrap u-dim">
+                    <?= $p['cross_rate'] === null ? '—' : money((int) $p['cross_rate']) ?>
+                  </td>
+                  <td>
+                    <?php if ((int) $p['accepted'] === 1): ?>
+                      <span class="pill pill--new">پذیرفته</span>
+                    <?php else: ?>
+                      <span class="pill pill--off">رد</span>
+                      <div class="u-dim" style="font-size:.78rem;margin-block-start:3px">
+                        <?= e($p['reason']) ?>
+                      </div>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+        <div class="hint" style="margin-block-start:8px">
+          خوانش‌های رد شده هم نگه داشته می‌شوند. بدون آن‌ها «نرخ ثابت مانده» و
+          «منبع دو روز است جواب نمی‌دهد» از بیرون یکسان دیده می‌شوند.
+        </div>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
     <div class="card">
       <h2 class="card__title">تاریخچه نرخ</h2>
       <?php if (!$history): ?>
@@ -312,7 +496,14 @@ admin_head('قیمت‌گذاری بر اساس درهم', ['user' => $user]);
                     <?php endif; ?>
                   </td>
                   <td class="num"><?= (int) $h['applied_to'] ?></td>
-                  <td class="u-dim"><?= e($h['admin_name']) ?></td>
+                  <td class="u-dim">
+                    <?= e($h['admin_name'] !== '' ? $h['admin_name'] : '—') ?>
+                    <?php if (($h['source'] ?? 'manual') !== 'manual'): ?>
+                      <span class="pill pill--off" style="margin-inline-start:4px"><?php
+                        echo $h['source'] === 'auto-clamped' ? 'خودکار (محدودشده)' : 'خودکار';
+                      ?></span>
+                    <?php endif; ?>
+                  </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
@@ -334,7 +525,7 @@ admin_head('قیمت‌گذاری بر اساس درهم', ['user' => $user]);
       </p>
       <p style="color:var(--text-muted);line-height:2.1">
         هر <strong>اندازه</strong> یک قلم جداگانه است و قیمت خرید خودش را دارد —
-        چون قوطی ۹۰۰ گرمی و ۲۲۷۰ گرمی دو خرید جدا با دو قیمت جدا هستند.
+        چون بستهٔ ۹۰۰ گرمی و ۲۲۷۰ گرمی دو خرید جدا با دو قیمت جدا هستند.
       </p>
       <p style="color:var(--text-muted);line-height:2.1">
         نتیجه رو به بالا به نزدیک‌ترین

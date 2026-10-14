@@ -37,12 +37,16 @@
   var FA = '"Vazirmatn", system-ui, sans-serif';
   var LAT = '"Archivo", "Vazirmatn", system-ui, sans-serif';
 
+  /* Persian digits, like the rest of the shop. Canvas fillText does its own
+     bidi, so unlike the social card in lib/ogimage.php - which reorders text
+     by hand and came out «۰۰۰,۰۰۸,۱ ناموت» when this was tried there - a
+     number drawn here simply renders. */
   function money(n) {
-    return (n || 0).toLocaleString('en-US');
+    return faDigits((n || 0).toLocaleString('en-US'));
   }
 
-  /* Persian digits for the badge, which is the one place the site uses them —
-     it reads as a sticker rather than as data. */
+  /* Persian digits. This used to be «the one place the site uses them»; the
+     owner has since asked for them everywhere a price is shown. */
   function faDigits(s) {
     var d = '۰۱۲۳۴۵۶۷۸۹';
     return String(s).replace(/[0-9]/g, function (c) { return d[+c]; });
@@ -140,7 +144,7 @@
     var was = p.onSale ? (p.compareAt || 0) : 0;
 
     if (was > price) {
-      g.font = '500 34px ' + LAT;
+      g.font = '500 34px ' + FA;
       g.fillStyle = 'rgba(242,237,227,0.42)';
       var oldText = money(was);
       var ow = g.measureText(oldText).width;
@@ -153,7 +157,9 @@
       g.stroke();
     }
 
-    g.font = '800 68px ' + LAT;
+    /* FA, not LAT: Archivo has no Persian digits, so the glyphs would fall
+       through to Vazirmatn anyway - at metrics tuned for the wrong face. */
+    g.font = '800 68px ' + FA;
     g.fillStyle = '#F7F3EC';
     var priceText = money(price);
     var pw = g.measureText(priceText).width;

@@ -160,7 +160,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             case 'badge_add':
             case 'badge_remove':
                 $badge = (string) ($_POST['bulk_badge'] ?? '');
-                if (!in_array($badge, ['bestseller', 'new'], true)) {
+                if (!in_array($badge, ['bestseller', 'new', 'topdeal'], true)) {
                     flash('error', 'نشان نامعتبر است.');
                     break;
                 }
@@ -295,6 +295,7 @@ admin_head('محصولات', [
       <select name="bulk_badge" data-bulk-extra="badge_add badge_remove" hidden>
         <option value="bestseller">پرفروش</option>
         <option value="new">جدید</option>
+        <option value="topdeal">تخفیف برتر (بالای صفحهٔ اصلی)</option>
       </select>
 
       <button class="btn btn--primary btn--sm" type="submit" name="action" value="bulk"
@@ -335,6 +336,11 @@ admin_head('محصولات', [
             <td>
               <div class="t-title"><?= e($p['name_fa']) ?></div>
               <div class="t-sub lat"><?= e($p['name_en']) ?></div>
+              <?php /* So the owner can see at a glance which products are
+                       in the home page's hero without opening each one. */ ?>
+              <?php if (in_array('topdeal', explode(',', (string) $p['badges']), true)): ?>
+                <span class="pill pill--new" style="margin-block-start:4px">تخفیف برتر</span>
+              <?php endif; ?>
             </td>
             <td class="u-dim"><?= e($p['category_name'] ?? '—') ?></td>
             <td class="num u-nowrap">
@@ -385,6 +391,8 @@ admin_head('محصولات', [
                         data-quick-toggle="<?= $pid ?>"
                         aria-expanded="false" aria-controls="q<?= $pid ?>">ویرایش سریع</button>
                 <a class="btn btn--ghost btn--sm" href="product-edit.php?id=<?= $pid ?>">ویرایش</a>
+                <a class="btn btn--ghost btn--sm" href="import.php?export=xlsx&amp;product=<?= $pid ?>"
+                   title="همین محصول در یک فایل اکسل"><?= admin_icon('download') ?> اکسل</a>
               </div>
             </td>
           </tr>

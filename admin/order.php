@@ -6,6 +6,9 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/orders.php';
+require_once SUPPEX_ROOT . '/lib/receipts.php';
+require_once SUPPEX_ROOT . '/lib/seo.php';
+require_once SUPPEX_ROOT . '/lib/order_messages.php';
 require_once __DIR__ . '/partials/layout.php';
 
 $user = auth_require();
@@ -25,6 +28,32 @@ if ($order === null) {
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     csrf_check();
+
+    /* A receipt that did not get through to Telegram, sent again. */
+    if (($_POST['action'] ?? '') === 'receipt_resend') {
+        $receipt = receipts_ready() ? receipt_get((int) ($_POST['receipt_id'] ?? 0)) : null;
+        if ($receipt === null || (int) $receipt['order_id'] !== $id) {
+            flash('error', 'این رسید پیدا نشد.');
+        } else {
+            /* Only to where it did not arrive: receipt_notify() skips every
+               chat that already has it, so this never puts a second copy in
+               the group. */
+            $sent = receipt_notify($order, $receipt, seo_origin());
+            if ($sent['busy']) {
+                flash('error', 'این رسید همین حالا در حال ارسال به تلگرام است. چند ثانیه بعد صفحه را تازه کنید.');
+            } elseif ($sent['chat'] === null && $sent['group'] === null) {
+                flash('error', 'ربات تلگرام تنظیم نشده است؛ رسید فقط همین‌جا دیده می‌شود.');
+            } elseif ($sent['chat'] === false || $sent['group'] === false) {
+                flash('error', 'ارسال به تلگرام انجام نشد. چند دقیقه بعد دوباره امتحان کنید.');
+            } elseif ($sent['sent'] === 0) {
+                flash('ok', 'این رسید قبلاً به تلگرام رسیده بود؛ دوباره فرستاده نشد.');
+            } else {
+                flash('ok', 'رسید به تلگرام فرستاده شد.');
+            }
+        }
+        header('Location: order.php?id=' . $id);
+        exit;
+    }
 
     $status = (string) ($_POST['status'] ?? '');
     $note   = (string) ($_POST['note'] ?? '');
@@ -77,29 +106,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
        write a duplicate row into the audit trail. */
     header('Location: order.php?id=' . $id);
     exit;
-}
-
-/* Rebuilds the message the customer would have sent, so it can be copied into
-   a chat when the paste never happened at their end. */
-function order_as_text(array $order): string
-{
-    $lines = ['سفارش ' . $order['code'], ''];
-    foreach ($order['items'] as $i => $item) {
-        $lines[] = ($i + 1) . ') ' . $item['name_fa'];
-        if ($item['variant_label'] !== '') {
-            $lines[] = '   ' . $item['variant_label'];
-        }
-        $lines[] = '   ' . $item['qty'] . ' × ' . money((int) $item['unit_price'])
-                 . ' = ' . money((int) $item['line_total']) . ' تومان';
-    }
-    $lines[] = '';
-    $lines[] = 'مبلغ قابل پرداخت: ' . money((int) $order['total']) . ' تومان';
-    $lines[] = '';
-    $lines[] = 'گیرنده: ' . $order['customer_name'];
-    $lines[] = 'تماس: ' . $order['phone'];
-    $lines[] = 'آدرس: ' . $order['address'];
-    $lines[] = 'کد پستی: ' . $order['postal'];
-    return implode("\n", $lines);
 }
 
 admin_head('سفارش ' . $order['code'], ['user' => $user]);
@@ -173,17 +179,123 @@ admin_head('سفارش ' . $order['code'], ['user' => $user]);
           <span style="font-size:.8125rem;font-weight:700;color:var(--text-muted)">
             متن سفارش برای ارسال در چت
           </span>
-          <textarea rows="8" readonly onclick="this.select()"><?= e(order_as_text($order)) ?></textarea>
+          <?php /* order_message_details(): signed «SUPPEX — suppex.ir», like
+                   everything the shop sends (lib/order_messages.php). */ ?>
+          <textarea rows="8" readonly onclick="this.select()"><?= e(order_message_details($order)) ?></textarea>
           <span class="hint">
             اگر مشتری متن سفارش را در گفتگو نفرستاده، از اینجا کپی کنید.
             روی کادر کلیک کنید تا کل متن انتخاب شود.
           </span>
         </label>
       </div>
+
+      <?php /* The label for the parcel and the invoice for the box, on a page
+               of their own that prints as just those two (order-print.php). */ ?>
+      <p style="margin-block-start:16px">
+        <a class="btn btn--ghost" href="order-print.php?id=<?= (int) $order['id'] ?>" target="_blank" rel="noopener">
+          چاپ برچسب پستی و فاکتور
+        </a>
+      </p>
     </div>
+
+    <?php
+      /* The same number's other orders: a returning customer, an order placed
+         twice, or somebody else's number typed by mistake - each worth
+         knowing before confirming this one. */
+      $otherOrders = db_all(
+          'SELECT id, code, status, total, created_at FROM orders
+            WHERE phone = ? AND id <> ? ORDER BY created_at DESC, id DESC LIMIT 8',
+          [(string) $order['phone'], (int) $order['id']]);
+      $otherCount = (int) db_value('SELECT COUNT(*) FROM orders WHERE phone = ? AND id <> ?',
+          [(string) $order['phone'], (int) $order['id']]);
+    ?>
+    <?php if ($otherOrders): ?>
+      <div class="card">
+        <h2 class="card__title">سفارش‌های دیگر این شماره</h2>
+        <div class="table-wrap" style="border:0">
+          <table class="table table--compact">
+            <tbody>
+              <?php foreach ($otherOrders as $oo): ?>
+                <tr>
+                  <td class="num u-nowrap"><a href="order.php?id=<?= (int) $oo['id'] ?>"><?= e($oo['code']) ?></a></td>
+                  <td class="num u-nowrap u-dim"><?= e(date('Y/m/d', strtotime((string) $oo['created_at']))) ?></td>
+                  <td class="num u-nowrap"><?= money((int) $oo['total']) ?></td>
+                  <td>
+                    <span class="pill pill--<?= e($oo['status']) ?>">
+                      <?= e(ORDER_STATUS_FA[$oo['status']] ?? $oo['status']) ?>
+                    </span>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+        <?php if ($otherCount > count($otherOrders)): ?>
+          <p style="margin-block-start:12px">
+            <a href="orders.php?q=<?= e(rawurlencode((string) $order['phone'])) ?>">
+              همهٔ <span class="num"><?= $otherCount ?></span> سفارش دیگر این شماره
+            </a>
+          </p>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
   </div>
 
   <div>
+    <?php
+      $receipts = receipts_for_order((int) $order['id']);
+      $bot      = suppex_config()['telegram_bot'] ?? [];
+      $botOn    = !empty($bot['enabled']) && !empty($bot['token']);
+      $groupOn  = trim((string) setting('telegram_group_id', '')) !== '';
+    ?>
+    <!-- Above the status, because it is what the status is decided on. -->
+    <div class="card">
+      <h2 class="card__title">رسید واریز</h2>
+      <?php if (!receipts_ready()): ?>
+        <p class="hint">
+          برای دریافت رسید از سایت، یک بار «به‌روزرسانی دیتابیس» را اجرا کنید.
+        </p>
+      <?php elseif (!$receipts): ?>
+        <p class="hint">
+          مشتری هنوز از سایت رسیدی نفرستاده است. اگر در گفتگو فرستاده باشد، همان‌جاست.
+        </p>
+      <?php else: ?>
+        <div class="receipts">
+          <?php foreach ($receipts as $r): ?>
+            <figure class="receipt">
+              <a href="receipt.php?id=<?= (int) $r['id'] ?>" target="_blank" rel="noopener">
+                <img src="receipt.php?id=<?= (int) $r['id'] ?>" loading="lazy"
+                     alt="رسید واریز سفارش <?= e($order['code']) ?>">
+              </a>
+              <figcaption>
+                <span class="num"><?= e(date('Y/m/d H:i', strtotime((string) $r['created_at']))) ?></span>
+                <?php if (!$botOn): ?>
+                  <span>ربات تلگرام تنظیم نشده است</span>
+                <?php else: ?>
+                  <span class="<?= (int) $r['sent_chat'] ? '' : 'receipt__miss' ?>">
+                    گفتگوی شما: <?= (int) $r['sent_chat'] ? 'رسید' : 'نرسید' ?>
+                  </span>
+                  <?php if ($groupOn): ?>
+                    <span class="<?= (int) $r['sent_group'] ? '' : 'receipt__miss' ?>">
+                      گروه: <?= (int) $r['sent_group'] ? 'رسید' : 'نرسید' ?>
+                    </span>
+                  <?php endif; ?>
+                  <?php if (!(int) $r['sent_chat'] || ($groupOn && !(int) $r['sent_group'])): ?>
+                    <form method="post" action="order.php?id=<?= (int) $order['id'] ?>">
+                      <?= csrf_field() ?>
+                      <input type="hidden" name="action" value="receipt_resend">
+                      <input type="hidden" name="receipt_id" value="<?= (int) $r['id'] ?>">
+                      <button class="btn btn--ghost btn--sm" type="submit">ارسال دوباره به تلگرام</button>
+                    </form>
+                  <?php endif; ?>
+                <?php endif; ?>
+              </figcaption>
+            </figure>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </div>
+
     <div class="card">
       <h2 class="card__title">وضعیت</h2>
 
@@ -226,8 +338,8 @@ admin_head('سفارش ' . $order['code'], ['user' => $user]);
           </select>
         </div>
         <div class="field" style="margin-block-start:12px">
-          <!-- In the same form as the status, deliberately. The moment he has
-               the barcode in his hand is the moment he is marking the order
+          <!-- In the same form as the status, deliberately. The moment the
+               barcode is in hand is the moment the order is being marked
                shipped, and a second screen for it is a second thing to forget. -->
           <label for="tracking_code">کد رهگیری مرسوله پستی</label>
           <input type="text" id="tracking_code" name="tracking_code" dir="ltr"
@@ -248,6 +360,60 @@ admin_head('سفارش ' . $order['code'], ['user' => $user]);
           ثبت تغییر
         </button>
       </form>
+    </div>
+
+    <?php
+      /* What to send the customer about this order, signed «SUPPEX — suppex.ir»
+         (lib/order_messages.php). The one for where the order stands now comes
+         first: change the status, and the message about it is at the top. */
+      $messages = order_messages($order);
+    ?>
+    <div class="card">
+      <h2 class="card__title">پیام آماده برای مشتری</h2>
+      <?php foreach ($messages as $i => $msg): ?>
+        <div class="field" style="gap:6px;<?= $i > 0 ? 'margin-block-start:14px' : '' ?>">
+          <span style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span style="font-size:.8125rem;font-weight:700;color:var(--text-muted)">
+              <?= e($msg['label']) ?>
+              <?php if ($msg['now']): ?>
+                <span class="pill pill--new" style="margin-inline-start:6px">همین مرحله</span>
+              <?php endif; ?>
+            </span>
+            <button class="btn btn--ghost btn--sm" type="button" data-copy-msg="msg-<?= e($msg['key']) ?>">کپی</button>
+          </span>
+          <textarea id="msg-<?= e($msg['key']) ?>" rows="<?= $msg['key'] === 'new' ? 8 : 6 ?>" readonly
+                    onclick="this.select()"><?= e($msg['text']) ?></textarea>
+        </div>
+      <?php endforeach; ?>
+      <span class="hint" style="display:block;margin-block-start:10px">
+        در گفتگوی مشتری بچسبانید و بفرستید. پایان همه پیام‌ها
+        «<?= e(brand_signature()) ?>» است تا مشتری نشانی سایت را داشته باشد.
+      </span>
+      <script>
+      /* Copy a message; «کپی شد» for a moment, then the button's own word. */
+      document.querySelectorAll('[data-copy-msg]').forEach(function (btn) {
+        btn.setAttribute('data-label', btn.textContent);
+        btn.addEventListener('click', function () {
+          var box = document.getElementById(btn.getAttribute('data-copy-msg'));
+          if (!box) { return; }
+          var done = function () {
+            btn.textContent = 'کپی شد';
+            clearTimeout(btn.copyTimer);
+            btn.copyTimer = setTimeout(function () { btn.textContent = btn.getAttribute('data-label'); }, 1500);
+          };
+          var fallback = function () {
+            box.focus();
+            box.select();
+            try { if (document.execCommand('copy')) { done(); } } catch (e) { /* the text stays selected to copy by hand */ }
+          };
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(box.value).then(done, fallback);
+          } else {
+            fallback();
+          }
+        });
+      });
+      </script>
     </div>
 
     <div class="card">

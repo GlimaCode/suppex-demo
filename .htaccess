@@ -31,20 +31,60 @@ AddDefaultCharset UTF-8
 # Images are long because a replacement is uploaded under a new name, so the URL
 # really does identify the bytes.
 #
-# CSS and JS are NOT. Nothing fingerprints them - every reference is bare, with
-# no ?v= and no filemtime helper anywhere - so a 7-day window meant the first
-# fix after launch could not reach anyone who had already visited, and returning
-# customers kept transacting against stale cart code. An hour is the honest
-# number for an unfingerprinted asset.
+# The storefront's CSS and JS are long too, now that every page asks for them
+# under a URL carrying the file's time (asset() in lib/assets.php) - see the
+# FilesMatch below. Everything else ending in .css or .js - the four source
+# stylesheets the static pages and 404.html link, the panel's admin.css - is
+# checked with the server on every page load. «no-cache» means revalidate, not
+# «do not store»: an unchanged file costs a 304 of a few hundred bytes, and a
+# changed one arrives the moment it is uploaded.
 #
-# To make these long again: add a filemtime-based asset() helper and use it on
-# every reference. That needs index.html to become index.php first, because a
-# static file cannot compute one - and fingerprinting only some pages is worse
-# than none, since the same file then gets two cache entries.
+# A 7-day window meant the first fix after launch could not reach anyone who had
+# already visited. The hour that replaced it was not enough either, and for
+# JavaScript it was not even an hour: the rule named application/javascript,
+# this host serves .js as text/javascript, so no script ever got a lifetime and
+# each browser guessed one from the file's age. Pages are never cached, so after
+# an upload a phone showed the new product page run by the old app.js - a
+# magnifier that did nothing, and no arrows. The rule below matches on the file
+# name, which does not depend on the type the host decides a file is.
+#
+# The script tags then carried one ?v= date, for the copies phones cached
+# BEFORE that rule: they had no lifetime of their own and were never asked
+# about, so only a new URL retired them - a phone kept the old ui.js and showed
+# the payment step with nowhere to send the receipt. The live pages now use
+# asset() instead; the date stays only in the static index.html and
+# product.html, which are redirected here and matter only to the demo.
+#
+# The one rule for keeping it safe: a storefront page must never ask for one of
+# the files in the list below WITHOUT its asset() version. A browser keeps what
+# it gets for a year and does not ask again, so a bare or hand-dated URL would
+# pin today's copy on every phone that saw it.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(css|js)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+
+  # The storefront's own files are now always asked for under a URL that
+  # carries their version - asset() in lib/assets.php, used by every page
+  # including the home page (index.php) - so a new upload is a new URL and
+  # these can be kept for a year. By NAME rather than by the ?v= in the
+  # request, because a condition on the query string is exactly the kind of
+  # rule a host's server can quietly ignore; a file name cannot be. The four
+  # separate stylesheets and the admin's admin.css are not in the list: the
+  # static demo and the panel still link those without a version.
+  <FilesMatch "^(site\.css|config\.js|catalog\.js|repo\.js|store\.js|ui\.js|app\.js)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Fonts never change under the same name. They were sent with no lifetime
+  # at all, so every browser guessed one - PageSpeed counted 150 KB of fonts
+  # downloaded again on a second visit.
+  <FilesMatch "\.(woff2|woff|ttf)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
 <IfModule mod_expires.c>
   ExpiresActive On
-  ExpiresByType text/css                "access plus 1 hour"
-  ExpiresByType application/javascript  "access plus 1 hour"
   ExpiresByType image/webp              "access plus 30 days"
   ExpiresByType image/jpeg              "access plus 30 days"
   ExpiresByType image/png               "access plus 30 days"
@@ -57,17 +97,45 @@ AddDefaultCharset UTF-8
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  # The site is HTTPS-only (below); this tells a browser to go straight there
+  # next time instead of through the http:// redirect. Without
+  # includeSubDomains on purpose: cPanel's own subdomains are not this site's
+  # to promise anything about.
+  Header always set Strict-Transport-Security "max-age=31536000"
 </IfModule>
 
 # --- Force HTTPS ------------------------------------------------------------
-# Commented out until the certificate is installed: enabling it first makes the
-# site unreachable rather than merely insecure. Uncomment the day cPanel's
-# AutoSSL issues the certificate, then set 'https_only' => true in the config.
-# <IfModule mod_rewrite.c>
-#   RewriteEngine On
-#   RewriteCond %{HTTPS} off
-#   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-# </IfModule>
+# Live since AutoSSL issued the certificate. Turning this off again makes the
+# shop merely insecure rather than unreachable, so it fails quietly - keep it
+# on, and keep 'https_only' => true in suppex-config.php beside it, which is
+# what marks the admin session cookie Secure. The readiness page checks both.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # One host. www.suppex.ir answered every page with 200, a second copy of
+  # the whole shop; the canonical tags pointed at the bare name, but a copy
+  # still costs crawl budget and splits the links people share. First, so
+  # http://www goes to https:// in one hop rather than two.
+  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
+
+  RewriteCond %{HTTPS} off
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# --- The home page -----------------------------------------------------------
+# index.php serves index.html with its content filled in (see the top of
+# index.php); where it is missing, index.html still answers «/» on its own.
+DirectoryIndex index.php index.html
+
+# And «/» is its one address: /index.html and /index.php were the same page
+# with a 200, linked from every header on the site. THE_REQUEST, not the path,
+# because DirectoryIndex hands «/» to index.php internally and a rule on the
+# path alone would redirect the home page to itself for ever.
+<IfModule mod_rewrite.c>
+  RewriteCond %{THE_REQUEST} \s/index\.(html|php)[\s?] [NC]
+  RewriteRule ^index\.(html|php)$ / [R=301,L]
+</IfModule>
 
 # --- The wrong address ------------------------------------------------------
 # Without this, a mistyped URL gets Apache's own page: English, left-to-right,
@@ -87,6 +155,8 @@ Options -Indexes
   RewriteEngine On
   RewriteRule ^sitemap\.xml$ sitemap.php [L]
   RewriteRule ^robots\.txt$  robots.php  [L]
+  # For AI assistants: what this shop is and sells, in plain text (llms.php).
+  RewriteRule ^llms\.txt$    llms.php    [L]
 </IfModule>
 
 # --- Product pages ----------------------------------------------------------

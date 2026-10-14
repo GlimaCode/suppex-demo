@@ -97,6 +97,19 @@ function stock_target(int $productId, string $sizeExt, bool $forUpdate = false):
     $lock = $forUpdate ? ' FOR UPDATE' : '';
 
     if ($sizeExt !== '') {
+        /* A variant first. Once a product has them they are what is sold, and
+           holding units against the size row instead would take them off a
+           count nobody is selling from. Tried before the size rather than
+           after, because both tables can hold a row for the same product. */
+        $var = db_one(
+            'SELECT stock_qty FROM product_variants WHERE product_id = ? AND ext_id = ?' . $lock,
+            [$productId, $sizeExt]
+        );
+        if ($var !== null && $var['stock_qty'] !== null) {
+            return ['table' => 'product_variants', 'ext' => $sizeExt,
+                    'qty' => (int) $var['stock_qty']];
+        }
+
         $row = db_one(
             'SELECT stock_qty FROM product_sizes WHERE product_id = ? AND ext_id = ?' . $lock,
             [$productId, $sizeExt]
@@ -157,7 +170,11 @@ function stock_take_line(
         return ['from' => null, 'held' => 0];   // nothing is counted here
     }
 
-    if ($target['table'] === 'product_sizes') {
+    if ($target['table'] === 'product_variants') {
+        $sql    = 'UPDATE product_variants SET stock_qty = stock_qty - ?
+                    WHERE product_id = ? AND ext_id = ? AND stock_qty IS NOT NULL';
+        $params = [$qty, $productId, $sizeExt];
+    } elseif ($target['table'] === 'product_sizes') {
         $sql    = 'UPDATE product_sizes SET stock_qty = stock_qty - ?
                     WHERE product_id = ? AND ext_id = ? AND stock_qty IS NOT NULL';
         $params = [$qty, $productId, $sizeExt];
@@ -198,6 +215,12 @@ function stock_give_back(int $productId, ?string $from, int $qty): void
        being counted. An untracked count has no number to add to, and writing
        one would silently start tracking a product nobody asked to track. */
     if ($from !== null && $from !== '') {
+        /* Credited to whichever of the two holds a counted row under this
+           ext_id. Both statements are guarded on IS NOT NULL, so the one that
+           does not have it changes nothing rather than inventing a count. */
+        db_query('UPDATE product_variants SET stock_qty = stock_qty + ?
+                   WHERE product_id = ? AND ext_id = ? AND stock_qty IS NOT NULL',
+            [$qty, $productId, $from]);
         db_query('UPDATE product_sizes SET stock_qty = stock_qty + ?
                    WHERE product_id = ? AND ext_id = ? AND stock_qty IS NOT NULL',
             [$qty, $productId, $from]);

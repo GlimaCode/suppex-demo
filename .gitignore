@@ -24,3 +24,29 @@ suppex-config.php
 *.tar
 *.tar.gz
 *.rar
+
+# Local commercial sheets and product research are not public source code.
+/*.xlsx
+/*.xls
+/*.csv
+/*.tsv
+/products-to-import/
+
+# Downloaded website snapshots and logo exploration outputs.
+/SUPPEX _ فروشگاه تخصصی مکمل_های ورزشی و بدنسازی.html
+/SUPPEX _ فروشگاه تخصصی مکمل_های ورزشی و بدنسازی_files/
+/برندهای مکمل ورزشی _ SUPPEX.html
+/برندهای مکمل ورزشی _ SUPPEX_files/
+/SUPPEX-logo-files/
+/SUPPEX-logo-final/
+/SUPPEX-*.png
+/SUPPEX-*.jpg
+
+# Runtime media belongs in the hosting/media backup, not in source control.
+# Keep the upload protection and the empty product directory in the repo.
+/uploads/**
+!/uploads/.htaccess
+!/uploads/products/
+!/uploads/products/.gitkeep
+/suppex-private/
+/.codex/

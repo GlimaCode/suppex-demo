@@ -34,7 +34,7 @@ function ok(string $l, bool $c, ?string $x = ""): void {
 function head(string $t): void { global $out; $out[] = "\n== $t =="; }
 
 /* --- Rebuild from nothing, before a byte of output ----------------------- */
-$pdo = new PDO("mysql:host=127.0.0.1;port=3399;charset=utf8mb4", "root", "",
+$pdo = new PDO("mysql:host=127.0.0.1;port=" . (getenv("SUPPEX_DB_PORT") ?: "3399") . ";charset=utf8mb4", "root", "",
                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 $pdo->exec("DROP DATABASE IF EXISTS suppex_fresh");
 $pdo->exec("CREATE DATABASE suppex_fresh DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
@@ -219,6 +219,122 @@ if (is_array($second)) {
     ok("still reports done", $second["allDone"] === true);
 }
 
+
+/* --- category artwork ---------------------------------------------------
+   The seed inserts the six categories WITH their pictures, but its
+   already-done guard is «are there any categories at all» - so a shop set up
+   through setup.php skipped it and got six rows with an empty image column.
+   The storefront drew six black rectangles and there was no way to tell from
+   the panel that anything was missing. */
+require_once SUPPEX_ROOT . '/lib/products.php';
+
+$catBefore = [];
+foreach (db_all('SELECT slug, image FROM categories') as $c) {
+    $catBefore[(string) $c['slug']] = (string) ($c['image'] ?? '');
+}
+
+db_query("UPDATE categories SET image = ''");
+/* A category the owner has already photographed must not be overwritten. */
+db_query("UPDATE categories SET image = 'uploads/products/mine.webp' WHERE slug = 'creatine'");
+
+ok('an empty image column reads as an unfinished migration',
+   migrate_pending()['categories.image'] === false);
+
+$catLog = [];
+migrate_run($catLog);
+
+ok('and it is finished after the run',
+   migrate_pending()['categories.image'] === true);
+
+$filled = [];
+foreach (db_all('SELECT slug, image FROM categories') as $c) {
+    $filled[(string) $c['slug']] = (string) ($c['image'] ?? '');
+}
+
+foreach (['protein', 'mass-gainer', 'pre-workout', 'amino', 'vitamins'] as $slug) {
+    ok('  ' . $slug . ' got its bundled artwork',
+       ($filled[$slug] ?? '') === 'assets/images/categories/' . $slug . '.svg',
+       $filled[$slug] ?? 'MISSING');
+    ok('    and the file is really there',
+       is_file(SUPPEX_ROOT . '/' . ($filled[$slug] ?? 'nope')));
+}
+
+ok('the owner\'s own photo is left alone',
+   ($filled['creatine'] ?? '') === 'uploads/products/mine.webp',
+   $filled['creatine'] ?? 'MISSING');
+
+/* What the storefront actually hands the card renderer. */
+$catApi = [];
+foreach (categories_list() as $c) { $catApi[$c['id']] = (string) ($c['image'] ?? ''); }
+ok('no category reaches the storefront without a picture',
+   count(array_filter($catApi, static fn($v) => $v === '')) === 0,
+   implode(', ', array_keys(array_filter($catApi, static fn($v) => $v === ''))));
+
+/* Running it again must be a no-op, not a re-write. */
+$catLog2 = [];
+migrate_run($catLog2);
+ok('a second run changes nothing',
+   (string) db_value("SELECT image FROM categories WHERE slug = 'creatine'")
+   === 'uploads/products/mine.webp');
+
+foreach ($catBefore as $slug => $img) {
+    db_query('UPDATE categories SET image = ? WHERE slug = ?', [$img, $slug]);
+}
+ok('category fixtures restored', true);
+
+/* --- category artwork on a shop with Persian slugs ----------------------
+   setup.php seeds slugs like 'protein'; a catalogue import slugifies the
+   Persian name instead and produces 'پروتئین'. Both are real, and name_latin
+   cannot arbitrate - on the live shop only one of the six rows has it. A
+   backfill keyed to the Latin slug alone runs, reports done, and leaves every
+   category card black. */
+$catKeep = db_all('SELECT id, slug, name_latin, image FROM categories');
+
+$catLive = [
+    'پروتئین'        => 'پروتئین',
+    'کراتین'         => 'کراتین',
+    'افزایش-وزن'     => 'افزایش وزن',
+    'قبل-تمرین'      => 'قبل تمرین',
+    'آمینو-و-bcaa'   => 'آمینو و BCAA',
+    'ویتامین-و-مکمل' => 'ویتامین و مکمل',
+];
+foreach ($catLive as $slug => $nameFa) {
+    db_query("UPDATE categories SET slug = ?, name_latin = '', image = '' WHERE name_fa = ?",
+             [$slug, $nameFa]);
+}
+
+ok('a persian-slug shop reads as unfinished',
+   migrate_pending()['categories.image'] === false);
+
+$catLog3 = [];
+migrate_run($catLog3);
+
+ok('  and finished after the run',
+   migrate_pending()['categories.image'] === true);
+
+$catNow = [];
+foreach (db_all('SELECT slug, image FROM categories') as $c) {
+    $catNow[(string) $c['slug']] = (string) ($c['image'] ?? '');
+}
+foreach ([
+    'پروتئین'        => 'protein',
+    'کراتین'         => 'creatine',
+    'افزایش-وزن'     => 'mass-gainer',
+    'قبل-تمرین'      => 'pre-workout',
+    'آمینو-و-bcaa'   => 'amino',
+    'ویتامین-و-مکمل' => 'vitamins',
+] as $slug => $file) {
+    ok('  ' . $slug . ' matched by its persian name',
+       ($catNow[$slug] ?? '') === 'assets/images/categories/' . $file . '.svg',
+       $catNow[$slug] ?? 'MISSING');
+}
+
+foreach ($catKeep as $k) {
+    db_query('UPDATE categories SET slug = ?, name_latin = ?, image = ? WHERE id = ?',
+             [$k['slug'], $k['name_latin'], $k['image'], $k['id']]);
+}
+ok('persian-slug fixtures restored',
+   (int) db_value("SELECT COUNT(*) FROM categories WHERE slug = 'protein'") === 1);
 echo implode("\n", $out), "\n";
 echo "\n----------------------------------------\npassed: $pass    failed: $fail\n";
 exit($fail > 0 ? 1 : 0);

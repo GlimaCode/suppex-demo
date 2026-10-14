@@ -32,7 +32,10 @@ $desc  = $article === null
     ? 'این مقاله وجود ندارد یا حذف شده است.'
     : seo_clip($article['summary'] !== '' ? $article['summary'] : $article['title']);
 $url   = seo_origin() . '/article.php?a=' . rawurlencode($slug);
-$image = seo_absolute($article === null ? 'assets/images/journal/j1.svg' : $article['image']);
+/* The articles' artwork is SVG, which preview bots and Google's article
+   results do not draw; the cover stands in for it. */
+$image = $article === null || str_ends_with(strtolower((string) $article['image']), '.svg')
+    ? seo_cover() : seo_absolute($article['image']);
 $bodyHtml = $article === null ? '' : journal_render($article['body']);
 
 /* Article schema, not Product: this is editorial, and mislabelling it invites
@@ -55,7 +58,7 @@ if ($article !== null) {
             'name'  => setting('shop_name', 'SUPPEX'),
             'logo'  => ['@type' => 'ImageObject', 'url' => seo_absolute('assets/icons/logo.svg')],
         ],
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_HEX_TAG);
 }
 ?>
 <!DOCTYPE html>
@@ -65,13 +68,9 @@ if ($article !== null) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#131210">
 
-<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<?php include __DIR__ . '/partials/head-assets.php'; ?>
 
 
-<link rel="stylesheet" href="assets/css/tokens.css">
-<link rel="stylesheet" href="assets/css/base.css">
-<link rel="stylesheet" href="assets/css/components.css">
-<link rel="stylesheet" href="assets/css/layout.css">
 
 <title><?= e($title) ?> | <?= e(setting('shop_name', 'SUPPEX')) ?></title>
 <meta name="description" content="<?= e($desc) ?>">
@@ -112,7 +111,7 @@ if ($article !== null) {
              it by being written from the same shape. -->
         <h1 class="notfound__title">مقاله پیدا نشد</h1>
         <p class="u-sm u-dim">ممکن است این مقاله حذف شده باشد یا نشانی را اشتباه وارد کرده باشید.</p>
-        <p style="margin-top:18px"><a class="btn btn--primary" href="index.html">بازگشت به فروشگاه</a></p>
+        <p style="margin-top:18px"><a class="btn btn--primary" href="./">بازگشت به فروشگاه</a></p>
       </div>
     </div>
   </section>
@@ -121,12 +120,16 @@ if ($article !== null) {
     <div class="container container--narrow">
 
       <nav class="article__crumbs" aria-label="مسیر صفحه">
-        <a href="index.html">خانه</a>
+        <a href="./">خانه</a>
         <span aria-hidden="true">/</span>
-        <a href="index.html#journal">مجله</a>
+        <a href="./#journal">مجله</a>
       </nav>
 
-      <header class="article__head">
+      <?php /* The header panel wears the cover's colour and its diagonal lines
+               (layout.css, .article__head--cover), so the page reads as the
+               card it was opened from. */
+      $tone = journal_cover_tone($article['image']); ?>
+      <header class="article__head article__head--cover"<?= $tone !== '' ? ' style="--tone:' . $tone . '"' : '' ?>>
         <div class="article__meta">
           <span class="u-eyebrow u-eyebrow--bare"><?= e($article['category']) ?></span>
           <span class="u-xs u-dim"><span class="num"><?= (int) $article['readTime'] ?></span> دقیقه مطالعه</span>

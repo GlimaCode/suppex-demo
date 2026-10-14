@@ -137,5 +137,91 @@ ok('every group appears',
    mb_strpos($html, 'سرور') !== false && mb_strpos($html, 'کاتالوگ') !== false
    && mb_strpos($html, 'امنیت') !== false);
 
+
+echo "\n== a product imported but never priced ==\n";
+/* The catalogue sheets put 999,999,999 in the price column for a row that has
+   been researched but not priced yet, and pricing_round_up() lifts it to a
+   round 1,000,000,000. «محصول بدون قیمت» only looks for price <= 0, so the
+   whole readiness page went green while a product carrying that number sat on
+   the home page for customers to read. */
+db_query("DELETE FROM products WHERE slug LIKE 'zz-pf-mark%'");
+$pfLabel = 'قیمت جایگزین از فایل ورودی';
+
+ok('a clean catalogue passes', state_of($pfLabel) === 'ok', state_of($pfLabel));
+
+$pfId = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, is_active, in_stock)
+     VALUES ('zz-pf-mark', 'زد-بی‌قیمت', 1000000000, 'manual', 1, 0)");
+
+ok('an active product at the marker price blocks',
+   state_of($pfLabel) === 'blocker', state_of($pfLabel));
+/* The check this one exists to cover for. If it ever starts catching the
+   marker itself, the new check is redundant and should go. */
+ok('  and the old price check still does not see it',
+   state_of('محصول بدون قیمت') === 'ok', state_of('محصول بدون قیمت'));
+ok('  the fix text names the way out',
+   mb_strpos(check_for($pfLabel)['fix'] ?? '', 'نمایش داده شود') !== false);
+
+/* Hiding it is the documented way out and must actually clear the check. */
+db_query('UPDATE products SET is_active = 0 WHERE id = ?', [$pfId]);
+ok('hiding it from the site clears the check',
+   state_of($pfLabel) === 'ok', state_of($pfLabel));
+
+/* A size carries its own price, so a parent can look priced while the size a
+   customer actually buys is still on the marker. */
+db_query('UPDATE products SET is_active = 1, price = 2500000 WHERE id = ?', [$pfId]);
+db_query(
+    "INSERT INTO product_sizes (product_id, ext_id, label, price, sort_order)
+     VALUES (?, '900', '۹۰۰ گرم', 999999999, 0)", [$pfId]);
+ok('a size still on the marker blocks even when the parent is priced',
+   state_of($pfLabel) === 'blocker', state_of($pfLabel));
+
+/* A real price, however large, must not trip it. */
+db_query('UPDATE product_sizes SET price = 21180000 WHERE product_id = ?', [$pfId]);
+ok('a genuinely expensive product is left alone',
+   state_of($pfLabel) === 'ok', state_of($pfLabel));
+
+
+echo "\n== a combination is the third place a price hides ==\n";
+/* Once a product has combinations, order_price_line() charges the
+   combination and the parent row is only the headline. Both catalogue
+   blockers read products.price and product_sizes.price and had never looked
+   at product_variants.price, which did not exist when they were written - so
+   a grid still holding the import marker sold at 1,000,000,000 while this
+   page reported green. Same failure the marker check exists to prevent, one
+   table over. */
+db_query('UPDATE products SET is_active = 1, price = 2500000 WHERE id = ?', [$pfId]);
+db_query('DELETE FROM product_sizes WHERE product_id = ?', [$pfId]);
+ok('the catalogue is clean before the combination is added',
+   state_of($pfLabel) === 'ok', state_of($pfLabel));
+
+$pfVid = db_insert(
+    "INSERT INTO product_variants (product_id, ext_id, price, is_active)
+     VALUES (?, '900|choco', 999999999, 1)", [$pfId]);
+ok('a combination still on the marker blocks',
+   state_of($pfLabel) === 'blocker', state_of($pfLabel));
+
+/* A combination nobody can order is not a blocker - the «فعال» tick is the
+   documented way to take one out of circulation. */
+db_query('UPDATE product_variants SET is_active = 0 WHERE id = ?', [$pfVid]);
+ok('  and switching that combination off clears it',
+   state_of($pfLabel) === 'ok', state_of($pfLabel));
+
+/* Zero is the other way a grid arrives unpriced, and «محصول بدون قیمت» could
+   not see it either. */
+db_query('UPDATE product_variants SET is_active = 1, price = 0 WHERE id = ?', [$pfVid]);
+ok('a combination priced at zero blocks',
+   state_of('محصول بدون قیمت') === 'blocker', state_of('محصول بدون قیمت'));
+ok('  and a real price clears it',
+   (static function () use ($pfVid) {
+        db_query('UPDATE product_variants SET price = 2630000 WHERE id = ?', [$pfVid]);
+        return true;
+    })() && state_of('محصول بدون قیمت') === 'ok', state_of('محصول بدون قیمت'));
+ok('  and the marker check is happy with it too',
+   state_of($pfLabel) === 'ok', state_of($pfLabel));
+
+db_query("DELETE FROM products WHERE slug LIKE 'zz-pf-mark%'");
+ok('marker fixtures cleaned up',
+   (int) db_value("SELECT COUNT(*) FROM products WHERE slug LIKE 'zz-pf-mark%'") === 0);
 echo "\n----------------------------------------\npassed: $pass    failed: $fail\n";
 exit($fail > 0 ? 1 : 0);

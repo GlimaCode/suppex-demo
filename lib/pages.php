@@ -151,3 +151,48 @@ function page_url(string $slug): string
 {
     return 'page.php?p=' . rawurlencode($slug);
 }
+
+/**
+ * The questions of a page and their answers, as plain text.
+ *
+ * Every «## …» heading is a question and what follows it, up to the next
+ * one, its answer - which is how content/pages/faq.md is written. The answer
+ * loses its markdown (links keep their words), because structured data
+ * carries text, not markup.
+ *
+ * @return list<array{q:string,a:string}>
+ */
+function page_faq_items(string $body): array
+{
+    $items = [];
+    $q = null;
+    $a = [];
+    foreach (preg_split('/\R/u', $body) ?: [] as $line) {
+        if (preg_match('/^##\s+(.+?)\s*$/u', $line, $m)) {
+            if ($q !== null) {
+                $items[] = [$q, $a];
+            }
+            $q = $m[1];
+            $a = [];
+        } elseif ($q !== null) {
+            $a[] = $line;
+        }
+    }
+    if ($q !== null) {
+        $items[] = [$q, $a];
+    }
+
+    $out = [];
+    foreach ($items as [$question, $lines]) {
+        $text = implode("\n", $lines);
+        $text = (string) preg_replace('/\[([^\]]+)\]\([^)]*\)/u', '$1', $text);
+        $text = (string) preg_replace('/^\s*(?:[-*]|\d+[.)])\s+/mu', '', $text);
+        $text = (string) preg_replace('/^#{3,}\s*/mu', '', $text);
+        $text = str_replace(['**', '`'], '', $text);
+        $text = trim((string) preg_replace('/\s+/u', ' ', $text));
+        if ($text !== '') {
+            $out[] = ['q' => trim(str_replace(['**', '`'], '', $question)), 'a' => $text];
+        }
+    }
+    return $out;
+}

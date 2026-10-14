@@ -47,7 +47,9 @@ function track_record_attempt(): void
  */
 function track_find(string $code, string $phone): ?array
 {
-    $code  = strtoupper(trim($code));
+    /* Latin digits first: a code typed on a Persian keyboard, «SPX-۲۶۱۰۰۱-AB۳۴»,
+       lost every digit to the filter below and was «not found». */
+    $code  = strtoupper(trim(to_latin_digits($code)));
     $phone = digits_only($phone);
 
     if ($code === '' || $phone === '') {

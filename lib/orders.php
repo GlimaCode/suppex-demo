@@ -19,6 +19,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/products.php';
 require_once __DIR__ . '/pricing.php';
 require_once __DIR__ . '/stock.php';
+require_once __DIR__ . '/quotes.php';
+require_once __DIR__ . '/variants.php';
 
 const ORDER_STATUSES = ['new', 'paid', 'shipped', 'done', 'cancelled', 'expired'];
 
@@ -52,9 +54,14 @@ function order_hold_minutes(): int
  */
 function orders_expire_due(): int
 {
+    /* Not one with a receipt: that customer has paid, and the owner simply
+       has not confirmed it yet. Expiring it released the stock they paid for
+       and told them on the tracking page to build the basket again - an
+       invitation to pay twice. */
     $due = db_all(
-        'SELECT id FROM orders
-          WHERE status = "new" AND expires_at IS NOT NULL AND expires_at < NOW()
+        'SELECT o.id FROM orders o
+          WHERE o.status = "new" AND o.expires_at IS NOT NULL AND o.expires_at < NOW()
+            AND NOT EXISTS (SELECT 1 FROM order_receipts r WHERE r.order_id = o.id)
           LIMIT 200'
     );
     if (!$due) {
@@ -128,8 +135,13 @@ function order_items_hash(array $items): string
 {
     $sig = [];
     foreach ($items as $i) {
+        /* The custom attributes too: the same tub in another colour is
+           another order, not a repeat of this one. */
+        $attrs = is_array($i['attrs'] ?? null) ? $i['attrs'] : [];
+        ksort($attrs);
         $sig[] = ($i['slug'] ?? '') . '|' . ($i['sizeId'] ?? '') . '|'
-               . ($i['flavorId'] ?? '') . '|' . (int) ($i['qty'] ?? 1);
+               . ($i['flavorId'] ?? '') . '|' . (int) ($i['qty'] ?? 1)
+               . ($attrs ? '|' . http_build_query($attrs) : '');
     }
     sort($sig);
     return substr(hash('sha256', implode(';', $sig)), 0, 40);
@@ -161,7 +173,11 @@ function order_recent_duplicate(string $phone, array $items): ?array
  *
  * @param array{slug?:string,flavorId?:string,sizeId?:string,qty?:mixed} $line
  */
-function order_price_line(array $line): ?array
+/**
+ * @param array<string,int> $quoted  prices the shop already promised this
+ *        shopper, keyed by quote_key(). Empty means no promise was made.
+ */
+function order_price_line(array $line, array $quoted = []): ?array
 {
     $slug = clean_text($line['slug'] ?? '', 120);
     if ($slug === '') {
@@ -183,6 +199,91 @@ function order_price_line(array $line): ?array
     $qty = (int) digits_only((string) ($line['qty'] ?? '1'));
     $qty = max(1, min($qty, 99));
 
+    /* --- the variant model ------------------------------------------------
+
+       Once a product has variants they are what is sold: one row per real
+       thing, with its own price, its own count and its own picture. The
+       basket still sends {sizeId, flavorId} because it always has, plus
+       `attrs` for anything the owner added since - and the three together
+       name exactly one combination.
+
+       Returns from inside rather than setting up variables the code below
+       will re-derive: the delta arithmetic further down is the OTHER model,
+       and letting both touch one line is how it ends up half-priced by
+       each. */
+    if (variants_has((int) $product['id'])) {
+        $choice = [];
+        $sizeIn = clean_text($line['sizeId'] ?? '', 60);
+        if ($sizeIn !== '') { $choice[VARIANT_SIZE_ATTR] = $sizeIn; }
+        $flavIn = clean_text($line['flavorId'] ?? '', 60);
+        if ($flavIn !== '') { $choice[VARIANT_FLAVOR_ATTR] = $flavIn; }
+        foreach ((array) ($line['attrs'] ?? []) as $ak => $av) {
+            $ak = clean_text((string) $ak, 60);
+            $av = clean_text((string) $av, 60);
+            if ($ak !== '' && $av !== '') { $choice[$ak] = $av; }
+        }
+
+        $variant = variants_resolve((int) $product['id'], $choice);
+        /* Refused rather than approximated. A basket that names a combination
+           this product no longer has is stale, and the shopper picked
+           something specific. */
+        if ($variant === null || (int) $variant['is_active'] !== 1) {
+            return null;
+        }
+
+        $vPrice = (int) $variant['price'];
+        /* The whole combination is quoted under one key - the variant's own
+           ext_id - rather than a base and a premium added back together. With
+           a price per combination there is nothing left to add. */
+        if ($quoted !== []) {
+            $vPrice = quote_price_for($quoted, (string) $product['slug'],
+                                      (string) $variant['ext_id'], $vPrice);
+        }
+        /* A dirham product saved active before the pricing page has run sits
+           at zero, and zero is never a real price. */
+        if ($vPrice <= 0) {
+            return null;
+        }
+
+        $vCost = (int) ($variant['cost_toman'] ?? 0);
+        $bits  = [];
+        foreach ($variant['values'] ?? [] as $val) {
+            $bits[] = (string) $val['label'];
+        }
+        if (!$bits) {
+            foreach (db_all(
+                'SELECT v.label FROM product_variant_values vv
+                   JOIN product_attribute_values v ON v.id = vv.value_id
+                   JOIN product_attributes a ON a.id = v.attribute_id
+                  WHERE vv.variant_id = ? ORDER BY a.sort_order, a.id',
+                [(int) $variant['id']]) as $val) {
+                $bits[] = (string) $val['label'];
+            }
+        }
+
+        $vRate = $variant['commission_percent'] !== null
+            ? $variant['commission_percent'] : $product['commission_percent'];
+
+        return [
+            'product_id'    => (int) $product['id'],
+            'slug'          => $product['slug'],
+            'name_fa'       => $product['name_fa'],
+            'variant_label' => $bits ? implode(' · ', $bits)
+                                     : (string) $product['variant_label'],
+            /* The variant's ext_id travels where the size's used to. It is
+               what stock_target() looks the count up by, and what the order
+               line has to carry so the units can be given back. */
+            'size_ext'      => (string) $variant['ext_id'],
+            'qty'           => $qty,
+            'unit_price'    => $vPrice,
+            'unit_cost'     => $vCost,
+            'unit_profit'   => $vCost > 0 ? max(0, $vPrice - $vCost) : 0,
+            'line_total'    => $vPrice * $qty,
+            'line_profit'   => ($vCost > 0 ? max(0, $vPrice - $vCost) : 0) * $qty,
+            'rate_override' => $vRate === null ? null : (float) $vRate,
+        ];
+    }
+
     $sizeExt = '';
 
     $unitPrice   = (int) $product['price'];
@@ -203,6 +304,24 @@ function order_price_line(array $line): ?array
     $rateOverride = $product['commission_percent'];
 
     $sizeId = clean_text($line['sizeId'] ?? '', 60);
+
+    /* A size id means nothing on a product that has no sizes, and must not be
+       treated as a stale one.
+
+       The product page synthesises a size for single-price products so its
+       price and stock rendering has something to read (assets/js/app.js), and
+       that synthetic id reached here as a size that could not be resolved —
+       so every one of the fourteen single-price products was refused at
+       checkout with «هیچ‌کدام از کالاهای سبد در دسترس نیست», while the same
+       product added from a card's + button went through. The distinction that
+       matters is not whether an id was sent, it is whether the product has any
+       sizes for it to refer to. */
+    if ($sizeId !== '' && (int) db_value(
+            'SELECT COUNT(*) FROM product_sizes WHERE product_id = ?',
+            [(int) $product['id']]) === 0) {
+        $sizeId = '';
+    }
+
     if ($sizeId !== '') {
         $size = db_one(
             'SELECT label, price, cost_toman, commission_percent FROM product_sizes
@@ -232,6 +351,56 @@ function order_price_line(array $line): ?array
         }
     }
 
+    /* The flavour, before the price is final rather than after it.
+
+       It used to be read further down, purely to put a name on the picking
+       slip, which meant two things: a flavour that costs more was never
+       charged for, and once it was, the quote below would have covered the tub
+       but not the flavour chosen on it. */
+    $flavorId    = clean_text($line['flavorId'] ?? '', 60);
+    $flavorDelta = 0;
+    if ($flavorId !== '') {
+        $flavor = db_one(
+            'SELECT name, price_delta_toman FROM product_flavors
+              WHERE product_id = ? AND ext_id = ?',
+            [(int) $product['id'], $flavorId]
+        );
+        if ($flavor !== null) {
+            array_unshift($variantBits, $flavor['name']);
+            $flavorDelta = max(0, (int) $flavor['price_delta_toman']);
+        } else {
+            /* An unknown flavour id is a stale cart, the same as an unresolved
+               size — and it gets the same answer, because the shopper picked
+               something that no longer exists and quietly serving them a
+               different one is how the wrong tub ships. */
+            return null;
+        }
+    }
+
+    /* Honour what the shopper was shown.
+
+       The order message is already open in their chat app by the time this
+       runs — window.open has to happen inside the click gesture, so the server
+       is told about the order afterwards. The figure in that message came from
+       the prices the cart last fetched, and the nightly repricing can have run
+       in between.
+
+       The lower of the two, always: never more than was quoted, so the message
+       and the order agree; and never more than the current price, so a price
+       CUT reaches a shopper holding an old quote too. There is no way to
+       combine them that charges more than expected, which is also why an old
+       token is not worth hoarding. */
+    if ($quoted !== []) {
+        $unitPrice   = quote_price_for($quoted, (string) $product['slug'], $sizeExt, $unitPrice);
+        $flavorDelta = quote_flavor_delta_for(
+            $quoted, (string) $product['slug'], $flavorId, $flavorDelta);
+    }
+
+    /* Added after both halves have been held to their quotes, so the shopper
+       pays the lower of what they were shown and what it costs now, on the tub
+       and on the flavour independently. */
+    $unitPrice += $flavorDelta;
+
     /* A price of zero is never a real price. A dirham product saved active
        before the pricing page has computed its price sits at 0, and this would
        otherwise sell it for nothing and hand out an order code for it. */
@@ -239,16 +408,6 @@ function order_price_line(array $line): ?array
         return null;
     }
 
-    $flavorId = clean_text($line['flavorId'] ?? '', 60);
-    if ($flavorId !== '') {
-        $flavor = db_one(
-            'SELECT name FROM product_flavors WHERE product_id = ? AND ext_id = ?',
-            [(int) $product['id'], $flavorId]
-        );
-        if ($flavor !== null) {
-            array_unshift($variantBits, $flavor['name']);
-        }
-    }
 
     /* Cost and profit are snapshotted alongside the price, because the
        partnership share is computed from them and an old order must keep
@@ -297,18 +456,41 @@ function order_create(array $payload): array
         $posted = array_slice($posted, 0, 50);
     }
 
+    /* Whatever the shop last told this shopper these cost. An absent, unknown
+       or expired token yields an empty array, and the order is then priced at
+       today's prices exactly as it always was. */
+    $quoted = quote_prices(clean_text((string) ($payload['quote'] ?? ''), 32));
+
     $items = [];
+    $gone  = [];
     foreach ($posted as $line) {
         if (!is_array($line)) {
             continue;
         }
-        $priced = order_price_line($line);
+        $priced = order_price_line($line, $quoted);
         if ($priced !== null) {
             $items[] = $priced;
+        } else {
+            $gone[] = (string) ($line['slug'] ?? '');
         }
     }
     if (count($items) === 0) {
         return ['ok' => false, 'errors' => ['items' => 'هیچ‌کدام از کالاهای سبد در دسترس نیست.']];
+    }
+    /* A line that cannot be priced - a size or flavour since removed, a
+       combination switched off - used to vanish from the order while the
+       chat message the customer had already sent still listed it, at a total
+       the shop then did not record. Refused, naming what, so the basket can be
+       corrected and sent again. */
+    if ($gone) {
+        $names = [];
+        foreach (array_unique(array_filter($gone)) as $slug) {
+            $n = db_value('SELECT name_fa FROM products WHERE slug = ?', [$slug]);
+            $names[] = $n !== null ? (string) $n : $slug;
+        }
+        return ['ok' => false, 'errors' => ['items' =>
+            'این کالا با همین انتخاب دیگر موجود نیست: ' . implode('، ', $names)
+            . '. سبد خرید را دوباره باز کنید تا به‌روز شود.']];
     }
 
     /* --- Customer --------------------------------------------------------- */

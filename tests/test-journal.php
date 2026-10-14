@@ -133,6 +133,19 @@ ok("the article text is in the served markup",
 ok("no PHP notice leaked into the page",
    stripos($page, 'Warning:') === false && stripos($page, 'Notice:') === false);
 
+head("the header wears its cover's colour");
+ok("each cover gives the colour of its glow",
+   journal_cover_tone('assets/images/journal/j1.svg') === '#F25914'
+   && journal_cover_tone('assets/images/journal/j2.svg') === '#1FA894'
+   && journal_cover_tone('assets/images/journal/j3.svg') === '#4A8FD6');
+ok("nothing outside the journal's own covers is read",
+   journal_cover_tone('../suppex-config.php') === ''
+   && journal_cover_tone('assets/images/journal/../og-cover.png') === ''
+   && journal_cover_tone('https://example.com/assets/images/journal/j1.svg') === '');
+ok("a missing cover gives nothing, not a warning", journal_cover_tone('assets/images/journal/none.svg') === '');
+ok("the page's header carries the tone",
+   strpos($page, '<header class="article__head article__head--cover" style="--tone:#1FA894">') !== false);
+
 head("a missing article is a real 404");
 $missing = (function (): string {
     $_GET = ['a' => 'no-such-article'];

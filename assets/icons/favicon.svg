@@ -1,8 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
-  <rect width="40" height="40" rx="9" fill="#131210"/>
-  <rect x="6"  y="16" width="5" height="8"  rx="2" fill="#F25914"/>
-  <rect x="12" y="13" width="4" height="14" rx="2" fill="#F2EDE3"/>
-  <rect x="16" y="18" width="8" height="4"  rx="2" fill="#F2EDE3"/>
-  <rect x="24" y="13" width="4" height="14" rx="2" fill="#F2EDE3"/>
-  <rect x="29" y="16" width="5" height="8"  rx="2" fill="#F25914"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SUPPEX">
+  <title>SUPPEX</title>
+  <rect width="64" height="64" rx="14" fill="#131210"/>
+  <g class="mk" fill="#F25914" transform="translate(10.2200 10.0000) scale(0.78571) translate(-4.2800 -4.0000)">
+    <path d="M28.72 4 H59.72 L54.74 16 H26.84 L24.44 26 H54.44 L48.92 49 L35.28 60 H4.28 L9.26 48 H37.16 L39.56 38 H9.56 L15.08 15 Z"/>
+  </g>
 </svg>

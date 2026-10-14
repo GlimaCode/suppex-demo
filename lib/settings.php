@@ -105,6 +105,11 @@ function storefront_config(): array
         'email'     => 'shop_email',
         'instagram' => 'instagram_url',
         'telegram'  => 'telegram_url',
+        /* Bale has had a field in the panel since the channels were built,
+           and an order can be placed there - but it was never in this map,
+           so the footer had no way to show it however carefully the owner
+           filled the setting in. */
+        'bale'      => 'bale_url',
         'whatsapp'  => 'whatsapp_url',
         'aparat'    => 'aparat_url',
     ] as $key => $setting) {
@@ -120,14 +125,17 @@ function storefront_config(): array
         'saleMode'              => setting_bool('sale_mode', true),
         'contact'               => $contact,
         'channels'              => array_values(array_filter([
+            /* No prefillParam: t.me/<username> ignores a message parameter and
+               the app then refuses the link outright, so the order goes via the
+               clipboard instead. Bale and WhatsApp do support it. */
             trim((string) setting('telegram_url')) !== ''
-                ? ['id' => 'telegram', 'label' => 'تلگرام',
-                   'url' => setting('telegram_url'), 'prefillParam' => 'text'] : null,
+                ? ['id' => 'telegram', 'label' => 'تلگرام', 'enabled' => true,
+                   'url' => setting('telegram_url'), 'prefillParam' => null] : null,
             trim((string) setting('bale_url')) !== ''
-                ? ['id' => 'bale', 'label' => 'بله',
+                ? ['id' => 'bale', 'label' => 'بله', 'enabled' => true,
                    'url' => setting('bale_url'), 'prefillParam' => 'text'] : null,
             trim((string) setting('whatsapp_url')) !== ''
-                ? ['id' => 'whatsapp', 'label' => 'واتس‌اپ',
+                ? ['id' => 'whatsapp', 'label' => 'واتس‌اپ', 'enabled' => true,
                    'url' => setting('whatsapp_url'), 'prefillParam' => 'text'] : null,
         ])),
     ];

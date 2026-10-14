@@ -95,7 +95,7 @@
   white-space: nowrap;
 }
 .badge--light  { background: var(--text); color: var(--inverse-text); }
-.badge--accent { background: var(--accent); color: #fff; }
+.badge--accent { background: var(--accent-ink); color: #fff; }
 .badge--outline{ background: rgba(19,18,16,0.72); color: var(--text); border: 1px solid var(--line-strong); backdrop-filter: blur(6px); }
 /* Scarcity. Solid rather than tinted because this badge sits on top of a
    product photograph, where a translucent fill takes its contrast from
@@ -116,7 +116,7 @@
   transition: all var(--dur) var(--ease);
 }
 .chip:hover { border-color: var(--line-strong); color: var(--text); }
-.chip.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.is-active { background: var(--accent-ink); border-color: var(--accent-ink); color: #fff; }
 
 .dot {
   width: 7px; height: 7px;
@@ -232,6 +232,20 @@
 .pcard:hover .pcard__title { color: var(--amber); }
 .pcard__variant { font-size: var(--fs-xs); color: var(--text-dim); }
 
+/* The one fact under a card's name (keyFact() in ui.js, product_key_fact()
+   in lib/products.php): two lines at most, so a long one cannot push the
+   price out of line with the next card's. */
+.pcard__fact {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .pcard__foot {
   display: flex;
   align-items: center;
@@ -239,6 +253,50 @@
   gap: var(--sp-3);
   margin-block-start: auto;
   padding-block-start: var(--sp-3);
+}
+
+/* The foot on a phone. Price and the 44px button side by side need about
+   150px; a card on a 360px phone has 114 and on a 320px one 94. The button
+   was pushed out past the card - and past the edge of the page, 14.6px on
+   the home page and 41.8px under a ten-digit price on the product page -
+   which is what made Chrome widen the whole page on a phone.
+
+   So a narrow card gives the price its own line and puts the struck price
+   and the button on the line under it; a very narrow one stacks all three.
+   display: contents lets the struck price, which lives inside .price, take
+   a cell of this grid. The price scales with the card rather than with the
+   screen, so every card in a row prints its price at the same size.
+
+   Named container, because .pcard__media is a container too (the hover
+   panel asks it) and an unnamed query answers to the nearest one. */
+.pcard__body { container: pcard / inline-size; }
+@container pcard (max-width: 175px) {
+  .pcard__foot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--sp-2);
+    row-gap: var(--sp-1);
+  }
+  .pcard__foot > .price { display: contents; }
+  .pcard__foot .price__now {
+    grid-column: 1 / -1;
+    font-size: clamp(12px, 13cqi, 17px);
+    white-space: nowrap;
+  }
+  .pcard__foot .price__was {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    font-size: clamp(10px, 9.5cqi, 12px);
+  }
+  .pcard__foot .add-btn { grid-column: 2; grid-row: 2; }
+}
+/* Under ~110px the struck price and the button do not fit side by side
+   either (58 + 8 + 44), so the button takes a line of its own. */
+@container pcard (max-width: 109px) {
+  .pcard__foot { grid-template-columns: minmax(0, 1fr); }
+  .pcard__foot .add-btn { grid-column: 1; grid-row: 3; justify-self: end; }
 }
 
 /* --------------------------------------------------------------------------
@@ -254,8 +312,49 @@
    discount mean something. On --text-faint it measured 2.3:1. */
 .price__was { font-size: var(--fs-xs); color: var(--text-dim); text-decoration: line-through; }
 .price__unit { font-size: var(--fs-xs); color: var(--text-dim); font-weight: 600; }
+/* «تومان» set the way the owner asked for it: «ن» on its own line, above
+   «توما», in the same colour as the figure.
+
+   The two lines are ::before and ::after, and the element's only real text
+   is the whole word, clipped by .sr-only. That is not decoration - it is
+   what keeps the split from leaking:
+
+     * generated content is not copied, so a pasted price reads «تومان»
+       rather than «نتوما»;
+     * a screen reader hears one word, not two fragments;
+     * an inline-block takes its baseline from its LAST line box, so «توما»
+       lands on the number's baseline by itself. Two spans could not: one
+       ordering breaks the copy, the other hangs the unit below the number
+       by an offset that is not constant (0.455em at 34px, 0.676em at 17px,
+       measured).
+
+   The halves come from data-* rather than being written into this file.
+   config.js says a switch to Rial should touch one function, and a «تومان»
+   hard-coded in a stylesheet would outlive the label it came from.
+
+   Scoped INSIDE .price__now. The bare .price__unit above used to carry
+   «ارسال رایگان بالای ۱,۵۰۰,۰۰۰» beside the product page's price, a
+   footnote that must not be dressed as a unit. That line is gone at the
+   owner's request - the struck price and the discount sit there now - but
+   the scoping stays, so the next bare use is not drawn as a price unit. */
+.price__now .price__unit {
+  display: inline-block;
+  text-align: center;
+  line-height: 1;
+  font-size: 9px;
+  font-weight: 800;
+  color: inherit;
+}
+.price__now .price__unit::before { content: attr(data-head); display: block; }
+.price__now .price__unit::after  { content: attr(data-tail); display: block; }
+/* The product page's headline has room for it; a card at 17px does not. */
+.price--lg .price__now .price__unit { font-size: 11px; }
 .price--lg .price__now { font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.1rem); }
 .price--lg .price__was { font-size: 1rem; }
+/* The percentage beside the struck price. .price lines its children up on
+   the text baseline, which puts a pill's bottom edge on the line and makes
+   it float high; centred, it sits level with the figures. */
+.price__off { align-self: center; }
 
 /* Round add-to-cart button on the card */
 .add-btn {
@@ -379,6 +478,20 @@
 .opt__label { font-weight: 800; font-size: var(--fs-sm); }
 .opt__meta { font-size: var(--fs-xs); color: var(--text-dim); font-weight: 600; }
 .opt__price { font-weight: 800; font-size: var(--fs-sm); }
+/* The size rows carry the same stacked «تومان» as the headline above them -
+   they sit on the same screen, and one of each looked like a mistake. The
+   rule is duplicated rather than shared because .price__unit's own block is
+   scoped inside .price__now, which these rows are not. */
+.opt__price .price__unit {
+  display: inline-block;
+  text-align: center;
+  line-height: 1;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.opt__price .price__unit::before { content: attr(data-head); display: block; }
+.opt__price .price__unit::after  { content: attr(data-tail); display: block; }
 
 /* --------------------------------------------------------------------------
    Accordion
@@ -414,13 +527,61 @@
 .acc__panel > div { overflow: hidden; }
 .acc__item.is-open .acc__panel { grid-template-rows: 1fr; }
 .acc__body { padding-block-end: var(--sp-5); font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.85; }
+/* «مواد تشکیل‌دهنده» and «روش مصرف» as the owner laid them out in the panel.
+   They are typed as lists, one item to a line with blank lines between the groups,
+   and a <p> folded all of it into one run-on paragraph.
+
+   pre-line keeps those line breaks. plaintext gives each line its own
+   direction, which a list like this needs: «L-Leucine: 3 g» is a
+   left-to-right line and «۷.۴ گرم اسیدهای آمینه ضروری (EAA)» a right-to-left
+   one, and forcing both into one direction scrambles whichever it is not.
+   Right-aligned throughout, as the panel's own textarea shows them. */
+.acc__body--lines {
+  white-space: pre-line;
+  unicode-bidi: plaintext;
+  text-align: right;
+}
 
 /* Spec table inside an accordion */
 .spec { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
 .spec th, .spec td { padding: var(--sp-3) 0; border-block-end: 1px solid var(--line); text-align: start; }
 .spec th { color: var(--text-muted); font-weight: 600; }
-.spec td { font-weight: 800; text-align: end; }
+/* The value column read from a different edge on every second row. The
+   cells held .num, which sets direction:ltr, and `text-align: end` resolves
+   against the CELL's direction - so the numbers ended right while «مقدار»,
+   which carries no .num, ended left. Naming the edge the page actually
+   reads from settles it for both, and the figures keep their tabular
+   widths from here rather than from a class that also flips direction on
+   a cell whose text is mostly Persian. */
+.spec td {
+  font-weight: 800;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  /* Each value takes its direction from its own first letter. Dropping .num
+     (above) fixed «مقدار» but let a right-to-left cell reorder the values
+     the owner actually types: «6.7 g» came out «g 6.7», the unit on the
+     wrong side of every Latin row. plaintext reads «6.7 g» left to right
+     and «۲۴ گرم» right to left, and text-align: right keeps both on the
+     same edge. */
+  unicode-bidi: plaintext;
+}
 .spec tr:last-child th, .spec tr:last-child td { border-block-end: none; }
+
+/* The full description, now below the four panels rather than above the
+   buy button. Spaced away from the accordion so it does not read as a
+   fifth panel that somebody forgot to give a trigger. */
+.pdp__about { margin-block-start: var(--sp-8); }
+.pdp__about h2 { margin: 0 0 var(--sp-3); }
+/* pre-line: the description is typed into a textarea with its paragraphs
+   separated by line breaks, and a <p> folds those into spaces. */
+.pdp__about p { margin: 0; line-height: 1.9; white-space: pre-line; }
+.pdp__about ul { margin-block-start: var(--sp-4); }
+/* Each feature is a .row, and .row wraps - so a line longer than the space
+   beside the tick dropped under it, leaving the tick alone on a line of its
+   own above the text. A zero basis keeps the text beside the tick and lets
+   it wrap inside its own box instead. */
+.pdp__about li > .u-sm { flex: 1 1 0; min-width: 0; }
 
 /* --------------------------------------------------------------------------
    Ticker — the one continuously-moving element, borrowed from the references
@@ -497,6 +658,9 @@
 [dir="rtl"] .drawer { transform: translateX(-105%); }
 .drawer.is-open,
 [dir="rtl"] .drawer.is-open { transform: translateX(0); }
+/* It takes the focus when it opens (app.js), so a keyboard starts inside it;
+   a ring round the whole drawer would say nothing. */
+.drawer:focus { outline: none; }
 
 .drawer__head {
   display: flex; align-items: center; justify-content: space-between;
@@ -547,6 +711,41 @@
 .stepper-mini button:hover { color: var(--amber); }
 .stepper-mini span { min-width: 22px; text-align: center; font-size: var(--fs-xs); font-weight: 800; }
 
+/* A line the shop cannot sell any more: still there, so the shopper sees
+   what became of it, but plainly not part of the order. */
+.line-item--gone .line-item__media,
+.line-item--gone .line-item__title,
+.line-item--gone .line-item__info > .u-xs { opacity: 0.5; }
+.line-item__gone { margin: var(--sp-2) 0 0; font-size: var(--fs-xs); line-height: 1.8; color: #f2a29a; }
+
+/* The amount above the send buttons, while the drawer's own summary is
+   hidden for the form. */
+.checkout-sum {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-block: var(--sp-2) var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-md);
+}
+.checkout-sum__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.checkout-sum__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+}
+.checkout-sum__total strong { font-size: 1.05rem; }
+
 /* --------------------------------------------------------------------------
    Delivery details form
    -------------------------------------------------------------------------- */
@@ -560,6 +759,23 @@
    text collides with the curve. */
 .form__control { border-radius: var(--r-md); }
 textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
+
+/* Standing guidance under a field: what the value is and where to find it.
+   Distinct from .form__error, which appears only when something is wrong -
+   a hint that looked like an error would make a correct form read as broken. */
+/* An axis the owner added, drawn between the flavour and the size. Several
+   can stack inside one field, so the gap lives here rather than on the
+   field - .pdp__field's own spacing separates it from its neighbours, and
+   this separates the rows within it. */
+.pdp__attr + .pdp__attr { margin-block-start: var(--sp-4); }
+.pdp__attr .pdp__field-label { display: block; margin-block-end: var(--sp-2); }
+
+.form__hint {
+  font-size: 0.6875rem;
+  color: var(--text-dim);
+  line-height: 1.8;
+  margin: 0;
+}
 
 .form__error { font-size: 0.6875rem; color: var(--accent); min-height: 0; }
 .form__row.is-invalid .form__control { border-color: var(--accent); background: rgba(242, 89, 20, 0.07); }
@@ -577,6 +793,13 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
    Payment step — replaces the cart list once an order is handed to Telegram
    -------------------------------------------------------------------------- */
 .pay { display: flex; flex-direction: column; gap: var(--sp-5); padding-block: var(--sp-4); }
+/* In here the gap does the spacing. The code's and the clock's own bottom
+   margins doubled it, and on a phone that pushed the card below the fold. */
+.pay > .pay__code,
+.pay > .pay__hold { margin-block-end: 0; }
+@media (max-width: 520px) {
+  .pay { gap: var(--sp-4); }
+}
 
 .pay__done {
   display: flex;
@@ -604,6 +827,60 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
 }
 .pay__paste svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--accent); margin-top: 3px; }
 .pay__paste strong { color: var(--amber); }
+.pay__paste-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-3); }
+.pay__copy-text {
+  min-height: 40px;
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid rgba(242, 89, 20, 0.55);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--text);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.pay__copy-text:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pay__copy-text.is-done { background: var(--success); border-color: var(--success); color: #0B1F0D; }
+/* Copying failed both ways: the text itself, to select by hand. 16px, or
+   iOS zooms in when it is focused. */
+.pay__text { width: 100%; font-size: 16px; line-height: 1.8; border-radius: var(--r-md); }
+
+/* The clock ran out (app.js marks the panel): the card and the amount give
+   way to what to do instead. */
+.pay__expired {
+  display: none;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid rgba(226, 86, 74, 0.45);
+  border-radius: var(--r-md);
+  font-size: var(--fs-xs);
+  line-height: 1.9;
+  color: var(--text-muted);
+}
+.pay__expired strong { color: #f2a29a; font-weight: 800; }
+.pay.is-expired .pay__expired { display: flex; }
+.pay.is-expired .pay__card,
+.pay.is-expired .pay__amount { display: none; }
+/* A receipt is in: nothing left to ask for. */
+.pay.is-paid .pay__hold,
+.pay.is-paid .pay__card,
+.pay.is-paid .pay__expired { display: none; }
+
+/* The order did not reach the shop's records. */
+.pay__fail {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid rgba(226, 86, 74, 0.45);
+  border-radius: var(--r-md);
+  background: rgba(226, 86, 74, 0.08);
+  font-size: var(--fs-xs);
+  line-height: 1.9;
+  color: var(--text-muted);
+}
+.pay__fail svg { width: 18px; height: 18px; flex-shrink: 0; color: #f2a29a; margin-top: 3px; }
+.pay__fail strong { display: block; margin-block-end: var(--sp-1); font-size: var(--fs-sm); font-weight: 800; color: var(--text); }
 
 .pay__amount {
   display: flex;
@@ -634,7 +911,12 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
 
 .pay__number {
   font-family: var(--font-display);
-  font-size: clamp(1.15rem, 1rem + 1.2vw, 1.5rem);
+  /* One line at every width: a card number broken over two lines reads as
+     two numbers, and on the tracking page it broke on every phone narrower
+     than 412px. 7.6vw less a little follows the narrowest box it sits in -
+     that page's card, 233px wide at 360 - and 1.5rem caps it as before. */
+  font-size: clamp(0.9rem, 7.6vw - 0.62rem, 1.5rem);
+  white-space: nowrap;
   letter-spacing: 0.06em;
   text-align: center;
   padding-block: var(--sp-2);
@@ -724,6 +1006,8 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
 }
 .toast svg { width: 18px; height: 18px; color: var(--success); flex-shrink: 0; }
 .toast.is-out { animation: toast-out var(--dur) var(--ease) forwards; }
+.toast--error { border-color: rgba(226, 86, 74, 0.55); }
+.toast--error svg { color: #f2a29a; }
 @keyframes toast-in  { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
 @keyframes toast-out { to   { opacity: 0; transform: translateY(8px) scale(0.98); } }
 
@@ -808,6 +1092,71 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
 .pay__hold--soon { border-color: rgba(245,166,35,.45); color: var(--amber); }
 .pay__hold--soon svg, .pay__hold--soon strong { color: var(--amber); }
 .pay__hold--over { border-color: rgba(226,86,74,.45); color: #f2a29a; }
+
+/* --------------------------------------------------------------------------
+   Unpaid order: the mark on the account icon, and the bar back to the card
+   -------------------------------------------------------------------------- */
+
+/* Deliberately not the cart's numbered badge. A count answers «how many»;
+   this answers «go and look», and a «1» on an account icon reads as one
+   order rather than one piece of news. */
+.icon-btn__dot {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  box-sizing: content-box;
+}
+
+.resume {
+  position: fixed;
+  inset-block-end: 0;
+  inset-inline: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  /* Its own dark ground rather than a translucent one: it sits over whatever
+     happens to be at the bottom of the page, including product photography. */
+  background: var(--surface-2);
+  border-block-start: 1px solid var(--line-strong);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .35);
+  font-size: var(--fs-xs);
+  color: var(--text);
+}
+.resume svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--accent); }
+/* The code is the first thing to go when the bar runs out of room; the
+   countdown and the way in are what make it worth having. */
+.resume__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume__hold { flex-shrink: 0; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.resume__hold strong { color: var(--amber); }
+.resume__go {
+  flex-shrink: 0;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+}
+/* The whole bar is the button. It was a link, and a thumb aims at the bar,
+   not at the pill at its end. */
+.resume__go::after { content: ''; position: absolute; inset: 0; }
+/* Nothing to say once the clock is at zero, and an expired price must not
+   look payable. startHoldCountdown() adds the class. */
+.resume__hold.pay__hold--over,
+.resume:has(.pay__hold--over) { display: none; }
+
+@media (max-width: 520px) {
+  .resume__text { font-size: 0.6875rem; }
+  /* On a phone the code cost the words: «در انتظار پرداخت» was cut to
+     «در ان…». The page the pill opens starts with the code. */
+  .resume__code { display: none; }
+}
 .pay__hold--over svg, .pay__hold--over strong { color: #f2a29a; }
 
 /* --------------------------------------------------------------------------
@@ -1102,3 +1451,818 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
   .pcard__spec-in { transition: none; }
   .pcard__spec-in { transform: none; }
 }
+
+/* --------------------------------------------------------------------------
+   Lightbox - a product photograph, enlarged (openLightbox() in app.js)
+   -------------------------------------------------------------------------- */
+.lightbox {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  /* Solid: at 97% the product page showed through behind the photograph. */
+  background: rgb(12, 11, 10);
+  color: var(--text);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.lightbox[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.lightbox::backdrop { background: rgba(0, 0, 0, 0.6); }
+.lightbox__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: calc(var(--sp-3) + env(safe-area-inset-top)) var(--sp-4) var(--sp-3);
+}
+.lightbox__count { font-size: var(--fs-sm); font-weight: 700; color: var(--text-muted); }
+.lightbox__btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line-mid);
+  border-radius: 50%;
+  background: rgba(242, 237, 227, 0.06);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.lightbox__btn:hover { background: rgba(242, 237, 227, 0.14); border-color: var(--line-strong); }
+.lightbox__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lightbox__btn svg { width: 20px; height: 20px; }
+/* touch-action: none - every gesture on the picture is the viewer's own:
+   the pan, the pinch and the swipe are all handled in app.js. */
+.lightbox__stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 var(--sp-4);
+  touch-action: none;
+  cursor: zoom-in;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.lightbox.is-zoomed .lightbox__stage { cursor: grab; }
+.lightbox.is-zoomed .lightbox__stage:active { cursor: grabbing; }
+.lightbox__img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--r-md);
+  transition: transform 0.3s var(--ease-out);
+  -webkit-user-drag: none;
+}
+.lightbox__img.is-moving { transition: none; }
+.lightbox__nav {
+  position: absolute;
+  inset-block-start: 50%;
+  margin-block-start: -22px;
+  z-index: 2;
+  background: rgba(19, 18, 16, 0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.lightbox__nav--prev { inset-inline-start: var(--sp-4); }
+.lightbox__nav--next { inset-inline-end: var(--sp-4); }
+.lightbox__hint {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.lightbox.is-zoomed .lightbox__hint { visibility: hidden; }
+/* Zoomed in, the arrows would sit on the part being looked at; a tap comes
+   back out first. */
+.lightbox.is-zoomed .lightbox__nav { opacity: 0; pointer-events: none; }
+
+/* --------------------------------------------------------------------------
+   Receipt upload - after the transfer (ui.receiptBlock, initReceipts())
+   -------------------------------------------------------------------------- */
+.receipt-up {
+  display: grid;
+  gap: var(--sp-3);
+  margin-block: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: rgba(242, 237, 227, 0.03);
+}
+.receipt-up__head { display: flex; align-items: flex-start; gap: var(--sp-3); }
+.receipt-up__icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(242, 89, 20, 0.14);
+  color: var(--accent);
+}
+.receipt-up__icon svg { width: 20px; height: 20px; }
+.receipt-up__title { display: block; font-size: var(--fs-sm); font-weight: 800; }
+.receipt-up__sub {
+  display: block;
+  margin-block-start: 2px;
+  font-size: var(--fs-xs);
+  line-height: 1.8;
+  color: var(--text-muted);
+}
+.receipt-up__pick { position: relative; cursor: pointer; }
+/* The input is visually hidden but still the thing a keyboard reaches, so
+   the ring goes on the label around it. */
+.receipt-up__pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.receipt-up.is-busy .receipt-up__pick { opacity: 0.5; pointer-events: none; }
+.receipt-up__state:empty { display: none; }
+.receipt-up__msg {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+}
+.receipt-up__msg svg { flex-shrink: 0; width: 18px; height: 18px; margin-block-start: 3px; }
+.receipt-up__msg--busy { color: var(--text-muted); }
+.receipt-up__msg--done { color: var(--success); }
+.receipt-up__msg--error { color: #f2a29a; }
+.receipt-up__bar {
+  height: 4px;
+  margin-block-start: var(--sp-2);
+  border-radius: 2px;
+  background: rgba(242, 237, 227, 0.12);
+  overflow: hidden;
+}
+.receipt-up__bar span { display: block; height: 100%; background: var(--accent); transition: width 0.2s linear; }
+.receipt-up__thumb {
+  display: block;
+  width: 72px;
+  aspect-ratio: 3 / 4;
+  margin-block-start: var(--sp-3);
+  /* Under the start of the message, not across from it. */
+  margin-inline-end: auto;
+  object-fit: cover;
+  object-position: top;
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-sm);
+  background: #fff;
+}
+.track__receipts { margin-block: var(--sp-4) 0; color: var(--success); }
+
+/* Pinned under the payment panel in the drawer (setPayDock() in app.js),
+   where a thumb already is, instead of at the end of a panel taller than a
+   phone's screen. The same box, pared down to a line and a button. */
+.pay-dock {
+  flex-shrink: 0;
+  padding: var(--sp-3) var(--sp-5) var(--sp-4);
+  border-block-start: 1px solid var(--line);
+  background: var(--bg);
+}
+.receipt-up--dock {
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.receipt-up__lead {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.8;
+  color: var(--text-muted);
+  text-align: center;
+}
+.receipt-up.is-sent .receipt-up__lead { display: none; }
+.receipt-up--dock .receipt-up__pick svg { width: 18px; height: 18px; flex-shrink: 0; }
+/* The message beside a small copy of what was sent, the progress bar under
+   both. */
+.receipt-up--dock .receipt-up__state {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--sp-3);
+}
+.receipt-up--dock .receipt-up__state:empty { display: none; }
+.receipt-up--dock .receipt-up__bar { grid-column: 1 / -1; }
+.receipt-up--dock .receipt-up__thumb { width: 44px; margin: 0; }
+
+/* --------------------------------------------------------------------------
+   «سفارش‌های من» on the tracking page (initMyOrders(), ui.myOrderRow)
+   -------------------------------------------------------------------------- */
+.myorders { margin-block: 0 var(--sp-8); }
+.myorders__title { margin: 0 0 var(--sp-2); font-size: var(--fs-h3); font-weight: 800; }
+.myorders__note { margin: 0 0 var(--sp-4); font-size: var(--fs-sm); line-height: 1.9; color: var(--text-muted); }
+.myorders__list { display: grid; gap: var(--sp-3); margin: 0; padding: 0; list-style: none; }
+.myorder {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.myorder__top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.myorder__code { font-weight: 800; }
+.myorder__what { margin: 0; font-weight: 700; line-height: 1.8; }
+.myorder__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.myorder__parcel { margin: 0; font-size: var(--fs-sm); }
+.myorder__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-block-start: var(--sp-1);
+}
+.myorder__actions form { margin: 0; }
+.myorder__forget {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.myorder__forget:hover { color: var(--text); }
+.myorder__unknown { font-size: var(--fs-xs); color: var(--text-dim); }
+.myorder__wait { width: 56px; height: 22px; border-radius: var(--r-pill); background: rgba(242, 237, 227, 0.08); }
+
+/* --------------------------------------------------------------------------
+   Brands - the logo wall (the home page, brands.php) and a brand's own page
+   One tile: ui.brandCard() in ui.js, brand_card_html() in lib/brands.php.
+   -------------------------------------------------------------------------- */
+/* Wrapped and centred rather than a fixed grid: three brands sit together in
+   the middle instead of against one edge, and thirty wrap into tidy rows. */
+.brands {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--grid-gap);
+}
+/* A dark card like a product card - two across on a phone, four on a
+   tablet, six on a desktop - that lifts and warms the same way under the
+   pointer. Two, not three, on a phone: a real logo needs the width a name
+   did not, and at three across a wide wordmark came out a few pixels tall. */
+.bcard {
+  flex: 0 0 calc((100% - var(--grid-gap)) / 2);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  text-align: center;
+  color: var(--text);
+  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease),
+              background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+@media (min-width: 640px) {
+  .bcard { flex-basis: calc((100% - 3 * var(--grid-gap)) / 4); }
+}
+@media (min-width: 1024px) {
+  .bcard { flex-basis: calc((100% - 5 * var(--grid-gap)) / 6); }
+}
+.bcard:hover {
+  transform: translateY(-4px);
+  border-color: rgba(242, 89, 20, 0.45);
+  background: var(--surface-3);
+  box-shadow: var(--glow);
+}
+.bcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* The well: the lit ground the product photographs stand on, with the logo
+   standing in it - in the site's cream, or in its own colours if the owner
+   chose them (lib/brands.php makes both from the one upload). */
+.bcard__plate {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  /* The name drawn in place of a logo sizes itself to the well (cqi below). */
+  container-type: inline-size;
+}
+.bcard__plate::before,
+.bcard__plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transition: opacity var(--dur) var(--ease);
+}
+.bcard__plate::before {
+  background: radial-gradient(65% 60% at 50% 50%, rgba(242, 124, 61, 0.16), transparent 70%);
+}
+/* Under the pointer the glow comes up. One gradient cannot fade into
+   another, so the brighter one waits on top at nothing. */
+.bcard__plate::after {
+  background: radial-gradient(70% 75% at 50% 55%, rgba(242, 89, 20, 0.34), transparent 72%);
+  opacity: 0;
+}
+.bcard:hover .bcard__plate::after { opacity: 1; }
+.bcard__logo {
+  display: block;
+  width: auto;
+  height: auto;
+  /* A compact mark would otherwise fill the well and outweigh a long
+     wordmark beside it: the height cap evens them out. */
+  max-width: 84%;
+  max-height: 58%;
+  object-fit: contain;
+  opacity: 0.9;
+  transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-out);
+}
+.bcard:hover .bcard__logo { opacity: 1; transform: scale(1.06); }
+/* No logo yet: the name, set like one, in the same cream. Sized to the well
+   rather than to the screen, so «Nutrabolics» on a phone's narrow tile
+   shrinks to fit instead of breaking in the middle of the word. A browser
+   without container units keeps the first, smaller size. */
+.bcard__word {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-size: clamp(9px, 11.5cqi, 18px);
+  line-height: 1.2;
+  color: var(--text);
+  opacity: 0.9;
+  overflow-wrap: break-word;
+}
+.bcard__name {
+  margin-block-start: var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1.5;
+  transition: color var(--dur) var(--ease);
+}
+.bcard:hover .bcard__name { color: var(--amber); }
+.bcard__count { font-size: var(--fs-xs); line-height: 1.6; color: var(--text-dim); }
+
+/* «برندهای دیگر» at the foot of a brand page: the same tiles, smaller. */
+.brands-more {
+  margin-block-start: var(--sp-10);
+  padding-block-start: var(--sp-8);
+  border-block-start: 1px solid var(--line);
+}
+.brands-more__title {
+  margin: 0 0 var(--sp-5);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  color: var(--text-muted);
+}
+/* Two across on a phone, like the wall itself; four on a tablet, eight on a
+   desktop. */
+@media (min-width: 640px) {
+  .brands--sm .bcard { flex-basis: calc((100% - 3 * var(--grid-gap)) / 4); }
+}
+@media (min-width: 1024px) {
+  .brands--sm .bcard { flex-basis: calc((100% - 7 * var(--grid-gap)) / 8); }
+}
+
+/* A brand's own page: its well, larger, beside its name. */
+.brand-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+  margin-block-start: var(--sp-6);
+}
+.brand-head__plate {
+  flex: 0 0 clamp(140px, 32vw, 260px);
+  padding: var(--sp-5) var(--sp-6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.brand-head__plate .bcard__logo { opacity: 1; }
+.brand-head__text { min-width: 0; }
+.brand-head__title { margin: var(--sp-2) 0 0; }
+.brand-head__latin { margin: 2px 0 0; font-weight: 700; color: var(--text-muted); }
+.brand-head__count { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--text-dim); }
+.brand-head__blurb {
+  margin: var(--sp-3) 0 0;
+  max-width: 56ch;
+  font-size: var(--fs-sm);
+  line-height: 1.95;
+  color: var(--text-muted);
+}
+@media (max-width: 520px) {
+  .brand-head { gap: var(--sp-4); }
+  .brand-head__plate { padding: var(--sp-4); }
+}
+
+/* The brand's name above a product's title, when it has a page. A faint
+   underline all the time: a phone has no hover to reveal it, and a link
+   nobody can see is one nobody follows. */
+.pdp__brand {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(242, 89, 20, 0.45);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: text-decoration-color var(--dur) var(--ease);
+}
+.pdp__brand:hover { text-decoration-color: currentColor; }
+
+/* --------------------------------------------------------------------------
+   Shopping by goal (index.php, goal.php, lib/goals.php)
+   --------------------------------------------------------------------------
+   One card per goal with something on sale - four or five, so they share a
+   row on a desktop and take two columns on a phone. */
+.goals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--sp-4);
+}
+@media (max-width: 559px) {
+  .goals { grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+}
+.goal {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: linear-gradient(160deg, var(--surface-2) 0%, var(--bg) 100%);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.goal:hover { border-color: var(--accent); transform: translateY(-2px); }
+.goal:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.goal__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-block-end: var(--sp-2);
+  border-radius: var(--r-md);
+  background: rgba(242, 124, 61, 0.12);
+  color: var(--accent);
+  font-size: 22px;
+}
+.goal__name { font-size: 1.05rem; font-weight: 800; line-height: 1.4; transition: color var(--dur) var(--ease); }
+.goal:hover .goal__name { color: var(--amber); }
+.goal__cats { font-size: var(--fs-xs); line-height: 1.7; color: var(--text-muted); }
+.goal__count { font-size: var(--fs-xs); color: var(--text-dim); }
+/* Two to a row on a phone, so less room around each. */
+@media (max-width: 559px) {
+  .goal { padding: var(--sp-4); gap: var(--sp-1); }
+  .goal__icon { width: 38px; height: 38px; font-size: 19px; }
+  .goal__name { font-size: 1rem; }
+}
+
+/* goal.php: one section for each category that serves the goal. */
+.goal-cat { margin-block-start: var(--sp-10); }
+.goal-cat__head {
+  display: grid;
+  gap: var(--sp-2);
+  max-width: 64ch;
+  margin-block-end: var(--sp-5);
+}
+.goal-cat__head .u-sm { line-height: 1.95; }
+.goal-cat__head .link-more { justify-self: start; }
+
+/* --------------------------------------------------------------------------
+   The buy bar at the foot of a phone's screen (product.php, initProduct())
+   --------------------------------------------------------------------------
+   Once the buy button has scrolled away: the product, the price of the
+   current choice and a button that presses the real one. On its own dark
+   ground like the bar back to an unpaid order (.resume), with which it never
+   shares the screen. Not on a desktop, where the buy box stays in view. */
+.buybar {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  padding-block-end: calc(var(--sp-3) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-2);
+  border-block-start: 1px solid var(--line-strong);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .35);
+}
+.buybar__info { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.buybar__name {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.buybar__meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
+.buybar__meta .price { flex-wrap: nowrap; }
+.buybar__meta .price__now { font-size: var(--fs-sm); }
+.buybar__choice {
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.buybar__btn { flex-shrink: 0; min-height: 46px; padding-inline: var(--sp-5); }
+@media (min-width: 900px) {
+  .buybar { display: none; }
+}
+/* Room under the page for the bar, and the notices lifted above it. */
+@media (max-width: 899px) {
+  body.has-buybar { padding-block-end: 76px; }
+  body.has-buybar .toast-stack { inset-block-end: calc(76px + var(--sp-4)); }
+}
+
+/* --------------------------------------------------------------------------
+   Reviews (lib/reviews.php)
+   --------------------------------------------------------------------------
+   On the product page: the average, then what each buyer wrote. On the
+   tracking page: the form, one per product of an order that has been sent. */
+.reviews__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-block-end: var(--sp-6);
+}
+.reviews__avg { font-size: 2.2rem; font-weight: 900; line-height: 1; }
+.reviews__summary .rating__stars svg { width: 20px; height: 20px; }
+.reviews__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-4); }
+@media (min-width: 900px) {
+  .reviews__list { grid-template-columns: 1fr 1fr; }
+}
+.review {
+  padding: var(--sp-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.review__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.review__author { font-weight: 800; color: var(--text); }
+/* Every review is from a buyer - it cannot be written any other way - so the
+   label is a fact about how it got here, not a badge of merit. */
+.review__badge { color: var(--success); font-weight: 700; }
+.review__body { margin: var(--sp-3) 0 0; line-height: 1.95; white-space: pre-line; }
+.reviews__empty { max-width: 62ch; line-height: 1.95; }
+.reviews__empty a { color: var(--amber); text-decoration: underline; text-underline-offset: 3px; }
+
+.track__reviews { display: grid; gap: var(--sp-4); margin-block-start: var(--sp-8); }
+.review-form {
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.review-form__stars { border: 0; margin: 0; padding: 0; min-width: 0; }
+.review-form__stars legend { font-size: var(--fs-sm); font-weight: 800; margin-block-end: var(--sp-2); }
+.review-form__done {
+  margin: 0;
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  font-size: var(--fs-sm);
+  line-height: 1.9;
+}
+.review-form__done a { color: var(--amber); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Five stars to choose from. The radios come five to one in the markup and
+   are laid out the other way, so «this one and every one after it» - the
+   ~ combinator - is the chosen star and all below it: one to five from the
+   start of the line, as a Persian reader counts. The radios stay in the tab
+   order and move with the arrow keys. */
+.stars-input { display: inline-flex; flex-direction: row-reverse; justify-content: flex-end; gap: 2px; }
+.stars-input input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.stars-input label {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--line-strong);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.stars-input label svg { width: 30px; height: 30px; }
+.stars-input input:checked ~ label { color: var(--amber); }
+.stars-input:hover label { color: var(--line-strong); }
+.stars-input label:hover,
+.stars-input label:hover ~ label { color: var(--amber); }
+.stars-input input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 10px; }
+
+/* ==========================================================================
+   2026-10 — brands up top, real category photographs, more products, motion
+   ========================================================================== */
+
+/* --- The brands' band under the hero (brand_strip_html() in lib/brands.php).
+   The orange band that held a strip of category words, now holding what the
+   shop actually sells. Each logo sits in a fixed box, so one arriving late
+   cannot push the others along. Paused while a pointer or the keyboard is on
+   it; still, and scrollable by hand, for anyone who asked for less motion. */
+.ticker--brands { padding: 0; }
+.ticker--brands .ticker__track {
+  position: relative;
+  z-index: 1;                       /* above the band's hatch */
+  animation-duration: 42s;
+}
+.ticker--brands:hover .ticker__track,
+.ticker--brands:focus-within .ticker__track { animation-play-state: paused; }
+.ticker--brands .ticker__group { gap: 0; padding-inline-end: 0; }
+.ticker__brand {
+  display: grid;
+  place-items: center;
+  width: 156px;
+  height: 64px;
+  flex-shrink: 0;
+  color: #fff;
+  transition: transform var(--dur) var(--ease-out), opacity var(--dur) var(--ease);
+}
+.ticker__brand img {
+  width: auto;
+  height: auto;
+  max-width: 116px;
+  max-height: 30px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.28));
+}
+.ticker__brand:hover { transform: scale(1.08); }
+.ticker__brand:focus-visible { outline: 2px solid #fff; outline-offset: -8px; border-radius: 12px; }
+.ticker__word {
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.ticker__all {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 56px var(--gutter);
+  background: linear-gradient(to left, var(--accent) 58%, transparent);
+  color: #fff;
+  font-weight: 800;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+[dir="rtl"] .ticker__all { background: linear-gradient(to right, var(--accent) 58%, transparent); }
+.ticker__all svg { width: 16px; height: 16px; transition: transform var(--dur) var(--ease-out); }
+[dir="ltr"] .ticker__all svg { transform: scaleX(-1); }
+.ticker__all:hover svg { transform: translateX(-3px); }
+@media (max-width: 699px) {
+  .ticker__brand { width: 124px; height: 56px; }
+  .ticker__brand img { max-width: 96px; max-height: 26px; }
+  .ticker__all { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker--brands { overflow-x: auto; scrollbar-width: none; }
+  .ticker--brands .ticker__track { animation: none; }
+  .ticker--brands .ticker__group[aria-hidden="true"] { display: none; }
+}
+
+/* --- A category tile with a real photograph: the product standing in the
+   category's own light, on the faint grid the drawn tubs had. */
+.ccard__art {
+  background:
+    radial-gradient(70% 58% at 50% 44%, var(--cat-glow, rgba(242, 89, 20, 0.30)), transparent 72%),
+    linear-gradient(180deg, var(--surface-2), var(--surface));
+}
+.ccard__art::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(242, 237, 227, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(242, 237, 227, 0.05) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(circle at 50% 42%, #000 25%, transparent 72%);
+  mask-image: radial-gradient(circle at 50% 42%, #000 25%, transparent 72%);
+  pointer-events: none;
+}
+.media img.ccard__photo {
+  position: relative;
+  object-fit: contain;
+  padding: 12% 12% 30%;
+  filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.5));
+}
+.ccard--photo:hover .ccard__photo { transform: translateY(-6px) scale(1.06); }
+[data-cat="protein"]     { --cat-glow: rgba(242, 89, 20, 0.34); }
+[data-cat="creatine"]    { --cat-glow: rgba(66, 140, 230, 0.32); }
+[data-cat="amino"]       { --cat-glow: rgba(36, 178, 158, 0.32); }
+[data-cat="mass-gainer"] { --cat-glow: rgba(245, 166, 35, 0.32); }
+[data-cat="pre-workout"] { --cat-glow: rgba(226, 61, 86, 0.32); }
+[data-cat="vitamins"]    { --cat-glow: rgba(97, 189, 103, 0.32); }
+
+/* --- «نمایش بیشتر» under the product grid ------------------------------ */
+.more {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  margin-block-start: var(--sp-8);
+}
+.more[hidden] { display: none; }
+.more__btn { min-width: 240px; }
+.more__btn svg { width: 18px; height: 18px; transition: transform var(--dur) var(--ease-out); }
+.more__btn:hover svg { transform: translateY(3px); }
+.more__btn.is-loading { opacity: 0.7; }
+.more__btn.is-loading svg { animation: more-nudge 0.9s var(--ease) infinite; }
+@keyframes more-nudge { 50% { transform: translateY(4px); } }
+.more__note { font-size: var(--fs-xs); color: var(--text-dim); }
+
+/* Placeholder cards while more products load (ui.productSkeleton()). */
+.pcard--skel { pointer-events: none; }
+.pcard--skel:hover { transform: none; }
+.skel {
+  display: block;
+  background: linear-gradient(100deg, var(--surface-2) 30%, var(--surface-3) 50%, var(--surface-2) 70%);
+  background-size: 300% 100%;
+  animation: skel-shine 1.3s ease-in-out infinite;
+}
+.skel--line { height: 12px; border-radius: 6px; width: 85%; }
+.skel--short { width: 55%; }
+.skel--price { width: 42%; height: 18px; margin-block-start: var(--sp-4); }
+@keyframes skel-shine { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* --- Into the basket: the flight, and the basket's bump (app.js) --------- */
+.fly-ghost {
+  position: fixed;
+  z-index: calc(var(--z-toast) + 1);
+  pointer-events: none;
+  object-fit: contain;
+  border-radius: var(--r-md);
+  will-change: transform, opacity;
+  filter: drop-shadow(0 14px 24px rgba(0, 0, 0, 0.45));
+}
+.icon-btn.is-bump { animation: cart-bump 0.55s var(--ease-out); }
+.icon-btn.is-bump .icon-btn__count { animation: count-pop 0.55s var(--ease-out); }
+@keyframes cart-bump {
+  30% { transform: scale(1.18) rotate(-8deg); color: var(--amber); }
+  65% { transform: scale(0.94); }
+}
+@keyframes count-pop { 40% { transform: scale(1.5); } }
+
+/* A card under the pointer lifts into a little of the brand's light. */
+.pcard:hover { box-shadow: 0 22px 44px -26px rgba(242, 89, 20, 0.55); }
+
+/* --- Sections rise into view as they are scrolled to. CSS alone, driven by
+   the scroll itself (animation-timeline: view()), so nothing waits for a
+   script and nothing is hidden where the browser cannot do it: there the
+   page is simply still. Transform and opacity only - no layout moves.
+   Cards the script draws carry .reveal and their own entrance already. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .section__head,
+    .goal,
+    .trust-card,
+    .ccard:not(.reveal),
+    .pcard:not(.reveal):not(.pcard--skel) {
+      animation: scroll-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 20%;
+    }
+  }
+}
+@keyframes scroll-rise {
+  from { opacity: 0; transform: translateY(26px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* With a layer open - the basket above all - the toasts move to the top.
+   At the bottom they sat on the drawer's own buttons for their seconds:
+   the receipt, «ادامه», the channels. Last in the file so it wins over the
+   buy bar's offset. */
+body.is-locked .toast-stack { inset-block-end: auto; inset-block-start: var(--sp-6); }

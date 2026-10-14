@@ -15,6 +15,8 @@
        GET  ?r=prices&slugs=a,b,c   current prices, to refresh a stale cart
        GET  ?r=config          storefront settings (card details excluded)
        POST ?r=order           create an order, returns code + payment details
+       POST ?r=receipt         a payment receipt for an order: code, phone, image
+       POST ?r=myorders        the live state of orders a browser remembers
 
    Endpoints are read-only apart from ?r=order, and nothing here can reach the
    admin tables.
@@ -25,7 +27,12 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/products.php';
 require_once SUPPEX_ROOT . '/lib/orders.php';
+require_once SUPPEX_ROOT . '/lib/track.php';
+require_once SUPPEX_ROOT . '/lib/variants.php';
+require_once SUPPEX_ROOT . '/lib/quotes.php';
 require_once SUPPEX_ROOT . '/lib/notify.php';
+require_once SUPPEX_ROOT . '/lib/receipts.php';
+require_once SUPPEX_ROOT . '/lib/seo.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -62,6 +69,11 @@ function api_send($data, int $status = 200, int $cacheSeconds = 0, ?callable $af
     if ($after !== null) {
         if (function_exists('fastcgi_finish_request')) {
             fastcgi_finish_request();
+        } elseif (function_exists('litespeed_finish_request')) {
+            /* The same thing under LiteSpeed, which many cPanel hosts run in
+               place of PHP-FPM. Without it the customer waited for Telegram
+               to answer before seeing «رسید دریافت شد». */
+            litespeed_finish_request();
         } else {
             /* Best effort elsewhere: flush what we have so the bytes are at
                least on their way before the slow call starts. */
@@ -108,6 +120,7 @@ try {
                 'notCategory' => $_GET['notCategory'] ?? null,
                 'badge'       => $_GET['badge']       ?? null,
                 'exclude'     => $_GET['exclude']     ?? null,
+                'brand'       => $_GET['brand']       ?? null,
                 'limit'       => $_GET['limit']       ?? null,
             ]), 200, 60);
 
@@ -120,6 +133,12 @@ try {
 
         case 'categories':
             api_send(categories_list(), 200, 300);
+
+        /* The logo wall at the foot of the home page (lib/brands.php): brands
+           with something on sale, in the owner's order. Five minutes, like
+           the categories - a logo changed in the panel is not urgent. */
+        case 'brands':
+            api_send(array_map('brand_api', brands_list()), 200, 300);
 
         case 'search':
             api_send(products_search((string) ($_GET['q'] ?? '')), 200, 30);
@@ -167,6 +186,11 @@ try {
             );
 
             $out = [];
+            /* Everything quoted in this answer, so the shop can be held to it.
+               See lib/quotes.php: the chat window opens before the order is
+               recorded, so the price shown here is the one the customer's own
+               message will carry. */
+            $quoted = [];
             foreach ($rows as $r) {
                 $parentStock = $r['stock_qty'] === null ? null : (int) $r['stock_qty'];
                 $sizes = [];
@@ -176,6 +200,7 @@ try {
                     /* Same fallback as everywhere else: the size's own count,
                        or the product's if the size has none. */
                     $sizeStock = $sz['stock_qty'] !== null ? (int) $sz['stock_qty'] : $parentStock;
+                    $quoted[quote_key((string) $r['slug'], (string) $sz['ext_id'])] = (int) $sz['price'];
                     $sizes[] = [
                         'id'        => $sz['ext_id'],
                         'price'     => (int) $sz['price'],
@@ -183,9 +208,66 @@ try {
                         'stock'     => $sizeStock === null ? null : max(0, $sizeStock),
                     ];
                 }
+                $quoted[quote_key((string) $r['slug'], '')] = (int) $r['price'];
+                /* Flavour premiums are quoted separately from the base, so a
+                   product with four sizes and ten flavours costs fourteen
+                   entries rather than forty. lib/quotes.php explains why. */
+                foreach (db_all('SELECT ext_id, price_delta_toman FROM product_flavors
+                                  WHERE product_id = ? AND price_delta_toman <> 0',
+                                [(int) $r['id']]) as $fl) {
+                    $quoted[quote_flavor_key((string) $r['slug'], (string) $fl['ext_id'])]
+                        = (int) $fl['price_delta_toman'];
+                }
+                /* The cart needs these to keep showing the right line total
+                   for a flavour that costs more, the same way it re-reads the
+                   size prices. */
+                $flavorDeltas = [];
+                foreach (db_all('SELECT ext_id, price_delta_toman FROM product_flavors
+                                  WHERE product_id = ?', [(int) $r['id']]) as $fl) {
+                    $flavorDeltas[] = ['id' => $fl['ext_id'],
+                                       'priceDelta' => (int) $fl['price_delta_toman']];
+                }
+                /* A product that prices itself from variants quotes them
+                   instead of its sizes and premiums: one key for the whole
+                   combination, because there is no base and delta left to add
+                   back together. The sizes above are quoted anyway and cost
+                   nothing - a converted product simply never asks for them. */
+                $variantRows = [];
+                foreach (variants_list((int) $r['id']) as $vr) {
+                    if ((int) $vr['is_active'] !== 1 || (int) $vr['price'] <= 0) {
+                        /* An unpriced or switched-off combination is quoted at
+                           nothing, so a basket holding it is corrected here
+                           rather than refused at checkout. */
+                        continue;
+                    }
+                    $quoted[quote_key((string) $r['slug'], (string) $vr['ext_id'])]
+                        = (int) $vr['price'];
+                    $variantRows[] = [
+                        'id'        => (string) $vr['ext_id'],
+                        'price'     => (int) $vr['price'],
+                        'compareAt' => $vr['compare_at'] === null ? null : (int) $vr['compare_at'],
+                        'stock'     => $vr['stock_qty'] === null ? null : max(0, (int) $vr['stock_qty']),
+                        'image'     => (string) $vr['image'],
+                        /* The choice this row stands for. The cart matches on
+                           this rather than on the key, so leaving it out made
+                           every line of a converted product fail to match -
+                           and the drawer marked them all unavailable. Built
+                           exactly as product_get() builds it. */
+                        'choice'    => (function (array $vals): array {
+                            $out = [];
+                            foreach ($vals as $val) {
+                                $out[(string) $val['attr_ext']] = (string) $val['ext_id'];
+                            }
+                            return $out;
+                        })($vr['values']),
+                    ];
+                }
+
                 $out[] = [
                     'slug'      => $r['slug'],
                     'price'     => (int) $r['price'],
+                    'flavors'   => $flavorDeltas,
+                    'variants'  => $variantRows,
                     'compareAt' => $r['compare_at'] === null ? null : (int) $r['compare_at'],
                     /* A product hidden since the item was added is treated as
                        unavailable rather than omitted, so the cart can say so
@@ -204,7 +286,64 @@ try {
                     'sizes'     => $sizes,
                 ];
             }
-            api_send($out, 200, 0);
+            /* This changes the shape of the answer from a bare list to an
+               object, so repo.js reads .prices now. The two ship together, and
+               a stale cached copy of the script degrades safely rather than
+               breaking: repo.getPrices() already swallows anything unexpected
+               and returns null, and a null reconcile leaves the cart on the
+               prices it had — which is exactly where it stood before quotes
+               existed. */
+            api_send(['prices' => $out, 'quote' => quote_issue($quoted)], 200, 0);
+
+        /* Has anything happened to my order?
+
+           POST, not GET: the phone number would otherwise sit in the URL, in
+           browser history and in every access log between here and the host -
+           the same reason track.php posts its form. */
+        case 'orderstate':
+            if ($method !== 'POST') {
+                api_error('Method not allowed.', 405);
+            }
+            if (track_is_throttled()) {
+                api_error('درخواست‌ها زیاد بوده است. کمی بعد دوباره تلاش کنید.', 429);
+            }
+
+            /* Same opportunistic sweep track.php runs: a hold that closed an
+               hour ago must not still answer "new". */
+            orders_expire_due();
+
+            $stateBody = api_json_body();
+            $stateOrder = track_find(
+                (string) ($stateBody['code'] ?? ''),
+                (string) ($stateBody['phone'] ?? '')
+            );
+
+            /* One answer for every kind of miss, and a 200 rather than a 404:
+               a different status code would confirm that a code exists.
+
+               And only a miss counts toward the throttle, as in ?r=myorders.
+               This is asked on every page a customer opens for two weeks
+               after ordering, with the code and phone their own browser
+               kept: counted, twelve pages in ten minutes locked them out of
+               their own order - and out of sending its receipt, which checks
+               the same throttle. A guess is a miss, so guessing is held to
+               exactly what it was. */
+            if ($stateOrder === null) {
+                track_record_attempt();
+                api_send(['ok' => false], 200, 0);
+            }
+
+            api_send([
+                'ok'        => true,
+                'status'    => (string) $stateOrder['status'],
+                /* Milliseconds, and the server's own clock beside it, so a
+                   phone set an hour fast does not show the hold as dead. */
+                'expiresAt' => $stateOrder['expires_at'] === null
+                    ? null : strtotime((string) $stateOrder['expires_at']) * 1000,
+                'serverNow' => time() * 1000,
+                /* The bar that asks for payment stops once a receipt is in. */
+                'receipts'  => receipt_count((int) $stateOrder['id']),
+            ], 200, 0);
 
         case 'order':
             if ($method !== 'POST') {
@@ -230,12 +369,33 @@ try {
             if ($dupe !== null) {
                 $existing = order_get((int) $dupe['id']);
                 if ($existing !== null) {
-                    api_send([
+                    /* The same answer the first send would have had - code,
+                       hold and card - when that order is still open. Without
+                       them a customer whose first response was lost saw
+                       «تا آن موقع مبلغی واریز نکنید» beside «واریز کردید؟» and
+                       no clock. The card goes out on the same terms as before:
+                       to the phone that placed this very order a minute ago. */
+                    $open = (string) $existing['status'] === 'new'
+                        && ($existing['expires_at'] === null
+                            || strtotime((string) $existing['expires_at']) > time());
+                    $again = [
                         'ok'        => true,
                         'code'      => $existing['code'],
                         'total'     => (int) $existing['total'],
                         'duplicate' => true,
-                    ]);
+                    ];
+                    if ($open) {
+                        $again['expiresAt']   = $existing['expires_at'] === null
+                            ? null : strtotime((string) $existing['expires_at']) * 1000;
+                        $again['serverNow']   = time() * 1000;
+                        $again['holdMinutes'] = order_hold_minutes();
+                        $again['payment']     = [
+                            'cardNumber' => setting('card_number'),
+                            'cardHolder' => setting('card_holder'),
+                            'bankName'   => setting('bank_name'),
+                        ];
+                    }
+                    api_send($again);
                 }
             }
 
@@ -275,6 +435,122 @@ try {
                time - which is fine once nobody is waiting on it. */
             ], 201, 0, static function () use ($order): void {
                 notify_new_order($order);
+            });
+
+        case 'myorders':
+            if ($method !== 'POST') {
+                api_error('Method not allowed.', 405);
+            }
+            /* «سفارش‌های من» on the tracking page: every order this browser
+               placed or looked up, sent back as code-and-phone pairs it already
+               holds. A batch of pairs is a batch of guesses in the wrong hands,
+               so only a MISS counts toward the lookup throttle - a customer's
+               own list never misses - and the loop stops the moment the
+               throttle is reached, which keeps a batch to the same twelve
+               guesses the form allows. */
+            if (track_is_throttled()) {
+                api_error('درخواست‌ها زیاد بوده است. کمی بعد دوباره تلاش کنید.', 429);
+            }
+            orders_expire_due();
+            $pairs = api_json_body()['orders'] ?? [];
+            $pairs = is_array($pairs) ? array_slice(array_values($pairs), 0, 50) : [];
+            $mine  = [];
+            foreach ($pairs as $pair) {
+                if (!is_array($pair)) {
+                    continue;
+                }
+                $found = track_find((string) ($pair['code'] ?? ''), (string) ($pair['phone'] ?? ''));
+                if ($found === null) {
+                    track_record_attempt();
+                    if (track_is_throttled()) {
+                        break;
+                    }
+                    continue;
+                }
+                $items = $found['items'] ?? [];
+                $mine[] = [
+                    'code'         => (string) $found['code'],
+                    'status'       => (string) $found['status'],
+                    'statusFa'     => ORDER_STATUS_FA[(string) $found['status']] ?? (string) $found['status'],
+                    'total'        => (int) $found['total'],
+                    'createdAt'    => strtotime((string) $found['created_at']) * 1000,
+                    'trackingCode' => trim((string) ($found['tracking_code'] ?? '')),
+                    /* Enough to recognise the order by, not the whole of it:
+                       the first thing in it and how many more. */
+                    'summary'      => isset($items[0]['name_fa']) ? (string) $items[0]['name_fa'] : '',
+                    'more'         => max(0, count($items) - 1),
+                ];
+            }
+            api_send(['ok' => true, 'orders' => $mine], 200, 0);
+
+        case 'receipt':
+            if ($method !== 'POST') {
+                api_error('Method not allowed.', 405);
+            }
+            /* Both throttles. The lookup inside is a code-and-phone guess, the
+               same as ?r=orderstate, and every attempt is a file coming in. */
+            if (track_is_throttled() || receipt_is_throttled()) {
+                api_error('درخواست‌ها زیاد بوده است. کمی بعد دوباره تلاش کنید.', 429);
+            }
+            if (!receipts_ready()) {
+                api_send(['ok' => false,
+                    'error' => 'ارسال رسید از سایت هنوز فعال نشده است. رسید را در همان گفتگو بفرستید.'], 200, 0);
+            }
+            /* Every upload counts toward the receipt throttle; only a miss
+               toward the lookup one, as in ?r=orderstate. */
+            receipt_record_attempt();
+            orders_expire_due();
+
+            /* One answer for a wrong code and a wrong phone, as everywhere. */
+            $receiptOrder = track_find((string) ($_POST['code'] ?? ''), (string) ($_POST['phone'] ?? ''));
+            if ($receiptOrder === null) {
+                track_record_attempt();
+                api_send(['ok' => false,
+                    'error' => 'سفارشی با این شماره پیگیری و این شماره موبایل پیدا نشد.'], 200, 0);
+            }
+            if (!receipt_accepts($receiptOrder)) {
+                api_send(['ok' => false,
+                    'error' => 'این سفارش دیگر رسید نمی‌پذیرد. اگر واریز کرده‌اید، در همان گفتگو خبر بدهید.'], 200, 0);
+            }
+            if (receipt_count((int) $receiptOrder['id']) >= RECEIPT_PER_ORDER) {
+                api_send(['ok' => false,
+                    'error' => 'برای این سفارش به اندازهٔ کافی رسید رسیده است. اگر چیزی مانده، در همان گفتگو بفرستید.'], 200, 0);
+            }
+
+            $stored = receipt_store(is_array($_FILES['receipt'] ?? null) ? $_FILES['receipt'] : []);
+            if (!$stored['ok']) {
+                api_send(['ok' => false, 'error' => (string) $stored['error']], 200, 0);
+            }
+            $receiptOrigin = seo_origin();
+
+            /* The same picture again is the receipt already filed: not kept
+               twice, and not sent to the group twice. It does go out again
+               to wherever the first copy did not reach - receipt_notify()
+               skips every chat that has it - so a customer re-sending because
+               nothing seemed to happen is a retry, not a duplicate. */
+            $receiptSame = receipt_duplicate_of((int) $receiptOrder['id'], (string) $stored['file']);
+            if ($receiptSame !== null) {
+                receipt_discard((string) $stored['file']);
+                api_send([
+                    'ok'        => true,
+                    'duplicate' => true,
+                    'count'     => receipt_count((int) $receiptOrder['id']),
+                ], 200, 0, static function () use ($receiptOrder, $receiptSame, $receiptOrigin): void {
+                    receipt_notify($receiptOrder, $receiptSame, $receiptOrigin);
+                });
+            }
+
+            $receiptRow = receipt_get(receipt_add((int) $receiptOrder['id'], $stored));
+
+            /* Telegram after the answer, like the new-order push: the customer
+               sees «received» the moment the file is safe on the server. */
+            api_send([
+                'ok'    => true,
+                'count' => receipt_count((int) $receiptOrder['id']),
+            ], 201, 0, static function () use ($receiptOrder, $receiptRow, $receiptOrigin): void {
+                if ($receiptRow !== null) {
+                    receipt_notify($receiptOrder, $receiptRow, $receiptOrigin);
+                }
             });
 
         default:

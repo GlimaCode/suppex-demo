@@ -27,22 +27,84 @@ SUPPEX.ui = (function () {
     return cfg.currency.format(value);
   }
 
+  /* The currency label, split for the stacked treatment in components.css:
+     last letter on top, the rest below. Split HERE rather than in the CSS
+     so it follows cfg.currency.label - «ریال» would give «ل» over «ریا»
+     without anybody editing a stylesheet.
+
+     The whole word stays in the element as clipped text: that is what gets
+     copied and what a screen reader reads. */
+  function unitHtml(label) {
+    var s = String(label == null ? '' : label);
+    var head = s.slice(-1);
+    var tail = s.slice(0, -1);
+    return '<span class="price__unit" data-head="' + esc(head) +
+           '" data-tail="' + esc(tail) + '"><span class="sr-only">' +
+           esc(s) + '</span></span>';
+  }
+
+  /* Digits only, for the figures that are not money and so do not go through
+     the currency formatter - the discount badge is the one that matters. A
+     badge reading «−40%» hard against a price reading «۳,۲۹۰,۰۰۰» looks like
+     a bug rather than a choice. */
+  function faDigits(value) {
+    return String(value).replace(/[0-9]/g, function (d) {
+      return String.fromCharCode(0x06F0 + (d.charCodeAt(0) - 48));
+    });
+  }
+
   /* A product can exist before anyone has uploaded a photo for it — the admin
      panel deliberately allows that, so the shop owner can enter names and
      prices first and add pictures later. An empty src renders as a broken-image
      icon, which looks like a bug rather than a gap, so an inert neutral tile
      stands in until the real photo arrives. Inline SVG, so it costs no request
      and cannot itself 404. */
-  var IMAGE_PLACEHOLDER =
-    'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
-      '<rect width="100" height="100" fill="%231c1a18"/>' +
-      '<path d="M30 62l14-16 10 11 7-7 9 12z" fill="%232f2b27"/>' +
-      '<circle cx="38" cy="38" r="6" fill="%232f2b27"/></svg>');
+  /* A tub with the shop's mark, in the card's own tones - the same file
+     lib/products.php draws (PRODUCT_PLACEHOLDER). */
+  var IMAGE_PLACEHOLDER = 'assets/images/product-placeholder.svg';
 
   function imgSrc(value) {
     var src = String(value == null ? '' : value).trim();
     return src === '' ? IMAGE_PLACEHOLDER : esc(src);
+  }
+
+  /* Lighter copies of an uploaded picture (lib/images.php). A product
+     carries imgv: for each of its pictures, the widths it has WebP copies at,
+     «x.jpg» at 320 being «x-w320.webp». A card hands the browser the set and
+     lets it choose; a thumbnail asks for the smallest copy that is sharp at
+     its size. A picture with no copies - a bundled .svg, an upload not yet
+     processed - is used as it is, exactly as before. */
+  var SIZES_CARD = '(min-width: 1100px) 270px, (min-width: 700px) 31vw, 47vw';
+  /* A category tile's photograph; index.php writes the same. */
+  var SIZES_CAT = '(min-width: 980px) 210px, (min-width: 700px) 30vw, 46vw';
+  var SIZES_DEAL = '(min-width: 1024px) 480px, 88vw';
+  /* The product photograph. product.php writes the same sizes into the
+     server's <img>, so the script taking over does not fetch it again. */
+  var SIZES_MAIN = '(min-width: 1024px) 560px, 100vw';
+
+  function variantUrl(src, w) {
+    return String(src).replace(/\.(jpe?g|png|webp)$/i, '-w' + w + '.webp');
+  }
+
+  function srcsetOf(src, imgv) {
+    var ws = imgv && src ? imgv[src] : null;
+    if (!ws || !ws.length) { return ''; }
+    return ws.map(function (w) { return variantUrl(src, w) + ' ' + w + 'w'; }).join(', ');
+  }
+
+  function srcsetAttr(src, imgv, sizes) {
+    var set = srcsetOf(src, imgv);
+    return set ? ' srcset="' + esc(set) + '" sizes="' + esc(sizes) + '"' : '';
+  }
+
+  function thumbSrc(src, imgv, min) {
+    var ws = imgv && src ? imgv[src] : null;
+    if (ws) {
+      for (var i = 0; i < ws.length; i++) {
+        if (ws[i] >= min) { return variantUrl(src, ws[i]); }
+      }
+    }
+    return src;
   }
 
   function priceHtml(product, opts) {
@@ -55,8 +117,7 @@ SUPPEX.ui = (function () {
        non-breaking because it was the only break opportunity in the string,
        which is how the price came to stack across three lines at 375px. */
     html += '<span class="price__now"><span class="num">' + money(product.price) +
-            '</span>\u00a0<span class="price__unit">' + esc(cfg.currency.label) +
-            '</span></span>';
+            '</span>\u00a0' + unitHtml(cfg.currency.label) + '</span>';
     if (product.onSale) {
       html += '<span class="price__was num">' + money(product.compareAt) + '</span>';
     }
@@ -92,6 +153,12 @@ SUPPEX.ui = (function () {
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 1.9"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.6"/>',
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+    /* Named for the way they point, not for what they mean: which of them is
+       «next» depends on the reading direction, and that is the caller's call. */
+    chevR: '<path d="M9 6l6 6-6 6"/>',
+    chevL: '<path d="M15 6l-6 6 6 6"/>',
+    zoom: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M11 8v6M8 11h6"/>',
+    upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
   };
 
   /* width/height are emitted as presentation attributes, not CSS. An inline
@@ -120,12 +187,13 @@ SUPPEX.ui = (function () {
   }
 
   function ratingHtml(product) {
-    /* A shop with no orders yet has no ratings to show; inventing them is the
-       one placeholder that damages trust rather than standing in for it. */
-    if (!cfg.flags.showRatings) { return ''; }
+    /* Only real ratings: approved reviews by buyers (lib/reviews.php), and
+       nothing at all for a product without one. Inventing them is the one
+       placeholder that damages trust rather than standing in for it. */
+    if (!cfg.flags.showRatings || !product || !(product.reviewCount > 0)) { return ''; }
     return '<div class="rating">' + stars(product.rating) +
-      '<span class="num">' + product.rating + '</span>' +
-      '<span class="u-dim">(<span class="num">' + product.reviewCount + '</span>)</span>' +
+      '<span class="num">' + faDigits(product.rating) + '</span>' +
+      '<span class="u-dim">(<span class="num">' + faDigits(product.reviewCount) + '</span>)</span>' +
       '</div>';
   }
 
@@ -151,6 +219,25 @@ SUPPEX.ui = (function () {
     var rest = values.length - SPEC_MAX_VALUES;
     if (rest <= 0) { return values.join(' · '); }
     return values.slice(0, SPEC_MAX_VALUES).join(' · ') + ' +' + rest;
+  }
+
+  /* The one line a card shows under the product's name: the first of its
+     features that says something about the product rather than repeating its
+     brand - «۲۵ گرم پروتئین در هر سروینگ». The catalogue writes features
+     headline-first (see quickSpec() below). A leading «حاوی» goes, and the
+     digits are Persian like the price under it. product_key_fact() in
+     lib/products.php is the same rule, for the cards the server draws;
+     tests/key-facts.json holds the two to one table. */
+  function keyFact(product) {
+    var list = (product && product.features) || [];
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i];
+      if (typeof f !== 'string') { continue; }
+      f = f.replace(/[\s\u00a0]+/g, ' ').trim();
+      if (!f || /^برند(?:\s|:|$)/.test(f)) { continue; }
+      return faDigits(f.replace(/^حاوی\s+/, ''));
+    }
+    return '';
   }
 
   function quickSpec(product) {
@@ -225,7 +312,7 @@ SUPPEX.ui = (function () {
       ? /* The minus was written last so that RTL reordering would carry it
              to the front - but .num pins this run LTR, so it rendered as
              "18%-". Written in the order it is meant to be read. */
-          '<span class="badge badge--accent num">\u2212' + product.discountPercent + '%</span>'
+          '<span class="badge badge--accent num">\u2212' + faDigits(product.discountPercent) + '\u066A</span>'
       : '';
 
     if (left || right) {
@@ -236,7 +323,8 @@ SUPPEX.ui = (function () {
       '<article class="pcard reveal">' +
         '<div class="pcard__media">' +
           '<a href="' + href + '" class="media media--1x1 media--lit" aria-label="' + esc(product.nameFa) + '">' +
-            '<img src="' + imgSrc(product.image) + '" alt="' + esc(product.nameFa + ' — ' + product.name) + '" loading="lazy" width="400" height="400">' +
+            '<img src="' + imgSrc(product.image) + '"' + srcsetAttr(product.image, product.imgv, SIZES_CARD) +
+              ' alt="' + esc(product.nameFa + ' — ' + product.name) + '" loading="lazy" decoding="async" width="400" height="400">' +
             /* Inside the link rather than beside it. .media is the box that
                carries the rounded corner and the overflow: hidden, so putting
                the panel in there makes one edge clip the image and the scrim
@@ -251,7 +339,8 @@ SUPPEX.ui = (function () {
         '<div class="pcard__body">' +
           '<div class="pcard__brand lat">' + esc(product.brand) + '</div>' +
           '<h3 class="pcard__title"><a href="' + href + '">' + esc(product.nameFa) +
-            ' <span class="lat u-dim" style="font-size:.85em">' + esc(product.name) + '</span></a></h3>' +
+            ' <span class="pcard__latin lat">' + esc(product.name) + '</span></a></h3>' +
+          (keyFact(product) ? '<p class="pcard__fact">' + esc(keyFact(product)) + '</p>' : '') +
           '<div class="pcard__variant">' + esc(product.variantLabel || '') + '</div>' +
           ratingHtml(product) +
           '<div class="pcard__foot">' +
@@ -266,20 +355,69 @@ SUPPEX.ui = (function () {
       '</article>';
   }
 
+  /* One product in the top-deals hero, standing alone: the photograph
+     large, then the brand, the name and the price, the whole thing one link.
+     No add button - the hero is a shop window, and a tap on it should land
+     on the product page, where the flavour and size get chosen before
+     anything goes in the basket.
+
+     alt is empty because the name is right under the picture, inside the
+     same link: a screen reader would otherwise read it twice. The group and
+     its «۱ از ۳» are the WAI-ARIA carousel pattern's slide; the first one is
+     showing until rotateDeals() in app.js says otherwise. */
+  function dealSlide(product, i, total) {
+    var href = (cfg.productPage || 'product.html') + '?p=' + encodeURIComponent(product.slug);
+    var off = product.onSale && product.discountPercent > 0
+      ? '<span class="deal__off"><span class="num">' + faDigits(product.discountPercent) +
+          '\u066A</span> تخفیف</span>'
+      : '';
+    return '' +
+      '<div class="deal' + (i === 0 ? ' is-on' : '') + '" role="group" ' +
+          'aria-roledescription="اسلاید" aria-label="' + faDigits(i + 1) + ' از ' + faDigits(total) + '">' +
+        '<a class="deal__link" href="' + href + '">' +
+          '<span class="deal__photo">' +
+            '<img src="' + imgSrc(product.image) + '"' + srcsetAttr(product.image, product.imgv, SIZES_DEAL) +
+              ' alt="" width="480" height="480" decoding="async">' +
+            off +
+          '</span>' +
+          '<div class="deal__info">' +
+            '<div class="deal__title">' +
+              (product.brand ? '<span class="deal__brand lat">' + esc(product.brand) + '</span>' : '') +
+              '<span class="deal__name">' + esc(product.nameFa) + '</span>' +
+            '</div>' +
+            '<div class="deal__foot">' +
+              priceHtml(product) +
+              '<span class="deal__go" aria-hidden="true">' + icon('arrow') + '</span>' +
+            '</div>' +
+          '</div>' +
+        '</a>' +
+      '</div>';
+  }
+
   function categoryCard(cat) {
+    /* A real photograph from the category's own shelf where there is one
+       (categories_list() picks it), standing on the category's colour; the
+       drawn tub only until a product in it has a photograph. */
+    var photo = String(cat.photo || '');
+    var art = photo
+      ? '<span class="media media--4x5 ccard__art" style="border-radius:0;display:block" data-cat="' + esc(cat.id) + '">' +
+          '<img class="ccard__photo" src="' + imgSrc(photo) + '"' + srcsetAttr(photo, cat.imgv, SIZES_CAT) +
+            ' alt="دسته‌بندی ' + esc(cat.name) + '" loading="lazy" decoding="async" width="320" height="400">' +
+        '</span>'
+      : '<span class="media media--4x5" style="border-radius:0;display:block">' +
+          '<img src="' + imgSrc(cat.image) + '" alt="دسته‌بندی ' + esc(cat.name) + '" loading="lazy" width="320" height="400">' +
+        '</span>';
     return '' +
       /* href="#featured" was the one line that made a category unlinkable:
          the card scrolled to the grid and filtered it in place, so a category
          had no URL to share, bookmark or index. With no category page
          configured it still does exactly that. */
-      '<a class="ccard reveal" href="' +
+      '<a class="ccard reveal' + (photo ? ' ccard--photo' : '') + '" href="' +
         (cfg.categoryPage
           ? cfg.categoryPage + '?c=' + encodeURIComponent(cat.id)
           : '#featured') +
         '" data-category="' + esc(cat.id) + '">' +
-        '<span class="media media--4x5" style="border-radius:0;display:block">' +
-          '<img src="' + imgSrc(cat.image) + '" alt="دسته‌بندی ' + esc(cat.name) + '" loading="lazy" width="320" height="400">' +
-        '</span>' +
+        art +
         '<span class="ccard__label">' +
           '<span>' +
             '<span class="ccard__name">' + esc(cat.name) + '</span><br>' +
@@ -323,24 +461,31 @@ SUPPEX.ui = (function () {
   }
 
   function lineItem(item) {
+    /* A line the shop cannot sell any more stays in the drawer, so the shopper
+       can see what became of it - but it has to look like what it is. It was
+       drawn like every other line, price and buttons and all, while the total
+       under it quietly left it out. */
+    var gone = item.unavailable === true;
     return '' +
-      '<div class="line-item" data-key="' + esc(item.key) + '">' +
+      '<div class="line-item' + (gone ? ' line-item--gone' : '') + '" data-key="' + esc(item.key) + '">' +
         '<span class="line-item__media media media--1x1">' +
           '<img src="' + imgSrc(item.image) + '" alt="" width="74" height="74">' +
         '</span>' +
         '<div class="line-item__info">' +
           '<div class="line-item__title">' + esc(item.nameFa) + '</div>' +
           '<div class="u-xs u-dim">' + esc(item.variantLabel || '') + '</div>' +
-          '<div class="line-item__ctl">' +
-            '<span class="stepper-mini">' +
-              '<button type="button" data-qty="-1" aria-label="کاهش تعداد">' + icon('minus') + '</button>' +
-              '<span class="num">' + item.qty + '</span>' +
-              '<button type="button" data-qty="1" aria-label="افزایش تعداد">' + icon('plus') + '</button>' +
-            '</span>' +
-            '<span class="u-sm" style="font-weight:800">' +
-              '<span class="num">' + money(item.lineTotal) + '</span> ' + esc(cfg.currency.label) +
-            '</span>' +
-          '</div>' +
+          (gone
+            ? '<p class="line-item__gone">ناموجود — در سفارش حساب نمی‌شود. با دکمهٔ × از سبد بردارید.</p>'
+            : '<div class="line-item__ctl">' +
+                '<span class="stepper-mini">' +
+                  '<button type="button" data-qty="-1" aria-label="کاهش تعداد">' + icon('minus') + '</button>' +
+                  '<span class="num">' + item.qty + '</span>' +
+                  '<button type="button" data-qty="1" aria-label="افزایش تعداد">' + icon('plus') + '</button>' +
+                '</span>' +
+                '<span class="u-sm" style="font-weight:800">' +
+                  '<span class="num">' + money(item.lineTotal) + '</span> ' + esc(cfg.currency.label) +
+                '</span>' +
+              '</div>') +
         '</div>' +
         '<button class="icon-btn" type="button" data-remove style="width:32px;height:32px;flex-shrink:0" ' +
           'aria-label="حذف ' + esc(item.nameFa) + '">' + icon('close') + '</button>' +
@@ -452,8 +597,8 @@ SUPPEX.ui = (function () {
       icon('info') +
       '<div>' +
         '<strong>اگر متن سفارش خودش در کادر پیام نوشته نشد</strong>، نگران نباشید — ' +
-        'کل سفارش در حافظه گوشی شما کپی شده است. در گفتگوی فروشگاه روی کادر تایپ ' +
-        'نگه دارید، گزینه «چسباندن / Paste» را بزنید و پیام را بفرستید.' +
+        'با زدن دکمه، متن سفارش در حافظهٔ گوشی کپی می‌شود و در صفحهٔ بعد هم دکمهٔ «کپی متن سفارش» هست. ' +
+        'در گفتگوی فروشگاه روی کادر تایپ نگه دارید، گزینهٔ «چسباندن / Paste» را بزنید و پیام را بفرستید.' +
       '</div>' +
     '</div>';
   }
@@ -490,6 +635,10 @@ SUPPEX.ui = (function () {
     var pay = (server && server.payment) || {};
     var appName = (channel && channel.label) || 'همان گفتگو';
     var needsPaste = route ? route.needsPaste : !(channel && channel.prefillParam);
+    /* On its way to the server: no code, no clock and no card yet - and not
+       the «the card comes in the chat» line either, which belongs to a shop
+       with no server at all and would be untrue a second later. */
+    var pending = !!(server && server.pending);
 
     /* ONLY the server's card, with no fallback of any kind.
 
@@ -506,7 +655,7 @@ SUPPEX.ui = (function () {
     var cardHolder = hasCard ? (pay.cardHolder || '—') : '';
 
     return '' +
-      '<div class="pay">' +
+      '<div class="pay" data-pay-panel>' +
         '<div class="pay__done">' + icon('check') +
           '<span>سفارش شما آماده ارسال در ' + esc(appName) + ' است</span></div>' +
 
@@ -521,11 +670,7 @@ SUPPEX.ui = (function () {
 
         /* Apps without URL prefill got the order via the clipboard. A toast
            vanishes; this has to stay on screen until they have pasted it. */
-        (needsPaste
-          ? '<div class="pay__paste">' + icon('copy') +
-            '<span>متن سفارش کپی شد — در گفتگوی ' + esc(appName) +
-            ' آن را <strong>پیست کنید و بفرستید</strong>.</span></div>'
-          : '') +
+        (needsPaste ? pasteNote(appName, route) : '') +
 
         /* The server's total wins whenever there is one.
 
@@ -546,8 +691,10 @@ SUPPEX.ui = (function () {
           ? '<div class="pay__hold" data-expires="' + server.expiresAt + '"' +
             (server.serverNow ? ' data-now="' + server.serverNow + '"' : '') + '>' +
               icon('clock') +
-              '<span>این قیمت تا <strong data-hold-countdown>—</strong> دیگر معتبر است. ' +
-              'بعد از آن سفارش را دوباره ثبت کنید.</span>' +
+              /* «این قیمت تا ۲۹:۴۱ دیگر معتبر است» read as «valid until
+                 29:41 more». A label and the clock read right at every second,
+                 and at the end too: «… : پایان یافته». */
+              '<span>مهلت پرداخت با این قیمت: <strong data-hold-countdown>—</strong></span>' +
             '</div>'
           : '') +
 
@@ -560,7 +707,11 @@ SUPPEX.ui = (function () {
 
         /* No card configured: say so. Never a number, never a copy button -
            a customer who copies a number believes they can pay with it. */
-        (hasCard
+        (pending
+          ? '<div class="pay__card pay__card--pending" aria-busy="true">' +
+              '<div class="pay__holder">در حال ثبت سفارش و گرفتن شمارهٔ پیگیری…</div>' +
+            '</div>'
+          : hasCard
           ? '<div class="pay__card">' +
               '<div class="pay__card-head">' +
                 '<span class="u-eyebrow u-eyebrow--bare">' + esc(bankName) + '</span>' +
@@ -574,14 +725,248 @@ SUPPEX.ui = (function () {
               ' برایتان فرستاده می‌شود. تا آن موقع مبلغی واریز نکنید.</div>' +
             '</div>') +
 
-        '<p class="pay__note">' + esc(String(p.note || '').replace('{channel}', appName)) + '</p>' +
+        (server && server.expiresAt ? payExpired(true) : '') +
+
+        /* After the transfer, the receipt - only for an order the server has,
+           because it is filed against that order's code. Not in here,
+           though: app.js pins it under the panel (receiptBlock(code, '',
+           'dock')), because at the end of the panel it was below the fold on
+           a phone. Where it is pinned, the old «send the receipt in the
+           chat» note would only argue with it. */
+        (server
+          ? ''
+          : '<p class="pay__note">' + esc(String(p.note || '').replace('{channel}', appName)) + '</p>') +
       '</div>';
+  }
+
+  /* The order text, for an app that cannot take it in the link.
+
+     Says it was copied only once it was - a clipboard can refuse, and «کپی
+     شد» over an empty one sent the shopper to paste nothing - and offers it
+     again either way: the card number copied next takes its place on the
+     clipboard. app.js repaints the sentence when the copy lands. */
+  function pasteNote(appName, route) {
+    return '<div class="pay__paste" data-paste-note>' + icon('copy') +
+      '<div class="pay__paste-body">' +
+        '<span data-paste-text>' + pasteText(appName, !!(route && route.copied)) + '</span>' +
+        '<button class="pay__copy-text" type="button" data-copy-order>کپی متن سفارش</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function pasteText(appName, copied) {
+    return copied
+      ? 'متن سفارش کپی شد — در گفتگوی ' + esc(appName) + ' آن را <strong>پیست کنید و بفرستید</strong>.'
+      : 'متن سفارش را با دکمهٔ زیر کپی کنید و در گفتگوی ' + esc(appName) +
+        ' <strong>پیست کنید و بفرستید</strong>.';
+  }
+
+  /* What the panel says once its clock is at zero. Hidden until then:
+     app.js marks the panel, and the CSS swaps the card and the amount for
+     this - a card number under a price that has run out is an invitation to
+     transfer it. The button puts the same goods back in the basket, at
+     whatever they cost now. */
+  function payExpired(again) {
+    return '<div class="pay__expired">' +
+      '<strong>مهلت پرداخت با این قیمت تمام شد.</strong>' +
+      '<span>اگر واریز نکرده‌اید، مبلغی واریز نکنید و سفارش را دوباره ثبت کنید. ' +
+        'اگر واریز کرده‌اید، رسید را بفرستید.</span>' +
+      (again
+        ? '<button class="btn btn--ghost btn--block" type="button" data-order-again>' +
+            'افزودن دوبارهٔ همین کالاها به سبد</button>'
+        : '') +
+    '</div>';
+  }
+
+  /* The order did not reach the shop's records. Said plainly, with the one
+     step that puts it right - not the payment panel, which without a recorded
+     order has no code and no card to show. `o`: {message, action, label},
+     action being fix | cart | retry (app.js). */
+  function orderFailed(o) {
+    return '<div class="pay pay--failed" data-order-failed>' +
+      '<div class="pay__fail" role="alert">' + icon('info') +
+        '<div><strong>سفارش ثبت نشد</strong><span>' + esc(o.message) + '</span></div>' +
+      '</div>' +
+      '<p class="pay__note">شمارهٔ پیگیری و شمارهٔ کارت بعد از ثبت سفارش نشان داده می‌شود؛ ' +
+        'تا آن موقع مبلغی واریز نکنید.</p>' +
+      '<button class="btn btn--primary btn--block" type="button" data-order-' + esc(o.action) + '>' +
+        esc(o.label) + '</button>' +
+    '</div>';
+  }
+
+  /* The basket in one line and the amount, above the buttons that send it.
+     The drawer's own summary is hidden while the form is up, to give the form
+     the room - and an order went out without its total in sight. */
+  function checkoutSummary(snapshot) {
+    var s = snapshot || {};
+    var ship = s.count && !s.freeShipping && s.shipping
+      ? '<span class="num">' + money(s.shipping) + '</span> ' + esc(cfg.currency.label)
+      : 'رایگان';
+    return '<div class="checkout-sum" data-checkout-sum>' +
+      '<div class="checkout-sum__row"><span>' + faDigits(s.count || 0) + ' کالا</span>' +
+        '<span>هزینهٔ ارسال: ' + ship + '</span></div>' +
+      '<div class="checkout-sum__total"><span>مبلغ قابل پرداخت</span>' +
+        '<strong><span class="num">' + money(s.total || 0) + '</span> ' + esc(cfg.currency.label) +
+        '</strong></div>' +
+    '</div>';
+  }
+
+  /* One order in «سفارش‌های من» (track.php). mine is what this browser
+     remembers; live is what the server answered for it - null while it has
+     not answered, and when it did not know the order, which then shows as
+     remembered, with «پیدا نشد» where the status would be.
+
+     «جزئیات سفارش» is a small POST form, not a link: a link would carry the
+     phone number in its URL, into the browser's history and the server's
+     logs - the reason the tracking form posts in the first place. */
+  function myOrderRow(mine, live, answered) {
+    var when = live ? live.createdAt : mine.at;
+    var total = live ? live.total : mine.total;
+    var date = when
+      ? new Date(when).toLocaleDateString('fa-IR', { year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
+    return '' +
+      '<li class="myorder">' +
+        '<div class="myorder__top">' +
+          '<span class="myorder__code num" dir="ltr">' + esc(mine.code) + '</span>' +
+          (live
+            ? '<span class="track__badge track__badge--' + esc(live.status) + '">' + esc(live.statusFa) + '</span>'
+            : (answered
+              ? '<span class="myorder__unknown">پیدا نشد</span>'
+              : '<span class="myorder__wait" aria-hidden="true"></span>')) +
+        '</div>' +
+        (live && live.summary
+          ? '<p class="myorder__what">' + esc(live.summary) +
+            (live.more > 0 ? ' <span class="u-muted">و ' + faDigits(live.more) + ' قلم دیگر</span>' : '') + '</p>'
+          : '') +
+        '<p class="myorder__meta">' +
+          (date ? '<span>' + esc(date) + '</span>' : '') +
+          (typeof total === 'number'
+            ? '<span><span class="num">' + money(total) + '</span> ' + esc(cfg.currency.label) + '</span>'
+            : '') +
+        '</p>' +
+        (live && live.trackingCode
+          ? '<p class="myorder__parcel">کد رهگیری پست: <span class="num" dir="ltr">' + esc(live.trackingCode) + '</span></p>'
+          : '') +
+        '<div class="myorder__actions">' +
+          '<form method="post" action="track.php">' +
+            '<input type="hidden" name="code" value="' + esc(mine.code) + '">' +
+            '<input type="hidden" name="phone" value="' + esc(mine.phone) + '">' +
+            '<button class="btn btn--ghost btn--sm" type="submit">جزئیات سفارش</button>' +
+          '</form>' +
+          '<button class="myorder__forget" type="button" data-forget-order="' + esc(mine.code) + '">' +
+            'حذف از این فهرست</button>' +
+        '</div>' +
+      '</li>';
+  }
+
+  /* Where the customer sends the photograph of the transfer (?r=receipt).
+     The tracking page draws the full box under the card. The drawer pins
+     the 'dock' one under the payment panel (setPayDock() in app.js): the
+     same parts, pared down to a line and a button, so it fits under a thumb
+     and never scrolls out of reach. initReceipts() in app.js makes either
+     work. The phone comes with it on the tracking page, where it was just
+     typed; in the drawer it is read from the order form at the moment of
+     sending. */
+  function receiptBlock(code, phone, variant) {
+    var dock = variant === 'dock';
+    return '' +
+      '<div class="receipt-up' + (dock ? ' receipt-up--dock' : '') + '" data-receipt data-code="' + esc(code) + '"' +
+          (phone ? ' data-phone="' + esc(phone) + '"' : '') + '>' +
+        (dock
+          ? '<p class="receipt-up__lead">واریز کردید؟ عکس یا اسکرین‌شات رسید را همین‌جا بفرستید.</p>'
+          : '<div class="receipt-up__head">' +
+              '<span class="receipt-up__icon">' + icon('upload') + '</span>' +
+              '<div>' +
+                '<strong class="receipt-up__title">رسید واریز را همین‌جا بفرستید</strong>' +
+                '<span class="receipt-up__sub">عکس یا اسکرین‌شات رسید. برای ما در تلگرام فرستاده می‌شود ' +
+                  'تا سفارش زودتر تأیید شود.</span>' +
+              '</div>' +
+            '</div>') +
+        '<label class="btn ' + (dock ? 'btn--primary' : 'btn--ghost') + ' btn--block receipt-up__pick">' +
+          '<input class="sr-only" type="file" accept="image/*" data-receipt-file>' +
+          (dock ? icon('upload') : '') +
+          '<span data-receipt-label>' + (dock ? 'ارسال رسید واریز' : 'انتخاب عکس رسید') + '</span>' +
+        '</label>' +
+        '<div class="receipt-up__state" data-receipt-state aria-live="polite"></div>' +
+      '</div>';
+  }
+
+  /* A brand's page. */
+  function brandHref(slug) {
+    return 'brand.php?b=' + encodeURIComponent(String(slug == null ? '' : slug));
+  }
+
+  /* One tile of the logo wall. brand_card_html() in lib/brands.php draws the
+     same tile for the pages PHP draws; tests/test-brands.mjs holds the two to
+     the same markup.
+
+     The plate is light whatever the theme: a brand's logo is drawn for a
+     white box nine times in ten, and on this site's dark ground a black
+     wordmark simply vanishes. With no logo uploaded, the name itself stands
+     on the plate. Every tile has the same three parts - plate, name, count -
+     so a row reads level: the Persian name when there is one, else the name,
+     even where the plate already spells it out. */
+  function brandCard(b) {
+    var name = String(b.name || '');
+    var nameFa = String(b.nameFa || '');
+    var logo = String(b.logo || '');
+    var caption = nameFa || name;
+    return '' +
+      '<a class="bcard" href="' + esc(brandHref(b.slug)) + '">' +
+        '<span class="bcard__plate">' +
+          (logo
+            ? '<img class="bcard__logo" src="' + imgSrc(logo) + '" alt="' + esc(name) + '" loading="lazy" width="160" height="80">'
+            : '<span class="bcard__word lat" dir="ltr">' + esc(name) + '</span>') +
+        '</span>' +
+        '<span class="bcard__name" dir="auto">' + esc(caption) + '</span>' +
+        '<span class="bcard__count"><span class="num">' + faDigits(Number(b.count) || 0) +
+          '</span>\u00a0محصول</span>' +
+      '</a>';
+  }
+
+  /* The band of brand logos under the home page's hero, as brand_strip_html()
+     in lib/brands.php draws it - for the static demo, where no PHP does. */
+  function brandStrip(list) {
+    var item = function (b, echo) {
+      var name = String(b.name || '');
+      var inner = b.logo
+        ? '<img src="' + imgSrc(b.logo) + '" alt="' + (echo ? '' : esc(name)) + '" loading="lazy" decoding="async" width="132" height="44">'
+        : '<span class="ticker__word lat" dir="ltr">' + esc(name) + '</span>';
+      return '<a class="ticker__brand" href="' + esc(brandHref(b.slug)) + '"' +
+        (echo ? ' tabindex="-1" aria-hidden="true"' : '') + '>' + inner + '</a>';
+    };
+    var first = '', again = '';
+    list.forEach(function (b) { first += item(b, false); again += item(b, true); });
+    var copies = Math.max(1, Math.ceil(12 / list.length));
+    var rep = function (s, n) { var out = ''; for (var i = 0; i < n; i++) { out += s; } return out; };
+    return '<section class="ticker ticker--brands" aria-label="برندهای فروشگاه" data-brandstrip data-drawn>' +
+      '<div class="ticker__track">' +
+        '<div class="ticker__group">' + first + rep(again, copies - 1) + '</div>' +
+        '<div class="ticker__group" aria-hidden="true">' + rep(again, copies) + '</div>' +
+      '</div>' +
+      '<a class="ticker__all" href="brands.php">همه برندها' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6"/></svg>' +
+      '</a></section>';
+  }
+
+  /* Cards shaped like the real ones, shimmering, while more products load:
+     the grid keeps its height and the eye knows where they will land. */
+  function productSkeleton(n) {
+    var one = '<div class="pcard pcard--skel" aria-hidden="true">' +
+      '<span class="media media--1x1 skel"></span>' +
+      '<span class="pcard__body"><span class="skel skel--line"></span>' +
+      '<span class="skel skel--line skel--short"></span><span class="skel skel--line skel--price"></span></span>' +
+    '</div>';
+    var out = '';
+    for (var i = 0; i < n; i++) { out += one; }
+    return out;
   }
 
   function searchRow(product) {
     return '' +
       '<a class="search__row" href="' + (cfg.productPage || 'product.html') + '?p=' + encodeURIComponent(product.slug) + '">' +
-        '<span class="media media--1x1"><img src="' + imgSrc(product.image) + '" alt="" width="52" height="52"></span>' +
+        '<span class="media media--1x1"><img src="' + imgSrc(thumbSrc(product.image, product.imgv, 160)) + '" alt="" width="52" height="52"></span>' +
         '<span style="flex:1;min-width:0">' +
           '<span style="font-weight:800;font-size:.9rem;display:block">' + esc(product.nameFa) + '</span>' +
           '<span class="u-xs u-dim lat">' + esc(product.name) + '</span>' +
@@ -592,13 +977,25 @@ SUPPEX.ui = (function () {
 
   return {
     esc: esc,
+    brandStrip: brandStrip,
+    productSkeleton: productSkeleton,
     money: money,
+    unitHtml: unitHtml,
+    faDigits: faDigits,
     icon: icon,
     stars: stars,
     ratingHtml: ratingHtml,
     priceHtml: priceHtml,
     productCard: productCard,
+    srcsetOf: srcsetOf,
+    srcsetAttr: srcsetAttr,
+    thumbSrc: thumbSrc,
+    keyFact: keyFact,
+    SIZES_MAIN: SIZES_MAIN,
+    dealSlide: dealSlide,
     categoryCard: categoryCard,
+    brandCard: brandCard,
+    brandHref: brandHref,
     reviewCard: reviewCard,
     journalCard: journalCard,
     lineItem: lineItem,
@@ -607,6 +1004,11 @@ SUPPEX.ui = (function () {
     orderHelpNote: orderHelpNote,
     channelButtons: channelButtons,
     paymentPanel: paymentPanel,
+    pasteText: pasteText,
+    orderFailed: orderFailed,
+    checkoutSummary: checkoutSummary,
+    receiptBlock: receiptBlock,
+    myOrderRow: myOrderRow,
     searchRow: searchRow,
   };
 })();

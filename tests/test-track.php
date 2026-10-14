@@ -224,6 +224,93 @@ db_query("DELETE oi FROM order_items oi JOIN orders o ON o.id = oi.order_id WHER
 db_query("DELETE FROM orders WHERE code = ?", [$code]);
 db_query("DELETE FROM login_attempts WHERE username = ?", [TRACK_THROTTLE_USER]);
 
+
+head('the card, on the page they come back to');
+/* The payment panel lives in the cart drawer, and the drawer is gone the
+   moment the tab is closed or reloaded - the card number with it. A customer
+   who came back half an hour later had no way to pay the order the shop had
+   already taken except asking in the chat.
+
+   Its own order: the fixture above has been cancelled, shipped, paid and
+   deleted by the time we get here. */
+db_query('DELETE FROM login_attempts WHERE username = ?', [TRACK_THROTTLE_USER]);
+settings_save(['card_number' => '6219861012345678',
+               'card_holder' => 'آزمون دارنده', 'bank_name' => 'بانک آزمون']);
+
+$payMade = order_create([
+    'customer' => ['name' => 'آزمون کارت', 'phone' => $phone,
+                   'address' => 'تهران، خیابان کارت، پلاک ۲', 'postal' => '1234567890'],
+    'items'    => [['slug' => 'whey-original', 'sizeId' => '900', 'qty' => 1]],
+    'channel'  => 'telegram',
+]);
+ok('a second order to look at the card with', !empty($payMade['ok']),
+   implode(' | ', $payMade['errors'] ?? []));
+$payCode = (string) ($payMade['order']['code'] ?? '');
+
+db_query("UPDATE orders SET status = 'new', paid_at = NULL,
+           expires_at = DATE_ADD(NOW(), INTERVAL 20 MINUTE) WHERE code = ?", [$payCode]);
+db_query('DELETE FROM login_attempts WHERE username = ?', [TRACK_THROTTLE_USER]);
+
+$unpaid = $render(['code' => $payCode, 'phone' => $phone]);
+ok('an unpaid order inside its window shows the card',
+   strpos($unpaid, '6219 8610 1234 5678') !== false);
+ok('  with the holder and the bank',
+   strpos($unpaid, 'آزمون دارنده') !== false && strpos($unpaid, 'بانک آزمون') !== false);
+ok('  a copy button carrying the digits',
+   strpos($unpaid, 'data-copy-card="6219861012345678"') !== false);
+ok('  and a countdown for app.js to drive',
+   strpos($unpaid, 'data-hold-countdown') !== false
+   && strpos($unpaid, 'data-expires=') !== false);
+
+/* A card number on a settled order is an invitation to pay twice. */
+db_query('DELETE FROM login_attempts WHERE username = ?', [TRACK_THROTTLE_USER]);
+db_query("UPDATE orders SET status = 'paid' WHERE code = ?", [$payCode]);
+$paidLook = $render(['code' => $payCode, 'phone' => $phone]);
+ok('a paid order shows no card at all',
+   strpos($paidLook, '6219 8610 1234 5678') === false
+   && strpos($paidLook, 'data-copy-card') === false);
+ok('  but still shows the order', strpos($paidLook, 'track__result') !== false);
+
+/* And an expired hold: that price is no longer the price. */
+db_query('DELETE FROM login_attempts WHERE username = ?', [TRACK_THROTTLE_USER]);
+db_query("UPDATE orders SET status = 'new', paid_at = NULL,
+           expires_at = DATE_SUB(NOW(), INTERVAL 5 MINUTE) WHERE code = ?", [$payCode]);
+$stale = $render(['code' => $payCode, 'phone' => $phone]);
+ok('an expired hold shows no card',
+   strpos($stale, '6219 8610 1234 5678') === false);
+/* track.php sweeps due holds itself now. Before, the sweep ran only from the
+   admin pages, so the customer was shown «ثبت شده» for an order whose window
+   had closed - and would now have been offered a dead price. */
+ok('  and the page has expired it rather than still calling it new',
+   (string) db_value('SELECT status FROM orders WHERE code = ?', [$payCode]) === 'expired',
+   (string) db_value('SELECT status FROM orders WHERE code = ?', [$payCode]));
+
+db_query('DELETE oi FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.code = ?', [$payCode]);
+db_query('DELETE FROM orders WHERE code = ?', [$payCode]);
+db_query('DELETE FROM login_attempts WHERE username = ?', [TRACK_THROTTLE_USER]);
+ok('card fixtures cleaned up',
+   (int) db_value('SELECT COUNT(*) FROM orders WHERE code = ?', [$payCode]) === 0);
+
+head('the form has to look like a form');
+/* base.css strips every input to no border and no background; `.input` is what
+   puts the box back. This form used `.field` and `.field__hint`, which exist in
+   admin/assets/admin.css and in NONE of the four stylesheets this page loads -
+   so both boxes rendered as bare text and nothing looked fillable. */
+ok('the boxes carry the storefront control classes',
+   substr_count($empty, 'class="input form__control"') === 2,
+   (string) substr_count($empty, 'class="input form__control"'));
+ok('  and not the admin-only ones that this page never loads',
+   strpos($empty, 'class="field"') === false
+   && strpos($empty, 'field__hint') === false);
+ok('both fields are marked required in the markup',
+   substr_count($empty, 'form__req') === 2);
+ok('each one says where its value comes from',
+   substr_count($empty, 'form__hint') === 2);
+ok('and the form says up front that both are needed',
+   strpos($empty, 'هر دو کادر را پر کنید') !== false);
+ok('the page tells app.js it is the tracking page, so the dot can clear',
+   strpos($empty, 'data-track-page') !== false);
+
 echo implode("\n", $out);
 echo "\n\n----------------------------------------\npassed: $pass    failed: $fail\n";
 exit($fail > 0 ? 1 : 0);

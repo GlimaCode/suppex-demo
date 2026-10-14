@@ -1,0 +1,81 @@
+[
+  {
+    "why": "the headline feature, «حاوی» taken off, digits Persian",
+    "features": [
+      "حاوی 25 گرم پروتئین در هر سروینگ",
+      "طعم عالی"
+    ],
+    "fact": "۲۵ گرم پروتئین در هر سروینگ"
+  },
+  {
+    "why": "a brand line is skipped",
+    "features": [
+      "برند: Optimum Nutrition (ON)",
+      "کراتین مونوهیدرات میکرونایزد"
+    ],
+    "fact": "کراتین مونوهیدرات میکرونایزد"
+  },
+  {
+    "why": "«برند» with no colon is skipped too",
+    "features": [
+      "برند Optimum",
+      "قابل حل در آب"
+    ],
+    "fact": "قابل حل در آب"
+  },
+  {
+    "why": "a word that only starts like «برند» is kept",
+    "features": [
+      "برندینگ جدید"
+    ],
+    "fact": "برندینگ جدید"
+  },
+  {
+    "why": "blanks, runs of spaces and a no-break space",
+    "features": [
+      "   ",
+      "حاوی  100٪  کراتین   خالص "
+    ],
+    "fact": "۱۰۰٪ کراتین خالص"
+  },
+  {
+    "why": "a non-string is passed over",
+    "features": [
+      null,
+      42,
+      "آزادسازی تدریجی تا 7 ساعت"
+    ],
+    "fact": "آزادسازی تدریجی تا ۷ ساعت"
+  },
+  {
+    "why": "«حاوی» only at the start",
+    "features": [
+      "پروتئین حاوی 9 اسید آمینه"
+    ],
+    "fact": "پروتئین حاوی ۹ اسید آمینه"
+  },
+  {
+    "why": "nothing to say",
+    "features": [],
+    "fact": ""
+  },
+  {
+    "why": "only a brand line",
+    "features": [
+      "برند: MuscleTech"
+    ],
+    "fact": ""
+  },
+  {
+    "why": "Latin text and markup-like characters stay as they are",
+    "features": [
+      "CON-CRET <HCL> & \"free acid\""
+    ],
+    "fact": "CON-CRET <HCL> & \"free acid\""
+  },
+  {
+    "why": "no features at all",
+    "features": null,
+    "fact": ""
+  }
+]

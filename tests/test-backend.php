@@ -300,6 +300,27 @@ ok("nor the card holder", strpos($blob, "tester") === false);
 settings_save($restore);
 ok("settings restored", (string) setting("telegram_url") === $restore["telegram_url"]);
 
+
+echo "\n== a picture per flavour ==\n";
+/* The chips already change the price when a flavour is picked; the
+   photograph follows the same way. '' means «this one has none of its own»
+   and the page falls back to the product's - which is what almost every
+   flavour will do, so the empty string is the normal case, not an error. */
+db_query("UPDATE product_flavors SET image = '' WHERE product_id = ?", [$one['id']]);
+db_query("UPDATE product_flavors SET image = 'assets/images/products/iso-zero.svg'
+           WHERE product_id = ? ORDER BY sort_order LIMIT 1", [$one['id']]);
+
+$flavImg = product_get('whey-original')['flavors'];
+ok('every flavour carries an image field', count(array_filter($flavImg,
+   static fn($f) => array_key_exists('image', $f))) === count($flavImg));
+ok('  the one that has a picture reports it',
+   ($flavImg[0]['image'] ?? null) === 'assets/images/products/iso-zero.svg',
+   (string) ($flavImg[0]['image'] ?? 'MISSING'));
+/* Sent even when empty, so the client never has to tell «no picture» from
+   «an older API that does not know about pictures». */
+ok('  and the ones that do not report an empty string, not null',
+   count(array_filter(array_slice($flavImg, 1),
+         static fn($f) => $f['image'] === '')) === count($flavImg) - 1);
 echo "\n----------------------------------------\n";
 echo "passed: $pass    failed: $failCount\n";
 exit($failCount > 0 ? 1 : 0);

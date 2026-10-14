@@ -71,6 +71,25 @@ function journal_get(string $slug): ?array
     ];
 }
 
+/**
+ * The colour of an article's cover - the first stop of its glow - so the
+ * article page's header can wear the tone of the card it was opened from.
+ * '' when the cover is not one of the shop's own SVGs or has no glow; the
+ * header then keeps the accent. Only a #rrggbb ever comes back, so the value
+ * is safe inside a style attribute.
+ */
+function journal_cover_tone(string $image): string
+{
+    if (!preg_match('~^assets/images/journal/[A-Za-z0-9_-]+\.svg$~', $image)) {
+        return '';
+    }
+    $svg = @file_get_contents(dirname(__DIR__) . '/' . $image, false, null, 0, 20000);
+    if (!is_string($svg)) {
+        return '';
+    }
+    return preg_match('~<radialGradient\b[^>]*>\s*<stop\b[^>]*\bstop-color="(#[0-9A-Fa-f]{6})"~', $svg, $m) ? $m[1] : '';
+}
+
 /** Every article, newest-first order is not meaningful here so it is by name. */
 function journal_all(): array
 {

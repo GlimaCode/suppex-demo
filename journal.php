@@ -25,7 +25,7 @@ $title = 'مجله ساپکس';
 $desc  = seo_clip('مقاله‌های ساپکس درباره مکمل، تمرین و تغذیه — با ارجاع به مطالعه‌های اصلی، '
                 . 'نه توصیه‌های بی‌منبع.');
 $url   = seo_origin() . '/journal.php';
-$image = seo_absolute('assets/images/og-cover.png');
+$image = seo_cover();
 
 /* An ItemList, which is what this is: a list of things that live elsewhere.
    Marking it up as a Blog would claim the articles are hosted on this URL. */
@@ -56,7 +56,7 @@ $jsonld = json_encode([
             $articles
         )),
     ],
-], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_HEX_TAG);
 ?>
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -65,12 +65,8 @@ $jsonld = json_encode([
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#131210">
 
-<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<?php include __DIR__ . '/partials/head-assets.php'; ?>
 
-<link rel="stylesheet" href="assets/css/tokens.css">
-<link rel="stylesheet" href="assets/css/base.css">
-<link rel="stylesheet" href="assets/css/components.css">
-<link rel="stylesheet" href="assets/css/layout.css">
 
 <title><?= e($title) ?> | <?= e(setting('shop_name', 'SUPPEX')) ?></title>
 <meta name="description" content="<?= e($desc) ?>">
@@ -98,7 +94,7 @@ $jsonld = json_encode([
     <div class="container">
 
       <nav class="article__crumbs" aria-label="مسیر صفحه">
-        <a href="index.html">خانه</a>
+        <a href="./">خانه</a>
         <span aria-hidden="true">/</span>
         <span>مجله</span>
       </nav>
@@ -106,7 +102,7 @@ $jsonld = json_encode([
       <div class="section__head" style="margin-block-start:var(--sp-6)">
         <div>
           <p class="u-eyebrow">مجله ساپکس</p>
-          <h1 class="u-h2" style="margin-top:8px">چیزهایی که خوب است بدانید</h1>
+          <h1 class="u-h2" style="margin-top:8px">نکاتی که داشتن آن‌ها مفید است</h1>
           <p class="u-sm u-muted" style="max-width:56ch;margin-top:12px;line-height:1.95">
             این‌ها مقاله تبلیغاتی نیستند. هر ادعایی که در آن‌ها هست به مطالعه‌ای
             ارجاع دارد که در پایین همان مقاله فهرست شده و می‌توانید خودتان بخوانیدش —

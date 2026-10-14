@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
+require_once SUPPEX_ROOT . '/lib/images.php';
 require_once __DIR__ . '/partials/layout.php';
 
 $user   = auth_require();
@@ -36,27 +37,61 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $slugBase  = $slugInput !== '' ? slugify($slugInput) : slugify($nameFa);
             $slug      = unique_slug($slugBase, 'categories', $cid > 0 ? $cid : null);
 
-            $params = [
-                $slug,
-                $nameFa,
-                clean_text($_POST['name_latin'] ?? '', 120),
-                clean_text($_POST['blurb'] ?? '', 255),
-                (int) ($_POST['sort_order'] ?? 0),
-                empty($_POST['is_active']) ? 0 : 1,
-            ];
+            /* --- the image ----------------------------------------------
+               An upload wins over the typed path, because uploading a file is
+               the more deliberate act of the two. The path field exists for
+               the six SVGs that ship with the repo: image_store() decodes
+               through GD to validate and resize, and GD has no SVG decoder,
+               so those can only ever be referenced, never uploaded. */
+            $current = $cid > 0
+                ? (string) db_value('SELECT image FROM categories WHERE id = ?', [$cid])
+                : '';
+            $image = $current;
 
-            if ($cid > 0) {
-                db_query('UPDATE categories SET slug = ?, name_fa = ?, name_latin = ?,
-                                 blurb = ?, sort_order = ?, is_active = ? WHERE id = ?',
-                    array_merge($params, [$cid]));
-                flash('ok', 'دسته ویرایش شد.');
+            if (!empty($_POST['image_remove'])) {
+                $image = '';
+            } elseif (!empty($_FILES['image']['name'])) {
+                $stored = image_store($_FILES['image']);
+                if (empty($stored['ok'])) {
+                    $errors['image'] = $stored['error'] ?? 'تصویر ذخیره نشد.';
+                } else {
+                    $image = $stored['path'];
+                }
             } else {
-                db_insert('INSERT INTO categories (slug, name_fa, name_latin, blurb, sort_order, is_active)
-                           VALUES (?, ?, ?, ?, ?, ?)', $params);
-                flash('ok', 'دسته ساخته شد.');
+                $image = clean_text($_POST['image_path'] ?? '', 255);
             }
-            header('Location: categories.php');
-            exit;
+
+            /* Only ever unlinks a file under uploads/ - image_delete() refuses
+               any other path, so replacing a bundled SVG leaves it on disk and
+               a category can be pointed back at it later. */
+            if ($image !== $current && $current !== '') {
+                image_delete($current);
+            }
+
+            if (!$errors) {
+                $params = [
+                    $slug,
+                    $nameFa,
+                    clean_text($_POST['name_latin'] ?? '', 120),
+                    clean_text($_POST['blurb'] ?? '', 255),
+                    $image,
+                    (int) ($_POST['sort_order'] ?? 0),
+                    empty($_POST['is_active']) ? 0 : 1,
+                ];
+
+                if ($cid > 0) {
+                    db_query('UPDATE categories SET slug = ?, name_fa = ?, name_latin = ?,
+                                     blurb = ?, image = ?, sort_order = ?, is_active = ? WHERE id = ?',
+                        array_merge($params, [$cid]));
+                    flash('ok', 'دسته ویرایش شد.');
+                } else {
+                    db_insert('INSERT INTO categories (slug, name_fa, name_latin, blurb, image, sort_order, is_active)
+                               VALUES (?, ?, ?, ?, ?, ?, ?)', $params);
+                    flash('ok', 'دسته ساخته شد.');
+                }
+                header('Location: categories.php');
+                exit;
+            }
         }
     }
 }
@@ -77,11 +112,19 @@ admin_head('دسته‌ها', ['user' => $user]);
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>نام</th><th>slug</th><th>تعداد محصول</th><th>نمایش</th><th></th></tr>
+            <tr><th>تصویر</th><th>نام</th><th>slug</th><th>تعداد محصول</th><th>نمایش</th><th></th></tr>
           </thead>
           <tbody>
             <?php foreach ($rows as $c): ?>
               <tr>
+                <td>
+                  <?php if (trim((string) $c['image']) !== ''): ?>
+                    <img src="<?= e(admin_img($c['image'])) ?>" alt="" width="40" height="40" loading="lazy"
+                         style="object-fit:contain;background:#fff;border-radius:6px;padding:2px;border:1px solid #e5e7eb">
+                  <?php else: ?>
+                    <span class="u-dim" title="بدون تصویر">—</span>
+                  <?php endif; ?>
+                </td>
                 <td>
                   <div class="t-title"><?= e($c['name_fa']) ?></div>
                   <div class="t-sub lat"><?= e($c['name_latin']) ?></div>
@@ -118,7 +161,8 @@ admin_head('دسته‌ها', ['user' => $user]);
   <div>
     <div class="card">
       <h2 class="card__title"><?= $editing ? 'ویرایش دسته' : 'دسته جدید' ?></h2>
-      <form method="post" action="categories.php">
+      <!-- Without the enctype a file input posts nothing at all, silently. -->
+      <form method="post" action="categories.php" enctype="multipart/form-data">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="save">
         <input type="hidden" name="id" value="<?= (int) ($editing['id'] ?? 0) ?>">
@@ -139,6 +183,31 @@ admin_head('دسته‌ها', ['user' => $user]);
         <div class="field" style="margin-block-start:12px">
           <label for="blurb">توضیح کوتاه</label>
           <textarea id="blurb" name="blurb" rows="2"><?= e($editing['blurb'] ?? '') ?></textarea>
+        </div>
+
+        <?php $curImg = trim((string) ($editing['image'] ?? '')); ?>
+        <div class="field" style="margin-block-start:12px">
+          <label for="image">تصویر دسته</label>
+          <?php if ($curImg !== ''): ?>
+            <div style="display:flex;align-items:center;gap:10px;margin-block-end:8px">
+              <img src="<?= e(admin_img($curImg)) ?>" alt="" width="64" height="64"
+                   style="object-fit:contain;background:#fff;border-radius:8px;padding:4px;border:1px solid #e5e7eb">
+              <label class="check">
+                <input type="checkbox" name="image_remove" value="1">
+                <span>حذف شود</span>
+              </label>
+            </div>
+          <?php endif; ?>
+          <input type="file" id="image" name="image" accept="image/*">
+          <?php if (!empty($errors['image'])): ?><span class="err"><?= e($errors['image']) ?></span><?php endif; ?>
+          <span class="hint">JPG، PNG یا WebP تا ۶ مگابایت.</span>
+        </div>
+
+        <div class="field" style="margin-block-start:12px">
+          <label for="image_path">یا مسیر تصویر</label>
+          <input type="text" id="image_path" name="image_path" dir="ltr"
+                 value="<?= e($curImg) ?>">
+          <span class="hint">مثل <code>assets/images/categories/protein.svg</code> — اگر فایلی آپلود کنید، جایگزین این می‌شود.</span>
         </div>
 
         <div class="field" style="margin-block-start:12px">

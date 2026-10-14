@@ -34,7 +34,7 @@ $desc  = $page === null
     ? 'این صفحه وجود ندارد یا نشانی آن تغییر کرده است.'
     : seo_clip($page['summary'] !== '' ? $page['summary'] : $page['title']);
 $url      = seo_origin() . '/' . page_url($slug);
-$image    = seo_absolute('assets/images/og-cover.png');
+$image    = seo_cover();
 $bodyHtml = $page === null ? '' : journal_render($page['body']);
 
 /* WebPage, not Article. These are not editorial: they are the terms the shop
@@ -42,9 +42,14 @@ $bodyHtml = $page === null ? '' : journal_render($page['body']);
    place in every tool that reads the markup. */
 $jsonld = '';
 if ($page !== null) {
+    /* The FAQ is one: its questions and answers, word for word from the page
+       itself. Google shows FAQ results only for a few kinds of site now, but
+       Bing and the AI assistants read the markup to answer questions like
+       these about the shop - so the answer they give is the shop's own. */
+    $faq = $slug === 'faq' ? page_faq_items($page['body']) : [];
     $jsonld = json_encode([
         '@context'    => 'https://schema.org',
-        '@type'       => 'WebPage',
+        '@type'       => $faq ? 'FAQPage' : 'WebPage',
         'name'        => $page['title'],
         'description' => $page['summary'],
         'inLanguage'  => 'fa-IR',
@@ -60,7 +65,11 @@ if ($page !== null) {
             'name'  => setting('shop_name', 'SUPPEX'),
             'logo'  => ['@type' => 'ImageObject', 'url' => seo_absolute('assets/icons/logo.svg')],
         ],
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    ] + ($faq ? ['mainEntity' => array_map(static fn(array $f): array => [
+        '@type'          => 'Question',
+        'name'           => $f['q'],
+        'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f['a']],
+    ], $faq)] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_HEX_TAG);
 }
 ?>
 <!DOCTYPE html>
@@ -70,12 +79,8 @@ if ($page !== null) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#131210">
 
-<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<?php include __DIR__ . '/partials/head-assets.php'; ?>
 
-<link rel="stylesheet" href="assets/css/tokens.css">
-<link rel="stylesheet" href="assets/css/base.css">
-<link rel="stylesheet" href="assets/css/components.css">
-<link rel="stylesheet" href="assets/css/layout.css">
 
 <title><?= e($title) ?> | <?= e(setting('shop_name', 'SUPPEX')) ?></title>
 <meta name="description" content="<?= e($desc) ?>">
@@ -112,7 +117,7 @@ if ($page !== null) {
              it by being written from the same shape. -->
         <h1 class="notfound__title">صفحه پیدا نشد</h1>
         <p class="u-sm u-dim">ممکن است نشانی را اشتباه وارد کرده باشید یا این صفحه دیگر وجود نداشته باشد.</p>
-        <p style="margin-top:18px"><a class="btn btn--primary" href="index.html">بازگشت به فروشگاه</a></p>
+        <p style="margin-top:18px"><a class="btn btn--primary" href="./">بازگشت به فروشگاه</a></p>
       </div>
     </div>
   </section>
@@ -121,7 +126,7 @@ if ($page !== null) {
     <div class="container container--narrow">
 
       <nav class="article__crumbs" aria-label="مسیر صفحه">
-        <a href="index.html">خانه</a>
+        <a href="./">خانه</a>
         <span aria-hidden="true">/</span>
         <span><?= e($page['title']) ?></span>
       </nav>

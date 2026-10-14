@@ -64,11 +64,21 @@ ok('an empty role gets nothing', auth_can('maintenance') === false);
 $as('owner');
 ok('the legacy role keeps its access until the migration renames it',
    auth_can('maintenance') === true);
-/* And that page has to stay reachable during the window, or the upgrade
-   bricks the panel it is upgrading. */
-ok('admin/migrate.php is not gated on a capability',
-   strpos((string) file_get_contents(SUPPEX_ROOT . '/admin/migrate.php'),
-          'auth_require_can') === false);
+/* admin/migrate.php runs ALTER TABLE, so it is now behind the same capability
+   as backup and preflight. That is only safe because of the legacy entry just
+   asserted above: the page that RENAMES the old role must be reachable BY the
+   old role, or the upgrade locks itself out of the panel it is upgrading.
+
+   So the check is no longer "this page is ungated" - it is that the gate
+   exists AND that the pre-migration role passes it. */
+$migrateSrc = (string) file_get_contents(SUPPEX_ROOT . '/admin/migrate.php');
+ok('admin/migrate.php refuses on its own',
+   strpos($migrateSrc, "auth_require_can('maintenance')") !== false);
+ok('  and the pre-migration role can still get through it',
+   auth_can('maintenance') === true);
+$as('manager');
+ok('  while مدیرکل cannot', auth_can('maintenance') === false);
+$as('owner');
 
 head('the nav advertises only what the role can open');
 $as('support');
@@ -92,7 +102,7 @@ head('hiding a link is not access control');
 /* The URL still works whatever the nav shows, so each gated page has to refuse
    on its own. This asserts the refusal is IN the file rather than trusting the
    menu. */
-foreach (['backup.php', 'preflight.php', 'users.php'] as $f) {
+foreach (['backup.php', 'preflight.php', 'users.php', 'migrate.php'] as $f) {
     $src = (string) file_get_contents(SUPPEX_ROOT . '/admin/' . $f);
     ok("$f refuses on its own", strpos($src, "auth_require_can('maintenance')") !== false);
 }
@@ -228,6 +238,98 @@ foreach ($two as $id) {
        strpos($b, 'new') === false && strpos($b, 'bestseller') !== false, $b);
     ok("  #$id has no trailing comma", $b === '' || substr($b, -1) !== ',', $b);
 }
+
+head('«تخفیف برتر» is a badge the panel sets and the hero asks for');
+/* The home page's hero shows up to three products ticked «تخفیف برتر». It is
+   stored as the badge `topdeal`, beside «پرفروش» and «جدید», so the whole
+   chain is: the panel can set it, the storefront list can filter on it, and
+   an ordinary save cannot quietly drop it. */
+require_once SUPPEX_ROOT . '/lib/products.php';
+$tdId = $bulkIds[2];     // still active: the deactivate above took the other two
+$rows = $post(['action' => 'bulk', 'bulk_op' => 'badge_add', 'bulk_badge' => 'topdeal',
+               'ids' => [$tdId]]);
+ok('bulk «افزودن نشان» accepts topdeal',
+   in_array('topdeal', explode(',', (string) $rows[$tdId]['badges']), true),
+   (string) $rows[$tdId]['badges']);
+
+$tdSlugs = array_column(products_list(['badge' => 'topdeal']), 'slug');
+ok('the storefront list filtered on it returns the ticked product',
+   in_array('zz-admin-bulk3', $tdSlugs, true), implode(', ', $tdSlugs));
+ok('  and none of the unticked ones',
+   !in_array('zz-admin-bulk1', $tdSlugs, true) && !in_array('zz-admin-bulk2', $tdSlugs, true),
+   implode(', ', $tdSlugs));
+
+/* Through the real product form, in its own process because a successful
+   save ends in header() + exit. If 'topdeal' were missing from the form's
+   badge list, pressing save on a ticked product would untick it. */
+shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/editsave.php')
+           . ' ' . $tdId . ' 2>&1');
+$tdAfter = (string) db_value('SELECT badges FROM products WHERE id = ?', [$tdId]);
+ok('a save through the product form that changed nothing keeps the tick',
+   in_array('topdeal', explode(',', $tdAfter), true), $tdAfter);
+
+$rows = $post(['action' => 'bulk', 'bulk_op' => 'badge_add', 'bulk_badge' => 'featured',
+               'ids' => [$tdId]]);
+ok('a badge that is not on the list is still refused',
+   strpos((string) $rows[$tdId]['badges'], 'featured') === false,
+   (string) $rows[$tdId]['badges']);
+
+head('the image order the owner arranges is the order the site shows');
+/* «اصلی» in the panel and the first photo on the product page used to be
+   two different things - the page opened on whichever photo was uploaded
+   first. Now the panel arranges them, the ordinary save keeps the order, the
+   first is the main image, and the product page leads with it. */
+db_query("DELETE FROM product_images WHERE path LIKE 'uploads/zz-order/%'");
+db_query("DELETE FROM products WHERE slug = 'zz-img-order'");
+$ioId = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, is_active, in_stock, image)
+     VALUES ('zz-img-order', 'آزمون ترتیب تصویر', 100000, 'manual', 1, 1, 'uploads/zz-order/a.webp')");
+$imgA = db_insert("INSERT INTO product_images (product_id, path, sort_order) VALUES (?, 'uploads/zz-order/a.webp', 0)", [$ioId]);
+$imgB = db_insert("INSERT INTO product_images (product_id, path, sort_order) VALUES (?, 'uploads/zz-order/b.webp', 1)", [$ioId]);
+$imgC = db_insert("INSERT INTO product_images (product_id, path, sort_order) VALUES (?, 'uploads/zz-order/c.webp', 2)", [$ioId]);
+/* Somebody else's photo, to prove it cannot be dragged into this product. */
+$imgX = db_insert("INSERT INTO product_images (product_id, path, sort_order) VALUES (?, 'uploads/zz-order/x.webp', 0)", [$tdId]);
+
+$saveOrder = static function (int $pid, array $ids): void {
+    shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/editsave.php')
+               . ' ' . $pid . ' ' . escapeshellarg(implode(',', $ids)) . ' 2>&1');
+};
+$orderOf = static fn(int $pid): array => array_map('intval', array_column(
+    db_all('SELECT id FROM product_images WHERE product_id = ? ORDER BY sort_order, id', [$pid]), 'id'));
+
+$saveOrder($ioId, [$imgC, $imgA, $imgX, $imgB]);
+ok('the save keeps the arranged order', $orderOf($ioId) === [$imgC, $imgA, $imgB],
+   implode(',', $orderOf($ioId)));
+ok('  and the first becomes the main image',
+   (string) db_value('SELECT image FROM products WHERE id = ?', [$ioId]) === 'uploads/zz-order/c.webp',
+   (string) db_value('SELECT image FROM products WHERE id = ?', [$ioId]));
+ok('another product\'s photo cannot be pulled in by its id',
+   (int) db_value('SELECT product_id FROM product_images WHERE id = ?', [$imgX]) === $tdId
+   && (int) db_value('SELECT sort_order FROM product_images WHERE id = ?', [$imgX]) === 0);
+
+require_once SUPPEX_ROOT . '/lib/products.php';
+$pg = product_get('zz-img-order');
+ok('the product page shows them in the same order',
+   ($pg['gallery'] ?? []) === ['uploads/zz-order/c.webp', 'uploads/zz-order/a.webp', 'uploads/zz-order/b.webp'],
+   implode(', ', $pg['gallery'] ?? []));
+
+/* A photo left out of the post is kept, after the ones that were sent. C is
+   left out on purpose: its old position (0) collides with B's new one, so
+   without the rewrite it would sort back in between B and A. Posting only B
+   did not tell the two apart - the stale values happened to tie the right way. */
+$saveOrder($ioId, [$imgB, $imgA]);
+ok('a photo missing from the post keeps its place after the rest',
+   $orderOf($ioId) === [$imgB, $imgA, $imgC], implode(',', $orderOf($ioId)));
+
+/* A product nobody has re-saved since: main marked, but sorted third. */
+db_query('UPDATE products SET image = ? WHERE id = ?', ['uploads/zz-order/a.webp', $ioId]);
+$pg = product_get('zz-img-order');
+ok('a product not re-saved still leads with the photo marked main',
+   ($pg['gallery'][0] ?? '') === 'uploads/zz-order/a.webp'
+   && count($pg['gallery']) === 3, implode(', ', $pg['gallery'] ?? []));
+
+db_query("DELETE FROM product_images WHERE path LIKE 'uploads/zz-order/%'");
+db_query("DELETE FROM products WHERE slug = 'zz-img-order'");
 
 head('an unknown bulk operation changes nothing');
 $countBefore = (int) db_value('SELECT COUNT(*) FROM products');

@@ -145,21 +145,43 @@ function backup_catalogue_csv(): string
     fputcsv($out, array_values(IMPORT_COLUMNS));
 
     $keys = array_keys(IMPORT_COLUMNS);
+    foreach (backup_catalogue_rows() as $row) {
+        $line = [];
+        foreach ($keys as $k) {
+            $line[] = (string) ($row[$k] ?? '');
+        }
+        fputcsv($out, $line);
+    }
 
+    rewind($out);
+    $csv = stream_get_contents($out) ?: '';
+    fclose($out);
+    return $csv;
+}
+
+/**
+ * The catalogue as the import's rows, keyed by IMPORT_COLUMNS - one per size,
+ * or one for a single-price product. The CSV above and the Excel workbook
+ * (lib/import_sheet.php) are both written from it, so the two can never
+ * disagree about what a round trip carries.
+ *
+ * @param int|null $productId one product - «خروجی اکسل» on its row in the
+ *                            panel and on its edit page - or null for all
+ * @return array<int,array<string,string>>
+ */
+function backup_catalogue_rows(?int $productId = null): array
+{
+    $rows = [];
     $products = db_all(
         'SELECT p.*, c.name_fa AS category_name
            FROM products p
-      LEFT JOIN categories c ON c.id = p.category_id
-       ORDER BY p.sort_order, p.id'
+      LEFT JOIN categories c ON c.id = p.category_id'
+        . ($productId !== null ? ' WHERE p.id = ?' : '') . '
+       ORDER BY p.sort_order, p.id',
+        $productId !== null ? [$productId] : []
     );
 
     foreach ($products as $p) {
-        $flavours = implode('، ', array_column(
-            db_all('SELECT name FROM product_flavors WHERE product_id = ? ORDER BY sort_order',
-                   [(int) $p['id']]),
-            'name'
-        ));
-
         $sizes = db_all(
             'SELECT * FROM product_sizes WHERE product_id = ? ORDER BY sort_order',
             [(int) $p['id']]
@@ -168,35 +190,144 @@ function backup_catalogue_csv(): string
         /* A product with no sizes is one row with the size column blank —
            exactly how the sheet asks for a single-price product. */
         $units = $sizes ?: [null];
+        $built = [];
+        foreach ($units as $size) {
+            $built[] = backup_unit_row($p, $size ?? $p, $size !== null);
+        }
 
-        foreach ($units as $i => $size) {
-            $unit = $size ?? $p;
+        /* Flavours and the descriptions belong to the product, and the
+           importer takes the first non-empty value it sees, so writing them on
+           every row of a multi-size product would be noise. */
+        $first = &$built[0];
+        $first['flavors']     = backup_flavours_cell((int) $p['id'], $built);
+        $first['short']       = (string) $p['short'];
+        $first['description'] = (string) ($p['description'] ?? '');
+        /* One per line, which is how the panel shows them and how
+           import_features() reads them back. */
+        $first['features']    = implode("\n", json_decode_array($p['features'] ?? null));
+        $first['ingredients'] = (string) ($p['ingredients'] ?? '');
+        $first['usage']       = (string) ($p['usage_text'] ?? '');
+        $first['nutrition_serving'] = (string) ($p['nutrition_serving'] ?? '');
+        $first['nutrition']   = implode("\n", array_map(
+            static fn($n) => trim(($n['label'] ?? '') . ': ' . ($n['value'] ?? ''), ' :'),
+            json_decode_array($p['nutrition_rows'] ?? null)));
+        $first['badges']      = implode('، ', array_map(
+            static fn($b) => IMPORT_BADGE_LABELS[$b] ?? $b,
+            array_values(array_filter(explode(',', (string) ($p['badges'] ?? ''))))));
+        $first['is_active']   = (int) $p['is_active'] === 1 ? 'بله' : 'خیر';
+        $first['sort_order']  = (string) (int) $p['sort_order'];
+        unset($first);
 
-            $row = backup_unit_row($p, $unit, $size !== null);
-            /* Flavours and the descriptions belong to the product, and the
-               importer takes the first non-empty value it sees, so writing
-               them on every row of a multi-size product would be noise. */
-            if ($i === 0) {
-                $row['flavors']     = $flavours;
-                $row['short']       = (string) $p['short'];
-                $row['description'] = (string) ($p['description'] ?? '');
-                /* One per line, which is how the panel shows them and how
-                   import_features() reads them back. */
-                $row['features']    = implode("\n", json_decode_array($p['features'] ?? null));
-            }
-
-            $line = [];
-            foreach ($keys as $k) {
-                $line[] = (string) ($row[$k] ?? '');
-            }
-            fputcsv($out, $line);
+        foreach ($built as $row) {
+            $rows[] = $row;
         }
     }
+    return $rows;
+}
 
-    rewind($out);
-    $csv = stream_get_contents($out) ?: '';
-    fclose($out);
-    return $csv;
+/**
+ * What each product sells for today: one row per thing a shopper can buy -
+ * every combination of a product priced by combination, every size (and each
+ * flavour that costs extra) of one that is not, or the product itself.
+ *
+ * For reading only; the import never reads it. It exists because the sheet's
+ * price columns are per size, and a product priced by combination is not: its
+ * sizes keep whatever figures they had when it was converted, and an export
+ * showing only those was a price list of numbers the shop no longer charged -
+ * on the live shop, nine products out of fourteen on 2026-10-02.
+ *
+ * @return list<array{product:string,size:string,flavor:string,other:string,
+ *                    price:int,compare_at:?int,stock:?int,on_sale:bool}>
+ */
+function backup_selling_rows(?int $productId = null): array
+{
+    require_once __DIR__ . '/variants.php';
+    $out = [];
+    $products = db_all(
+        'SELECT id, name_fa, price, compare_at, stock_qty, is_active, in_stock FROM products'
+        . ($productId !== null ? ' WHERE id = ?' : '') . ' ORDER BY sort_order, id',
+        $productId !== null ? [$productId] : []
+    );
+    foreach ($products as $p) {
+        $id   = (int) $p['id'];
+        $open = (int) $p['is_active'] === 1 && (int) $p['in_stock'] === 1;
+        $row  = static fn(string $size, string $flavor, string $other, int $price, $compare, $stock, bool $live): array => [
+            'product'    => (string) $p['name_fa'],
+            'size'       => $size,
+            'flavor'     => $flavor,
+            'other'      => $other,
+            'price'      => $price,
+            'compare_at' => $compare === null || (int) $compare <= $price ? null : (int) $compare,
+            'stock'      => $stock === null ? null : max(0, (int) $stock),
+            'on_sale'    => $live && $price > 0,
+        ];
+
+        $variants = variants_list($id);
+        if ($variants) {
+            foreach ($variants as $v) {
+                $size = $flavor = '';
+                $other = [];
+                foreach ($v['values'] as $val) {
+                    if ((string) $val['attr_ext'] === VARIANT_SIZE_ATTR) {
+                        $size = (string) $val['label'];
+                    } elseif ((string) $val['attr_ext'] === VARIANT_FLAVOR_ATTR) {
+                        $flavor = (string) $val['label'];
+                    } else {
+                        $other[] = $val['attr_name'] . ': ' . $val['label'];
+                    }
+                }
+                $out[] = $row($size, $flavor, implode('، ', $other), (int) $v['price'], $v['compare_at'],
+                              $v['stock_qty'], $open && (int) $v['is_active'] === 1);
+            }
+            continue;
+        }
+
+        $sizes = db_all('SELECT label, price, compare_at, stock_qty FROM product_sizes
+                          WHERE product_id = ? ORDER BY sort_order, id', [$id]);
+        $extra = db_all('SELECT name, price_delta_toman FROM product_flavors
+                          WHERE product_id = ? AND price_delta_toman > 0 ORDER BY sort_order, id', [$id]);
+        $units = $sizes ?: [['label' => '', 'price' => $p['price'], 'compare_at' => $p['compare_at'],
+                             'stock_qty' => $p['stock_qty']]];
+        foreach ($units as $u) {
+            $stock = $u['stock_qty'] ?? null;
+            $out[] = $row((string) $u['label'], '', '', (int) $u['price'], $u['compare_at'], $stock, $open);
+            foreach ($extra as $f) {
+                $out[] = $row((string) $u['label'], (string) $f['name'], '',
+                              (int) $u['price'] + (int) $f['price_delta_toman'], null, $stock, $open);
+            }
+        }
+    }
+    return $out;
+}
+
+/**
+ * The flavours cell, premiums included in the unit the rows are priced in:
+ * «شکلاتی، وانیلی=2.5» beside a dirham cost, «وانیلی=150000» otherwise.
+ *
+ * A premium in the other unit is left off rather than converted - the import
+ * keeps a flavour's premium by name when the cell names none, so leaving it
+ * off loses nothing, while writing it would be read in the wrong unit.
+ *
+ * @param array<int,array<string,string>> $rows  this product's exported rows
+ */
+function backup_flavours_cell(int $productId, array $rows): string
+{
+    $aed = false;
+    foreach ($rows as $r) {
+        if (($r['cost_aed'] ?? '') !== '') { $aed = true; }
+    }
+    $parts = [];
+    foreach (db_all('SELECT name, cost_delta_aed, price_delta_toman
+                       FROM product_flavors WHERE product_id = ? ORDER BY sort_order', [$productId]) as $f) {
+        $name = (string) $f['name'];
+        if ($aed && $f['cost_delta_aed'] !== null && (float) $f['cost_delta_aed'] > 0) {
+            $name .= '=' . rtrim(rtrim(number_format((float) $f['cost_delta_aed'], 2, '.', ''), '0'), '.');
+        } elseif (!$aed && (int) $f['price_delta_toman'] > 0) {
+            $name .= '=' . (int) $f['price_delta_toman'];
+        }
+        $parts[] = $name;
+    }
+    return implode('، ', $parts);
 }
 
 /**
@@ -221,6 +352,8 @@ function backup_unit_row(array $product, array $unit, bool $isSize): array
         'size_label' => $isSize ? (string) $unit['label'] : '',
         'in_stock'   => (int) $product['in_stock'] === 1 ? 'بله' : 'خیر',
         'servings'   => $isSize && !empty($unit['servings']) ? (string) (int) $unit['servings'] : '',
+        /* Blank is «not counted», which the import reads as «leave it». */
+        'stock_qty'  => ($unit['stock_qty'] ?? null) === null ? '' : (string) (int) $unit['stock_qty'],
     ];
 
     /* A size with no cost of its own falls back to the parent's, the same way

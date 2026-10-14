@@ -26,6 +26,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/pricing.php';
+require_once __DIR__ . '/variants.php';
 
 /** The columns the sheet is expected to carry, in order. */
 const IMPORT_COLUMNS = [
@@ -46,7 +47,63 @@ const IMPORT_COLUMNS = [
     'features'     => 'مشخصات کلیدی',
     'short'        => 'توضیح کوتاه',
     'description'  => 'توضیح کامل',
+    /* Added with the Excel import (2026-10), so a sheet can carry everything
+       the product form does. Appended rather than inserted: a CSV written
+       before them still lines up, and the order a person fills them in is
+       IMPORT_LAYOUT's (lib/import_sheet.php), not this one's. */
+    'stock_qty'    => 'موجودی انبار',
+    'is_active'    => 'نمایش در سایت',
+    'badges'       => 'نشان‌ها',
+    'sort_order'   => 'ترتیب نمایش',
+    'images'       => 'عکس‌ها',
+    'ingredients'  => 'ترکیبات',
+    'usage'        => 'روش مصرف',
+    'nutrition_serving' => 'اندازه هر سروینگ',
+    'nutrition'    => 'ارزش غذایی',
+    /* A picture per flavour (2026-10): «نام طعم: نام فایل», a line each.
+       Appended for the same reason as the columns above. */
+    'flavor_images' => 'عکس طعم‌ها',
 ];
+
+/* Other headings a person may reasonably type for a column. Matched the same
+   lenient way as the real ones (import_header_key()). */
+const IMPORT_ALIASES = [
+    'عکس'              => 'images',
+    'تصاویر'           => 'images',
+    'تصویر'            => 'images',
+    'عکس محصول'        => 'images',
+    'موجودی'           => 'stock_qty',
+    'تعداد موجودی'     => 'stock_qty',
+    'تعداد در انبار'   => 'stock_qty',
+    'نشان'             => 'badges',
+    'ترتیب'            => 'sort_order',
+    'نمایش'            => 'is_active',
+    'روش استفاده'      => 'usage',
+    'اندازه هر وعده'   => 'nutrition_serving',
+    'جدول ارزش غذایی'  => 'nutrition',
+    'طعم'              => 'flavors',
+    'عکس طعم'          => 'flavor_images',
+    'عکس هر طعم'       => 'flavor_images',
+    'تصویر طعم‌ها'     => 'flavor_images',
+];
+
+/** The sheet of a workbook the import reads; the first visible one otherwise. */
+const IMPORT_SHEET = 'محصولات';
+
+/* «نشان‌ها», as the panel's badge keys. Matched after import_name_key(). */
+const IMPORT_BADGES = [
+    'پرفروش'      => 'bestseller',
+    'bestseller'  => 'bestseller',
+    'جدید'        => 'new',
+    'new'         => 'new',
+    'تخفیف برتر'  => 'topdeal',
+    'تخفیف ویژه'  => 'topdeal',
+    'topdeal'     => 'topdeal',
+];
+const IMPORT_BADGE_LABELS = ['bestseller' => 'پرفروش', 'new' => 'جدید', 'topdeal' => 'تخفیف برتر'];
+
+/* A cell that clears what is stored, where blank means «leave it alone». */
+const IMPORT_CLEAR = ['-', '—', '–', 'هیچ', 'ندارد'];
 
 /* Columns a row may leave empty. Everything else is either required or has a
    safe default; this list exists so the preview can say which blanks were
@@ -54,6 +111,8 @@ const IMPORT_COLUMNS = [
 const IMPORT_OPTIONAL = [
     'name_en', 'brand', 'category', 'size_label', 'cost_toman', 'price_toman', 'promo_toman',
     'commission', 'in_stock', 'flavors', 'servings', 'features', 'short', 'description',
+    'stock_qty', 'is_active', 'badges', 'sort_order', 'images', 'ingredients', 'usage',
+    'nutrition_serving', 'nutrition',
 ];
 
 /* A purchase price in toman below this is a dirham figure typed into the
@@ -200,14 +259,15 @@ function import_read_csv(string $path): array
     }
 
     /* Map the sheet's header labels onto our keys. Matching on the Persian
-       label means the seller can reorder or add columns without breaking it. */
-    $map = [];
+       label means the seller can reorder or add columns without breaking it;
+       matching leniently means «قیمت فروش(تومان)» or a template's «*» does
+       not cost them a column either. */
+    $map   = [];
+    $known = import_header_map();
     foreach ($header as $i => $label) {
-        $label = trim((string) $label);
-        foreach (IMPORT_COLUMNS as $key => $expected) {
-            if ($label === $expected || $label === $key) {
-                $map[$i] = $key;
-            }
+        $k = import_header_key((string) $label);
+        if (isset($known[$k])) {
+            $map[$i] = $known[$k];
         }
     }
 
@@ -283,6 +343,21 @@ function import_plan(array $rows, array $columns = []): array
         $price      = parse_money($row['price_toman'] ?? '');
         $promo      = parse_money($row['promo_toman'] ?? '');
         $servings   = (int) to_latin_digits((string) ($row['servings'] ?? ''));
+
+        /* «موجودی انبار» for this row's tub: blank leaves the count alone, a
+           dash stops counting it, a number is the count. */
+        $stockCell  = trim(to_latin_digits((string) ($row['stock_qty'] ?? '')));
+        $stockGiven = $stockCell !== '';
+        $stockQty   = null;
+        if ($stockGiven && !in_array($stockCell, IMPORT_CLEAR, true)) {
+            $stockNum = str_replace([',', '٬', ' '], '', $stockCell);
+            if (!preg_match('/^\d{1,7}$/', $stockNum)) {
+                $errors[] = 'سطر ' . $line . ': موجودی انبار باید عدد باشد '
+                    . '(یا خط تیره، یعنی «شمرده نشود»).';
+                continue;
+            }
+            $stockQty = (int) $stockNum;
+        }
 
         if ($costAed !== null && $costAed <= 0) {
             $errors[] = 'سطر ' . $line . ': قیمت خرید باید بزرگ‌تر از صفر باشد.';
@@ -384,7 +459,8 @@ function import_plan(array $rows, array $columns = []): array
                 'brand'    => clean_text($row['brand'] ?? '', 120),
                 'category' => clean_text($row['category'] ?? '', 120),
                 'short'    => clean_text($row['short'] ?? '', 500),
-                'description' => clean_text($row['description'] ?? '', 4000),
+                /* Paragraphs kept, as the panel's own editor keeps them. */
+                'description' => clean_multiline($row['description'] ?? '', 5000),
                 'flavors'  => import_flavors($row['flavors'] ?? ''),
                 'features' => import_features($row['features'] ?? ''),
                 'in_stock' => import_truthy($row['in_stock'] ?? '1'),
@@ -397,6 +473,23 @@ function import_plan(array $rows, array $columns = []): array
                 'has_commission_column' => $has('commission'),
                 'sizes'    => [],
                 'lines'    => [],
+                /* The Excel columns. Null is «the sheet said nothing», which
+                   on an update leaves the stored value alone. */
+                'ingredients'       => '',
+                'usage'             => '',
+                'nutrition_serving' => '',
+                'nutrition'         => [],
+                'images'            => [],
+                /* flavour name => photograph name, from «عکس طعم‌ها». */
+                'flavor_images'     => [],
+                'badges'            => null,
+                'is_active'         => null,
+                'sort_order'        => null,
+                /* Read with the names, from the same cell: the first row
+                   fills the names in here, so the block below never runs for it. */
+                'premiums'          => import_flavor_premiums($row['flavors'] ?? ''),
+                'photo_status'      => [],
+                'flavor_photo_status' => [],
             ];
         }
 
@@ -405,10 +498,52 @@ function import_plan(array $rows, array $columns = []): array
            Take the first non-empty value rather than letting a later blank row
            erase what an earlier one said. */
         if ($products[$key]['description'] === '') {
-            $products[$key]['description'] = clean_text($row['description'] ?? '', 4000);
+            $products[$key]['description'] = clean_multiline($row['description'] ?? '', 5000);
         }
         if (!$products[$key]['flavors']) {
-            $products[$key]['flavors'] = import_flavors($row['flavors'] ?? '');
+            $products[$key]['flavors']  = import_flavors($row['flavors'] ?? '');
+            $products[$key]['premiums'] = import_flavor_premiums($row['flavors'] ?? '');
+        }
+        if ($products[$key]['ingredients'] === '') {
+            $products[$key]['ingredients'] = clean_multiline($row['ingredients'] ?? '', 2000);
+        }
+        if ($products[$key]['usage'] === '') {
+            $products[$key]['usage'] = clean_multiline($row['usage'] ?? '', 2000);
+        }
+        if ($products[$key]['nutrition_serving'] === '') {
+            $products[$key]['nutrition_serving'] = clean_text($row['nutrition_serving'] ?? '', 180);
+        }
+        if (!$products[$key]['nutrition']) {
+            $products[$key]['nutrition'] = import_nutrition($row['nutrition'] ?? '');
+        }
+        if (!$products[$key]['images']) {
+            $products[$key]['images'] = import_photo_list($row['images'] ?? '');
+        }
+        if (!$products[$key]['flavor_images']) {
+            $products[$key]['flavor_images'] = import_flavor_photos($row['flavor_images'] ?? '');
+        }
+
+        $badgeCell = trim((string) ($row['badges'] ?? ''));
+        if ($badgeCell !== '' && $products[$key]['badges'] === null) {
+            $badges = import_badges($badgeCell);
+            if ($badges === null) {
+                $errors[] = 'سطر ' . $line . ': نشان «' . $badgeCell . '» شناخته نشد. '
+                    . 'یکی یا چندتا از این‌ها: پرفروش، جدید، تخفیف برتر — یا خط تیره برای پاک کردن.';
+            } else {
+                $products[$key]['badges'] = $badges;
+            }
+        }
+        $activeCell = trim((string) ($row['is_active'] ?? ''));
+        if ($activeCell !== '' && $products[$key]['is_active'] === null) {
+            $products[$key]['is_active'] = import_truthy($activeCell);
+        }
+        $sortCell = trim(to_latin_digits((string) ($row['sort_order'] ?? '')));
+        if ($sortCell !== '' && $products[$key]['sort_order'] === null) {
+            if (!preg_match('/^-?\d{1,6}$/', $sortCell)) {
+                $errors[] = 'سطر ' . $line . ': ترتیب نمایش باید یک عدد صحیح باشد.';
+            } else {
+                $products[$key]['sort_order'] = (int) $sortCell;
+            }
         }
         if (!$products[$key]['features']) {
             $products[$key]['features'] = import_features($row['features'] ?? '');
@@ -470,10 +605,20 @@ function import_plan(array $rows, array $columns = []): array
             'cost_aed'     => $costAed,
             'cost_toman'   => $costInToman,
             'profit_toman' => $profit > 0 ? $profit : null,
+            /* The ratio this sheet's numbers imply. Recomputed on every import
+               rather than left alone, because a sheet that changes the profit
+               on a product whose ratio is already locked would otherwise be
+               silently ignored: the toman figure would land in the column and
+               the old ratio would still win at the next repricing. */
+            'profit_percent' => ($costInToman !== null && $profit > 0)
+                ? pricing_percent_from((int) $costInToman, (int) $profit)
+                : null,
             'promo_toman'  => $promo > 0 ? $promo : null,
             'applied_rate' => ($costAed !== null && $computed !== null) ? $rate : null,
             'commission'   => $commission,
             'servings'     => $servings > 0 ? $servings : null,
+            'stock_given'  => $stockGiven,
+            'stock_qty'    => $stockQty,
             'price'        => $computed !== null ? $computed['price'] : $price,
             'compare_at'   => $computed !== null ? $computed['compare_at'] : null,
             'line'         => $line,
@@ -526,7 +671,168 @@ function import_plan(array $rows, array $columns = []): array
         }
     }
 
+    /* A flavour's premium is in the unit the product is bought in: dirhams
+       beside a dirham cost, toman otherwise - the same rule as the product
+       form's flavour column. Checked here, once the whole product is known. */
+    foreach ($products as $k => $p) {
+        if (!$p['premiums']) {
+            continue;
+        }
+        $line  = (int) ($p['lines'][0] ?? 0);
+        $aed   = import_buys_in_aed($p);
+        $clean = [];
+        foreach ($p['premiums'] as $name => $raw) {
+            $raw = trim(to_latin_digits((string) $raw));
+            if (in_array($raw, array_merge(['0'], IMPORT_CLEAR), true)) {
+                $clean[$name] = ['aed' => null, 'toman' => 0];
+                continue;
+            }
+            if ($aed) {
+                $v = pricing_parse_aed($raw);
+                if ($v === null || $v <= 0) {
+                    $errors[] = 'سطر ' . $line . ': اضافه‌قیمت طعم «' . $name . '» عدد نیست.';
+                } elseif ($v > PRICING_MAX_COST_AED) {
+                    $errors[] = 'سطر ' . $line . ': اضافه‌قیمت طعم «' . $name . '» ' . number_format($v)
+                        . ' درهم است — احتمالاً به تومان نوشته شده. این محصول با درهم خریده می‌شود.';
+                } else {
+                    $clean[$name] = ['aed' => $v, 'toman' => 0];
+                }
+            } else {
+                $v = parse_money($raw);
+                if ($v <= 0) {
+                    $errors[] = 'سطر ' . $line . ': اضافه‌قیمت طعم «' . $name . '» عدد نیست.';
+                } elseif ($v < 1000) {
+                    $errors[] = 'سطر ' . $line . ': اضافه‌قیمت طعم «' . $name . '» ' . number_format($v)
+                        . ' تومان است — احتمالاً به درهم نوشته شده. این محصول با تومان قیمت‌گذاری می‌شود.';
+                } else {
+                    $clean[$name] = ['aed' => null, 'toman' => $v];
+                }
+            }
+        }
+        $products[$k]['premiums'] = $clean;
+    }
+
+    /* Photographs: each named file is waiting (uploaded on the import page),
+       already on this product from an earlier import, or missing - which is
+       said, and does not stop the rest. */
+    $photosOk = import_photos_ready();
+    $claimed  = [];
+    $toldMigrate = false;
+    foreach ($products as $k => $p) {
+        if (!$p['images']) {
+            continue;
+        }
+        $line = (int) ($p['lines'][0] ?? 0);
+        if (!$photosOk) {
+            if (!$toldMigrate) {
+                $warnings[] = 'برای وصل کردن عکس‌ها، اول یک بار «به‌روزرسانی دیتابیس» را اجرا کنید؛ '
+                    . 'بقیهٔ فایل بدون عکس ثبت می‌شود.';
+                $toldMigrate = true;
+            }
+            continue;
+        }
+        $existing = import_find_product($p['name_fa'], (string) ($p['brand'] ?? ''));
+        foreach ($p['images'] as $photo) {
+            $status = 'missing';
+            if ($existing !== null && db_value(
+                    'SELECT 1 FROM product_images WHERE product_id = ? AND source_name = ?',
+                    [$existing, $photo]) !== null) {
+                $status = 'attached';
+            } elseif (import_photo_find($photo) !== null) {
+                $status = 'ready';
+                if (isset($claimed[$photo])) {
+                    $warnings[] = 'سطر ' . $line . ': عکس «' . $photo . '» برای «' . $claimed[$photo]
+                        . '» هم آمده و فقط به همان وصل می‌شود.';
+                    $status = 'missing';
+                } else {
+                    $claimed[$photo] = $p['name_fa'];
+                }
+            } else {
+                $warnings[] = 'سطر ' . $line . ': عکس «' . $photo . '» پیدا نشد. '
+                    . 'اول آن را در بخش «عکس‌ها»ی همین صفحه بارگذاری کنید؛ بدون آن، محصول بی‌عکس ثبت می‌شود.';
+            }
+            $products[$k]['photo_status'][$photo] = $status;
+        }
+    }
+
+    /* A picture per flavour: for a flavour this product will have, and a file
+       that is waiting, is one of its own gallery photographs, or - on a
+       product already in the shop whose flavour has a picture - was used
+       before (a re-import of the same sheet keeps it, quietly). */
+    foreach ($products as $k => $p) {
+        if (!$p['flavor_images']) {
+            continue;
+        }
+        $line = (int) ($p['lines'][0] ?? 0);
+        if (!$photosOk) {
+            if (!$toldMigrate) {
+                $warnings[] = 'برای وصل کردن عکس‌ها، اول یک بار «به‌روزرسانی دیتابیس» را اجرا کنید؛ '
+                    . 'بقیهٔ فایل بدون عکس ثبت می‌شود.';
+                $toldMigrate = true;
+            }
+            continue;
+        }
+        $existing = import_find_product($p['name_fa'], (string) ($p['brand'] ?? ''));
+        $have = [];
+        foreach ($existing === null ? [] : db_all(
+                'SELECT name, image FROM product_flavors WHERE product_id = ?', [$existing]) as $f) {
+            $have[import_name_key((string) $f['name'])] = (string) $f['image'];
+        }
+        /* The sheet's flavours when it names some; otherwise the product keeps
+           the ones it has (a blank «طعم‌ها» changes nothing). */
+        $known = [];
+        foreach ($p['flavors'] ?: [] as $f) {
+            $known[import_name_key((string) $f)] = true;
+        }
+        if (!$known) {
+            $known = array_fill_keys(array_keys($have), true);
+        }
+        foreach ($p['flavor_images'] as $flavor => $photo) {
+            $fk = import_name_key((string) $flavor);
+            if (!isset($known[$fk])) {
+                $warnings[] = 'سطر ' . $line . ': طعم «' . $flavor . '» در ستون «طعم‌ها»ی «' . $p['name_fa']
+                    . '» نیست؛ عکسش به جایی وصل نمی‌شود.';
+                $products[$k]['flavor_photo_status'][$flavor] = 'missing';
+                continue;
+            }
+            $status = 'missing';
+            if (isset($p['photo_status'][$photo]) && $p['photo_status'][$photo] !== 'missing') {
+                $status = $p['photo_status'][$photo];
+            } elseif (import_photo_find($photo) !== null) {
+                $status = 'ready';
+                if (isset($claimed[$photo]) && $claimed[$photo] !== $p['name_fa']) {
+                    $warnings[] = 'سطر ' . $line . ': عکس «' . $photo . '» برای «' . $claimed[$photo]
+                        . '» هم آمده و فقط به همان وصل می‌شود.';
+                    $status = 'missing';
+                } else {
+                    $claimed[$photo] = $p['name_fa'];
+                }
+            } elseif ($existing !== null && db_value(
+                    'SELECT 1 FROM product_images WHERE product_id = ? AND source_name = ?',
+                    [$existing, $photo]) !== null) {
+                $status = 'attached';
+            } elseif (($have[$fk] ?? '') !== '') {
+                $status = 'attached';
+            } else {
+                $warnings[] = 'سطر ' . $line . ': عکس طعم «' . $flavor . '» («' . $photo . '») پیدا نشد. '
+                    . 'اول آن را در بخش «عکس‌ها»ی همین صفحه بارگذاری کنید؛ بدون آن، این طعم عکس جدا نمی‌گیرد.';
+            }
+            $products[$k]['flavor_photo_status'][$flavor] = $status;
+        }
+    }
+
     return ['products' => array_values($products), 'errors' => $errors, 'warnings' => $warnings];
+}
+
+/** Whether a planned product is bought in dirhams: any of its rows says so. */
+function import_buys_in_aed(array $p): bool
+{
+    foreach (($p['sizes'] ?: [$p['single'] ?? null]) as $u) {
+        if (is_array($u) && ($u['cost_aed'] ?? null) !== null) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
@@ -590,7 +896,8 @@ function import_flavors($raw): array
     $parts = preg_split("~[,،؛;/|\r\n]+~u", (string) $raw) ?: [];
     $out   = [];
     foreach ($parts as $p) {
-        $p = clean_text($p, 120);
+        /* «وانیلی=150000»: the name is what comes before the premium. */
+        $p = clean_text(preg_replace('/\s*=.*$/su', '', $p) ?? $p, 120);
         if ($p !== '' && !in_array($p, $out, true)) {
             $out[] = $p;
         }
@@ -599,6 +906,42 @@ function import_flavors($raw): array
 }
 
 /** Persian and English ways of writing yes. */
+/**
+ * A stable, storable id for one flavour or size of a product.
+ *
+ * slugify() clamps at 110 characters, but both ext_id columns are VARCHAR(60)
+ * (db/schema.sql:127 and :140). A descriptive flavour name overruns that
+ * without looking anywhere near long enough to: «نعناع شکلاتی باسکین رابینز
+ * (Baskin-Robbins Mint Chocolate Chip)» slugifies to exactly 61 characters,
+ * and MySQL in strict mode answered with SQLSTATE[22001]. Because the throw
+ * escaped import_apply() entirely, a six-file catalogue import stopped after
+ * the fourth file, committed, with nothing on screen naming the flavour.
+ *
+ * Clamping can make two options of one product share an id, and neither table
+ * has a unique key that would catch it, so $taken carries the ids already
+ * handed out for this product and a collision gets a numeric suffix.
+ */
+function import_ext_id(string $label, string $fallback, array &$taken): string
+{
+    $ext = mb_substr(slugify($label), 0, 60);
+    if ($ext === '') {
+        $ext = $fallback;
+    }
+    if (isset($taken[$ext])) {
+        /* Trim before appending so the suffix cannot push it back over 60. */
+        $stem = mb_substr($ext, 0, 56);
+        for ($n = 2; $n < 100; $n++) {
+            $try = $stem . '-' . $n;
+            if (!isset($taken[$try])) {
+                $ext = $try;
+                break;
+            }
+        }
+    }
+    $taken[$ext] = true;
+    return $ext;
+}
+
 function import_truthy(string $v): bool
 {
     $v = mb_strtolower(trim(to_latin_digits($v)));
@@ -624,6 +967,7 @@ function import_apply(array $products, array $admin): array
     $created = 0;
     $updated = 0;
     $sizes   = 0;
+    $photos  = 0;
     /* Commission changes are collected during the transaction and written to
        the log inside it, so a rolled-back import leaves no record of rates it
        did not actually set. */
@@ -666,8 +1010,14 @@ function import_apply(array $products, array $admin): array
                 /* Same JSON shape the panel's textarea writes, so a product can
                    be started in the sheet and finished in the panel. */
                 'features'     => $p['features'] ? json_encode_pretty($p['features']) : null,
+                'ingredients'  => ($p['ingredients'] ?? '') !== '' ? $p['ingredients'] : null,
+                'usage_text'   => ($p['usage'] ?? '') !== '' ? $p['usage'] : null,
+                'nutrition_serving' => (string) ($p['nutrition_serving'] ?? ''),
+                'nutrition_rows' => !empty($p['nutrition']) ? json_encode_pretty($p['nutrition']) : null,
+                'badges'       => (string) ($p['badges'] ?? ''),
+                'sort_order'   => (int) ($p['sort_order'] ?? 0),
                 'in_stock'     => $p['in_stock'] ? 1 : 0,
-                'is_active'    => 1,
+                'is_active'    => ($p['is_active'] ?? true) ? 1 : 0,
                 'price'        => $single !== null ? (int) $single['price'] : 0,
                 'compare_at'   => $single !== null ? $single['compare_at'] : null,
                 'cost_aed'     => $single !== null ? $single['cost_aed'] : null,
@@ -678,12 +1028,18 @@ function import_apply(array $products, array $admin): array
                 'cost_toman'   => $single !== null ? $single['cost_toman'] : null,
                 'price_applied_rate' => $single !== null ? $single['applied_rate'] : null,
                 'profit_toman' => $single !== null ? $single['profit_toman'] : null,
+                'profit_percent' => $single !== null ? ($single['profit_percent'] ?? null) : null,
                 'promo_toman'  => $single !== null ? $single['promo_toman'] : null,
                 'commission_percent' => $parentRate,
                 /* Only a dirham cost makes a price worth re-deriving when the
                    rate moves. A toman-bought line stays where it was put. */
                 'price_mode'   => ($single !== null && $single['cost_aed'] !== null) ? 'aed' : 'manual',
             ];
+
+            /* A single-price product's count is its own row's. */
+            if ($single !== null && !empty($single['stock_given'])) {
+                $fields['stock_qty'] = $single['stock_qty'];
+            }
 
             /* Matched on the Persian name, because that is what the seller
                retypes when they send an updated sheet — a slug would change
@@ -699,16 +1055,27 @@ function import_apply(array $products, array $admin): array
                    the sheet had no opinion about. */
                 $update = $fields;
                 foreach (['name_en', 'brand', 'short', 'description', 'category_id',
-                          'features'] as $soft) {
+                          'features', 'ingredients', 'usage_text', 'nutrition_serving',
+                          'nutrition_rows'] as $soft) {
                     if (($update[$soft] ?? null) === null || $update[$soft] === '') {
                         unset($update[$soft]);
                     }
                 }
+                /* Blank is «no opinion»; a dash already arrived as ''. */
+                if (($p['badges'] ?? null) === null) {
+                    unset($update['badges']);
+                }
+                if (($p['sort_order'] ?? null) === null) {
+                    unset($update['sort_order']);
+                }
 
-                /* Never on an update. A product taken off the shop on purpose -
-                   out of stock for a month, a supplier dispute - must not come
-                   back because somebody re-imported a price list. */
-                unset($update['is_active']);
+                /* Only when the sheet says so in its own column. A product
+                   taken off the shop on purpose - out of stock for a month, a
+                   supplier dispute - must not come back because somebody
+                   re-imported a price list that has no such column. */
+                if (($p['is_active'] ?? null) === null) {
+                    unset($update['is_active']);
+                }
 
                 /* Same reasoning one level down: a blank stock cell means "not
                    my department", and a file with no stock column at all says
@@ -754,13 +1121,67 @@ function import_apply(array $products, array $admin): array
                cell means "not my department today", not "delete the flavours
                someone added in the editor last week". */
             if ($p['flavors']) {
+                /* What the existing rows carry that the sheet has no column for,
+                   keyed by NAME — the only thing a sheet and a flavour row both
+                   know each other by, exactly as sizes are keyed by label below.
+
+                   Without this, one export-and-reimport round trip zeroed every
+                   flavour premium: the sheet carries the names, so the DELETE
+                   fires, and the INSERT rebuilt the rows with cost_delta_aed
+                   NULL and price_delta_toman back at its DEFAULT 0. Nothing
+                   recovers it afterwards — pricing_sync_flavors() skips rows
+                   with no dirham premium — so the shop would quietly sell the
+                   expensive flavours at the plain price, and the backup page
+                   recommends that very round trip for moving a catalogue. */
+                $keptFlavor = [];
+                foreach (db_all('SELECT ext_id, name, cost_delta_aed, price_delta_toman, image
+                                   FROM product_flavors WHERE product_id = ?', [$id]) as $old) {
+                    $keptFlavor[(string) $old['name']] = $old;
+                }
+
                 db_query('DELETE FROM product_flavors WHERE product_id = ?', [$id]);
+                $takenFlavor = [];
                 foreach ($p['flavors'] as $i => $flavor) {
+                    $prevF = $keptFlavor[$flavor] ?? [];
                     db_query(
-                        'INSERT INTO product_flavors (product_id, ext_id, name, sort_order)
-                         VALUES (?, ?, ?, ?)',
-                        [$id, slugify($flavor) ?: 'f' . $i, $flavor, $i]
+                        'INSERT INTO product_flavors
+                            (product_id, ext_id, name, cost_delta_aed, price_delta_toman,
+                             image, sort_order)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        /* The id this flavour already had, when it still has
+                           one. Regenerating it is what the size rebuild above
+                           refuses to do and for the same reason: it is the key
+                           a basket stores and the key a combination is built
+                           from, so a new one detaches both. Only a flavour the
+                           sheet has just introduced gets a fresh id. */
+                        [$id,
+                         (string) ($prevF['ext_id'] ?? '') !== ''
+                             ? (string) $prevF['ext_id']
+                             : import_ext_id($flavor, 'f' . $i, $takenFlavor),
+                         $flavor,
+                         /* A premium the sheet wrote replaces the kept one;
+                            a flavour written without one keeps what it had. */
+                         isset($p['premiums'][$flavor])
+                             ? $p['premiums'][$flavor]['aed']
+                             : ($prevF['cost_delta_aed'] ?? null),
+                         isset($p['premiums'][$flavor])
+                             ? (int) $p['premiums'][$flavor]['toman']
+                             : (int) ($prevF['price_delta_toman'] ?? 0),
+                         /* A picture is uploaded one flavour at a time and no
+                            sheet has a column for it, so losing it to a round
+                            trip costs more than losing a number would. */
+                         (string) ($prevF['image'] ?? ''), $i]
                     );
+                }
+
+                /* A dirham premium the sheet just set becomes a toman one at
+                   today's rate, as the form does on save. Only then: a re-import
+                   that names no premium must not move the stored ones. */
+                if (!empty($p['premiums']) && import_buys_in_aed($p)) {
+                    $rateNow = pricing_rate();
+                    if ($rateNow !== null && $rateNow > 0) {
+                        pricing_sync_flavors($id, (float) $rateNow);
+                    }
                 }
             }
 
@@ -781,17 +1202,26 @@ function import_apply(array $products, array $admin): array
                the rates on the sizes either. */
             $keptExt   = [];
             $keptRates = [];
-            foreach (db_all('SELECT ext_id, label, commission_percent
+            /* The count of each tub, too. The rows are rebuilt below, and a
+               price list re-imported without a stock column was setting every
+               counted size back to «not counted». */
+            $keptStock = [];
+            foreach (db_all('SELECT ext_id, label, commission_percent, stock_qty
                                FROM product_sizes WHERE product_id = ?', [$id]) as $old) {
                 $key = (string) $old['label'];
                 $keptExt[$key]   = (string) $old['ext_id'];
                 $keptRates[$key] = $old['commission_percent'] === null
                     ? null : (float) $old['commission_percent'];
+                $keptStock[$key] = $old['stock_qty'] === null ? null : (int) $old['stock_qty'];
             }
 
             db_query('DELETE FROM product_sizes WHERE product_id = ?', [$id]);
+            /* The ids carried over from the existing rows are already spoken
+               for, so a freshly generated one cannot clamp into a collision
+               with a size that some shopper's cart is still pointing at. */
+            $takenSize = array_fill_keys(array_values($keptExt), true);
             foreach ($p['sizes'] as $i => $s) {
-                $ext  = $keptExt[$s['label']] ?? (slugify($s['label']) ?: 's' . $i);
+                $ext  = $keptExt[$s['label']] ?? import_ext_id($s['label'], 's' . $i, $takenSize);
                 $rate = ($p['has_commission_column'] ?? true)
                     ? $s['commission']
                     : ($keptRates[$s['label']] ?? null);
@@ -799,13 +1229,16 @@ function import_apply(array $products, array $admin): array
                 db_query(
                     'INSERT INTO product_sizes
                         (product_id, ext_id, label, servings, price, compare_at,
-                         cost_aed, cost_toman, profit_toman, promo_toman,
-                         price_applied_rate, commission_percent, sort_order)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                         cost_aed, cost_toman, profit_toman, profit_percent, promo_toman,
+                         price_applied_rate, commission_percent, stock_qty, sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [$id, $ext, $s['label'], $s['servings'],
                      (int) $s['price'], $s['compare_at'],
-                     $s['cost_aed'], $s['cost_toman'], $s['profit_toman'], $s['promo_toman'],
-                     $s['applied_rate'], $rate, $i]
+                     $s['cost_aed'], $s['cost_toman'], $s['profit_toman'],
+                     $s['profit_percent'] ?? null, $s['promo_toman'],
+                     $s['applied_rate'], $rate,
+                     !empty($s['stock_given']) ? $s['stock_qty'] : ($keptStock[$s['label']] ?? null),
+                     $i]
                 );
                 $sizes++;
                 if ($s['commission'] !== null && $s['commission'] !== $parentRate) {
@@ -856,6 +1289,47 @@ function import_apply(array $products, array $admin): array
                          $cheapest['price_applied_rate'], $id]);
                 }
             }
+
+            /* The axes are built from the two tables just rebuilt, so a
+               converted product has to be brought back into step. Otherwise
+               it goes on selling a flavour the sheet dropped and never offers
+               one the sheet added.
+
+               Only when it ALREADY has combinations. Converting a product is
+               a decision the owner makes one at a time, and a spreadsheet
+               must not make it for the whole catalogue.
+
+               Every combination whose key survived keeps the price, the count
+               and the picture that were typed into the grid - adopt skips a
+               key that already exists. What the sheet removed is retired;
+               what it added arrives unpriced, which the readiness page
+               already refuses to launch with. */
+            if (variants_has($id)) {
+                variants_adopt($id);
+                variants_prune($id);
+                variants_generate($id);
+                /* And the card back onto the cheapest combination on sale.
+                   The block above set it from the sizes, whose figures a
+                   converted product no longer sells at, so re-importing a
+                   sheet - one product's export, say - put a price on the
+                   card that nothing on the product page matched. */
+                pricing_sync_parent($id);
+            }
+
+            /* The photographs the sheet named, attached in its order. */
+            if (!empty($p['images']) && import_photos_ready()) {
+                $photos += import_attach_photos($id, $p['images']);
+            }
+            /* Then each flavour's own picture - after the gallery, so a
+               photograph named in both places is found where it went. */
+            if (!empty($p['flavor_images']) && import_photos_ready()) {
+                $photos += import_attach_flavor_photos($id, $p['flavor_images']);
+            }
+
+            /* The sheet has no struck-price column, so a figure the owner typed
+               in the panel is not the sheet's to erase: put it back beside the
+               prices just written. */
+            pricing_place_manual_compare($id);
         }
 
         /* A commission rate decides money moving between two parties, so a
@@ -879,7 +1353,7 @@ function import_apply(array $products, array $admin): array
     }
 
     return ['created' => $created, 'updated' => $updated, 'sizes' => $sizes,
-            'rates' => count($rateLog)];
+            'rates' => count($rateLog), 'photos' => $photos];
 }
 
 /** Find a category by name, creating it if the sheet names a new one. */
@@ -970,4 +1444,389 @@ function import_template_csv(): string
     $csv = stream_get_contents($out) ?: '';
     fclose($out);
     return $csv;
+}
+
+/* --------------------------------------------------------------------------
+   The Excel import
+   -------------------------------------------------------------------------- */
+
+/**
+ * A column heading reduced to what two spellings of it share.
+ *
+ * So the sheet still reads when someone typed «قیمت فروش(تومان)», kept the
+ * template's «*», or used an Arabic «ي».
+ */
+function import_header_key(string $label): string
+{
+    $label = strtr(trim($label), IMPORT_NORMALISE);
+    $label = (string) preg_replace('/[\s()\[\]«»"\'.:*_\-]+/u', '', $label);
+    return mb_strtolower($label);
+}
+
+/** Heading key → column key, for every way a sheet may name a column. */
+function import_header_map(): array
+{
+    static $map = null;
+    if ($map === null) {
+        $map = [];
+        foreach (IMPORT_ALIASES as $alias => $key) {
+            $map[import_header_key($alias)] = $key;
+        }
+        foreach (IMPORT_COLUMNS as $key => $label) {
+            $map[import_header_key($label)] = $key;
+            $map[import_header_key($key)]   = $key;
+        }
+    }
+    return $map;
+}
+
+/**
+ * The sheet the shop filled in: an .xlsx as Excel saved it, or a CSV.
+ *
+ * Told apart by the first bytes, not the name: a renamed file is still what
+ * it is, and the old binary .xls is named rather than misread.
+ */
+function import_read_file(string $path): array
+{
+    $fh    = @fopen($path, 'rb');
+    $magic = $fh ? (string) fread($fh, 4) : '';
+    if ($fh) {
+        fclose($fh);
+    }
+    if ($magic === "PK\x03\x04") {
+        return import_read_xlsx($path);
+    }
+    if ($magic === "\xD0\xCF\x11\xE0") {
+        return ['rows' => [], 'columns' => [], 'error' =>
+            'این فایل با قالب قدیمی اکسل (‎.xls‎) ذخیره شده است. در اکسل: File ← Save As ← '
+          . '«Excel Workbook (*.xlsx)» را انتخاب کنید و دوباره بارگذاری کنید.'];
+    }
+    return import_read_csv($path);
+}
+
+/**
+ * The «محصولات» sheet of a workbook, as rows keyed by our column names.
+ *
+ * The heading is the first row near the top that names the Persian-name
+ * column. Rows keep the numbers Excel shows, so «سطر ۱۲» in an error is the
+ * row the owner scrolls to.
+ */
+function import_read_xlsx(string $path): array
+{
+    require_once __DIR__ . '/xlsx.php';
+    $book = xlsx_read($path, [IMPORT_SHEET]);
+    if ($book['error'] !== null) {
+        return ['rows' => [], 'columns' => [], 'error' =>
+            'فایل اکسل خوانده نشد. آن را در اکسل باز کنید، یک بار ذخیره کنید و دوباره بارگذاری کنید.'];
+    }
+
+    $known  = import_header_map();
+    $header = null;
+    $map    = [];
+    foreach ($book['rows'] as $num => $cells) {
+        if ($num > 15) {
+            break;
+        }
+        $try = [];
+        foreach ($cells as $i => $label) {
+            $k = import_header_key((string) $label);
+            if (isset($known[$k])) {
+                $try[$i] = $known[$k];
+            }
+        }
+        if (in_array('name_fa', $try, true)) {
+            $header = $num;
+            $map    = $try;
+            break;
+        }
+    }
+    if ($header === null) {
+        return ['rows' => [], 'columns' => [], 'error' =>
+            'ستون «' . IMPORT_COLUMNS['name_fa'] . '» در برگهٔ «' . $book['sheet'] . '» پیدا نشد. '
+          . 'از فایل نمونهٔ همین صفحه استفاده کنید و عنوان ستون‌ها را عوض نکنید.'];
+    }
+
+    $rows = [];
+    foreach ($book['rows'] as $num => $cells) {
+        if ($num <= $header) {
+            continue;
+        }
+        $row  = ['_line' => $num];
+        $any  = false;
+        foreach ($map as $i => $key) {
+            $row[$key] = trim((string) ($cells[$i] ?? ''));
+            $any = $any || $row[$key] !== '';
+        }
+        if ($any) {
+            $rows[] = $row;
+        }
+    }
+    return ['rows' => $rows, 'error' => null, 'columns' => array_values(array_unique($map))];
+}
+
+/**
+ * «نشان‌ها» as the stored comma list: '' for a dash (clear them), null for a
+ * word that is not a badge.
+ */
+function import_badges(string $raw): ?string
+{
+    $raw = trim($raw);
+    if (in_array($raw, IMPORT_CLEAR, true)) {
+        return '';
+    }
+    $known = [];
+    foreach (IMPORT_BADGES as $word => $key) {
+        $known[import_name_key($word)] = $key;
+    }
+    $out = [];
+    foreach (preg_split('~[,،؛;/|\r\n]+~u', $raw) ?: [] as $word) {
+        $word = import_name_key($word);
+        if ($word === '') {
+            continue;
+        }
+        if (!isset($known[$word])) {
+            return null;
+        }
+        $out[$known[$word]] = true;
+    }
+    return implode(',', array_keys($out));
+}
+
+/**
+ * The flavours cell's premiums: «وانیلی=150000» → ['وانیلی' => '150000'].
+ * Only the flavours that carry one; the number is checked against the
+ * product's purchase unit later, in import_plan().
+ *
+ * @return array<string,string>
+ */
+function import_flavor_premiums($raw): array
+{
+    $out = [];
+    foreach (preg_split("~[,،؛;/|\r\n]+~u", (string) $raw) ?: [] as $part) {
+        if (strpos($part, '=') === false) {
+            continue;
+        }
+        [$name, $amount] = explode('=', $part, 2);
+        $name = clean_text($name, 120);
+        if ($name !== '') {
+            $out[$name] = trim($amount);
+        }
+    }
+    return $out;
+}
+
+/**
+ * The nutrition table from one cell, a row per line: «پروتئین: 24 g».
+ * Same shape the product form stores.
+ *
+ * @return array<int,array{label:string,value:string}>
+ */
+function import_nutrition($raw): array
+{
+    $out = [];
+    foreach (preg_split('~[\r\n؛;]+~u', (string) $raw) ?: [] as $line) {
+        $line = trim($line);
+        if ($line === '') {
+            continue;
+        }
+        $parts = preg_split('/\s*[:：]\s*/u', $line, 2) ?: [$line];
+        $label = clean_text($parts[0], 80);
+        if ($label !== '') {
+            $out[] = ['label' => $label, 'value' => clean_text($parts[1] ?? '', 40)];
+        }
+    }
+    return array_slice($out, 0, 40);
+}
+
+/* --------------------------------------------------------------------------
+   Photographs named in the sheet
+   -------------------------------------------------------------------------- */
+
+/**
+ * The name a photograph is known by on both sides: what the sheet wrote and
+ * what was uploaded. Folder, case, spaces and Persian-Arabic letter variants
+ * do not count.
+ */
+function import_photo_key(string $name): string
+{
+    $name = basename(str_replace('\\', '/', trim($name)));
+    $name = strtr($name, IMPORT_NORMALISE);
+    $name = (string) preg_replace('/\s+/u', '-', $name);
+    return mb_strtolower(mb_substr($name, 0, 190));
+}
+
+/** The photograph names one cell lists, in order, each once. */
+function import_photo_list($raw): array
+{
+    $out = [];
+    foreach (preg_split('~[,،؛;|\r\n]+~u', (string) $raw) ?: [] as $name) {
+        $key = import_photo_key($name);
+        if ($key !== '' && !in_array($key, $out, true)) {
+            $out[] = $key;
+        }
+    }
+    return array_slice($out, 0, 12);
+}
+
+/**
+ * «عکس طعم‌ها»: a line per flavour, «نام طعم: نام فایل» (or «=»), the flavour
+ * as written in «طعم‌ها». Split on lines and semicolons only, never on commas:
+ * a flavour's name may be «توت فرنگی و موز» but never holds a line break.
+ *
+ * @return array<string,string> flavour name => photograph key
+ */
+function import_flavor_photos($raw): array
+{
+    $out = [];
+    foreach (preg_split('~[\r\n؛;|]+~u', (string) $raw) ?: [] as $line) {
+        $parts = preg_split('/\s*[:：=]\s*/u', trim($line), 2) ?: [];
+        if (count($parts) < 2) {
+            continue;
+        }
+        $flavor = clean_text($parts[0], 120);
+        $key = import_photo_key((string) $parts[1]);
+        if ($flavor !== '' && $key !== '') {
+            $out[$flavor] = $key;
+        }
+    }
+    return array_slice($out, 0, 30, true);
+}
+
+/**
+ * Give each flavour the picture the sheet named for it: the uploaded file
+ * waiting under that name, else one of the product's own gallery photographs
+ * of that name. A product already priced by combinations shows its flavours'
+ * pictures from its flavour values, so those are brought along.
+ *
+ * @param array<string,string> $map flavour name => photograph key
+ * @return int how many flavours got a new picture
+ */
+function import_attach_flavor_photos(int $productId, array $map): int
+{
+    $byName = [];
+    foreach (db_all('SELECT id, name, image FROM product_flavors WHERE product_id = ?', [$productId]) as $f) {
+        $byName[import_name_key((string) $f['name'])] = $f;
+    }
+    $set   = 0;
+    $taken = [];
+    foreach ($map as $flavor => $key) {
+        $row = $byName[import_name_key((string) $flavor)] ?? null;
+        if ($row === null) {
+            continue;
+        }
+        $path = $taken[$key] ?? null;
+        if ($path === null) {
+            $waiting = import_photo_find($key);
+            if ($waiting !== null) {
+                db_query('DELETE FROM import_photos WHERE id = ?', [$waiting['id']]);
+                $path = $taken[$key] = $waiting['path'];
+            }
+        }
+        if ($path === null) {
+            $own  = db_value('SELECT path FROM product_images WHERE product_id = ? AND source_name = ?
+                               ORDER BY id LIMIT 1', [$productId, $key]);
+            $path = $own === null ? null : (string) $own;
+        }
+        if ($path === null || (string) $row['image'] === $path) {
+            continue;
+        }
+        db_query('UPDATE product_flavors SET image = ? WHERE id = ?', [$path, (int) $row['id']]);
+        $set++;
+    }
+    if ($set > 0 && variants_has($productId)) {
+        variants_adopt($productId);
+    }
+    return $set;
+}
+
+/** Whether the two tables the photographs need exist yet. */
+function import_photos_ready(): bool
+{
+    static $ready = null;
+    if ($ready === null) {
+        $ready = db_value("SELECT 1 FROM information_schema.TABLES
+                            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'import_photos'") !== null
+              && db_value("SELECT 1 FROM information_schema.COLUMNS
+                            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_images'
+                              AND COLUMN_NAME = 'source_name'") !== null;
+    }
+    return $ready;
+}
+
+/**
+ * An uploaded photograph waiting for a sheet to name it.
+ *
+ * By its full name first; a sheet that wrote the name without its extension
+ * («whey-1» for «whey-1.jpg») still finds it.
+ *
+ * @return array{id:int,path:string,name_key:string}|null
+ */
+function import_photo_find(string $key): ?array
+{
+    $row = db_one('SELECT id, path, name_key FROM import_photos WHERE name_key = ?', [$key]);
+    if ($row === null && strpos($key, '.') === false) {
+        $like = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $key) . '.%';
+        $row  = db_one('SELECT id, path, name_key FROM import_photos WHERE name_key LIKE ? ORDER BY id LIMIT 1',
+                       [$like]);
+    }
+    return $row === null ? null
+        : ['id' => (int) $row['id'], 'path' => (string) $row['path'], 'name_key' => (string) $row['name_key']];
+}
+
+/** A photograph rather than a bundled drawing: the line admin/images.php draws. */
+function import_photo_is_real(string $path): bool
+{
+    $path = trim($path);
+    return $path !== '' && !str_ends_with(strtolower($path), '.svg');
+}
+
+/**
+ * Attach the photographs a sheet named to one product, in its order.
+ *
+ * One already attached by an earlier import of the same sheet is not added
+ * twice: product_images.source_name remembers which file each came from.
+ * The sheet's first photograph becomes the main one when it has just
+ * arrived, or when the product has no real photograph to keep.
+ *
+ * @param array<int,string> $keys
+ * @return int  how many were attached now
+ */
+function import_attach_photos(int $productId, array $keys): int
+{
+    $paths    = [];
+    $firstNew = false;
+    $added    = 0;
+    $next     = (int) db_value(
+        'SELECT COALESCE(MAX(sort_order), -1) + 1 FROM product_images WHERE product_id = ?', [$productId]);
+
+    foreach (array_values($keys) as $i => $key) {
+        $have = db_value('SELECT path FROM product_images WHERE product_id = ? AND source_name = ?',
+                         [$productId, $key]);
+        if ($have !== null) {
+            $paths[$i] = (string) $have;
+            continue;
+        }
+        $waiting = import_photo_find($key);
+        if ($waiting === null) {
+            continue;
+        }
+        db_query('INSERT INTO product_images (product_id, path, sort_order, source_name) VALUES (?, ?, ?, ?)',
+                 [$productId, $waiting['path'], $next++, $key]);
+        db_query('DELETE FROM import_photos WHERE id = ?', [$waiting['id']]);
+        $paths[$i] = $waiting['path'];
+        if ($i === 0) {
+            $firstNew = true;
+        }
+        $added++;
+    }
+
+    if ($paths) {
+        ksort($paths);
+        $first   = (string) reset($paths);
+        $current = (string) db_value('SELECT image FROM products WHERE id = ?', [$productId]);
+        if ($firstNew || !import_photo_is_real($current)) {
+            db_query('UPDATE products SET image = ? WHERE id = ?', [$first, $productId]);
+        }
+    }
+    return $added;
 }

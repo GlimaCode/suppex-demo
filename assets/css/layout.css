@@ -11,6 +11,30 @@
   padding-inline: var(--gutter);
 }
 
+/* Nothing on a page may be wider than the phone it is on.
+
+   body has had overflow-x: hidden all along, and it was not enough: on a
+   phone Chrome still widens the layout viewport to fit anything that sticks
+   out, then shifts every full-width box sideways and lets the whole page
+   pan. Measured on suppex.ir: 375px -> 391, 360px -> 382, 320px -> 371 -
+   the owner's screenshots, with the header and headings cut off down one
+   edge.
+
+   `clip` differs from `hidden` in the one way that matters here: what it
+   clips stops counting towards the page's width at all. It is on the four
+   page sections rather than on html and body on purpose - clip on html
+   stops body's overflow reaching the viewport, and the drawer scroll lock
+   (body.is-locked) depends on exactly that. It is not a scroll container
+   either, so the sticky header and the sticky gallery keep working.
+
+   This is the net, not the fix. The two things that were actually too wide -
+   the card's add button and the header on small phones - are fixed where
+   they are drawn. */
+main,
+.announce,
+.header,
+.footer { overflow-x: clip; }
+
 .section { padding-block: var(--section-y); }
 .section--tight { padding-block: calc(var(--section-y) * 0.6); }
 .section--flush-top { padding-block-start: 0; }
@@ -59,7 +83,9 @@
 }
 @media (min-width: 980px) {
   .grid--products { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .grid--cats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  /* As many columns as there are categories on sale, up to what fits: five
+     fixed columns left a hole beside four, and a sixth alone on a row. */
+  .grid--cats { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
   .grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
@@ -134,21 +160,28 @@
   padding-block: var(--sp-3);
 }
 
+/* The logo is drawn, not set in a font (2026-10-05). The orange S the owner
+   chose is the mark AND the word's first letter - S + UPPEX, one S - so it
+   comes as two SVGs: on a small phone the word can go and the S stay. One
+   number sizes both, the height of the letters. The gap is 6 of their 96
+   units, measured at the S's nearest corner; it leans away below that.
+   ltr inside, so the S stays in front of the word on this rtl page. */
 .logo {
+  --logo-h: 22px;
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: calc(var(--logo-h) / 16);
   flex-shrink: 0;
-}
-.logo__mark { width: 34px; height: 34px; flex-shrink: 0; }
-.logo__text {
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  letter-spacing: 0.01em;
   direction: ltr;
-  line-height: 1;
+  color: var(--text);              /* the letters are cream wherever it sits */
 }
-.logo__text sup { font-size: 0.5em; vertical-align: super; color: var(--amber); }
+.logo__mark { width: calc(var(--logo-h) * 0.99); height: var(--logo-h); flex-shrink: 0; }
+.logo__text { width: calc(var(--logo-h) * 4.7917); height: var(--logo-h); flex-shrink: 0; }
+/* The same logo in one piece, at the top of the phone menu. */
+.mobile-nav__logo { display: block; width: calc(18px * 5.8442); height: 18px; color: var(--text); }
+/* 404.html: a header that is the logo alone. Without this it sat on the
+   window's top edge - the drawn letters bring no line-height with them. */
+.site-header__inner { padding-block: var(--sp-5); }
 
 .nav { display: none; }
 .nav__list { display: flex; align-items: center; gap: var(--sp-6); }
@@ -173,7 +206,107 @@
 .nav__link:hover, .nav__link[aria-current="page"] { color: var(--text); }
 .nav__link:hover::after, .nav__link[aria-current="page"]::after { width: 100%; }
 
+/* «هدف‌ها» and «راهنماها»: a button that opens a list (nav_dropdown_html() in
+   lib/goals.php). Open while the pointer is over it, or - app.js,
+   initNavMenus() - after a tap or Enter, until Escape or a tap elsewhere. */
+.nav__item { position: relative; }
+.nav__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.nav__chev {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur) var(--ease);
+}
+.nav__item:hover .nav__toggle,
+.nav__item.is-open .nav__toggle { color: var(--text); }
+.nav__item:hover .nav__chev,
+.nav__item.is-open .nav__chev { transform: rotate(180deg); }
+.nav__menu {
+  position: absolute;
+  inset-block-start: calc(100% + 10px);
+  inset-inline-start: calc(var(--sp-3) * -1);
+  z-index: 5;
+  display: grid;
+  gap: 2px;
+  min-width: 230px;
+  padding: var(--sp-2);
+  background: var(--surface);
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-md);
+  box-shadow: 0 24px 48px -16px rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), visibility 0s linear var(--dur-fast);
+}
+/* The gap between the button and the list is part of the list, so a pointer
+   crossing it does not close it. */
+.nav__menu::before { content: ''; position: absolute; inset-inline: 0; inset-block-end: 100%; height: 12px; }
+.nav__item:hover .nav__menu,
+.nav__item.is-open .nav__menu {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), visibility 0s;
+}
+.nav__menu-link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.nav__menu-link:hover,
+.nav__menu-link:focus-visible { background: var(--surface-2); color: var(--text); }
+.nav__menu-icon { display: inline-grid; place-items: center; font-size: 18px; color: var(--accent); }
+.nav__menu-link--all {
+  margin-block-start: 4px;
+  padding-block-start: var(--sp-3);
+  border-block-start: 1px solid var(--line);
+  border-radius: 0 0 10px 10px;
+  color: var(--amber);
+}
+
 .header__actions { display: flex; align-items: center; gap: var(--sp-1); }
+
+/* The header on a small phone. Menu, logo and three icons are 353px of
+   content at the desktop spacing, in a row that is 323px wide on a 360px
+   phone and 283px on a 320px one - the cart icon was 11px and 51px past the
+   edge, on every page. The icons stay 44px (the tap-target floor .icon-btn
+   defends); what gives is the spacing between things and then the size of
+   the wordmark. Below 340px the wordmark goes and the mark stays: the link
+   is still named «SUPPEX — صفحه اصلی» by its aria-label. */
+@media (max-width: 400px) {
+  .header__inner { gap: var(--sp-2); }
+  .header__actions { gap: 0; }
+  .logo { --logo-h: 18px; }
+}
+@media (max-width: 359px) {
+  .logo { --logo-h: 16px; }
+}
+@media (max-width: 339px) {
+  .logo__text { display: none; }
+  .logo { --logo-h: 22px; }
+}
 
 @media (min-width: 1040px) {
   .nav { display: block; }
@@ -207,6 +340,34 @@
   transition: color var(--dur) var(--ease), padding-inline-start var(--dur) var(--ease);
 }
 .mobile-nav__link:hover { color: var(--amber); padding-inline-start: var(--sp-4); }
+
+/* The same two lists in the panel: a heading that opens its links in place
+   (nav_panel_group_html() in lib/goals.php). A native <details>, so it opens
+   and closes without a script. The panel scrolls once both are open. */
+.mobile-nav { overflow-y: auto; }
+.mobile-nav__group > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.mobile-nav__group > summary::-webkit-details-marker { display: none; }
+.mobile-nav__group > summary::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  /* Physical sides on purpose: the logical ones turn it sideways in a
+     right-to-left page. Down when closed, up when open. */
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  opacity: 0.6;
+  transition: transform var(--dur) var(--ease);
+}
+.mobile-nav__group[open] > summary::after { transform: translateY(2px) rotate(225deg); }
+.mobile-nav__sub { display: grid; padding-block: var(--sp-2); border-block-end: 1px solid var(--line); }
+.mobile-nav__sublink {
+  padding: var(--sp-3) var(--sp-4);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.mobile-nav__sublink:hover { color: var(--amber); }
 
 /* --------------------------------------------------------------------------
    Hero
@@ -346,6 +507,342 @@
 
 .stage-wrap { position: relative; }
 
+/* --- Top deals, in place of the 3D tub ------------------------------------
+   Up to three real products with their real prices, chosen in the panel
+   with the «تخفیف برتر» tick (see initHeroDeals() in app.js), shown one at
+   a time: each stands alone and large for HERO_DEALS_MS, then the next
+   takes its place (rotateDeals()). Three abreast they were 90 to 128px
+   wide beside the headline - too small to sell anything.
+
+   The frame is the same .stage; only what is inside it changes, and the
+   static poster stays underneath as the no-JavaScript and nothing-on-sale
+   baseline.
+
+   Its width is not ours to choose: the headline's last line is unbreakable,
+   so that column takes what it needs and this one gets the rest - 316px at
+   1024, 450 from 1280 up. Its height is. On a desktop the frame stands as
+   tall as the copy beside it - 571px from 1280 up, where it used to be a
+   450px square - but never more than 1.6 times its width, so a narrow
+   laptop column does not turn it into a strip. On a phone it hugs what is
+   in it. */
+.stage-wrap.has-deals .stage {
+  aspect-ratio: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: clamp(14px, 5%, var(--sp-6));
+  border-color: var(--line-mid);
+  background:
+    radial-gradient(90% 55% at 50% 0%, rgba(242, 124, 61, 0.10), transparent 70%),
+    linear-gradient(170deg, var(--surface-2) 0%, var(--bg) 100%);
+  box-shadow: 0 40px 80px -48px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(242, 237, 227, 0.05);
+}
+@media (min-width: 900px) {
+  .stage-wrap.has-deals {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    container-type: inline-size;
+  }
+  .stage-wrap.has-deals .stage {
+    flex: 1 1 auto;
+    min-height: 100cqi;
+    max-height: 160cqi;
+  }
+}
+.stage-wrap.has-deals .stage__poster,
+.stage-wrap.has-deals .stage-chip { display: none; }
+
+.deals {
+  container: deals / inline-size;
+  /* Explicit, because .stage centres its children (place-items: center) and
+     a centred box is sized to its content - which a size container, by
+     definition, does not contribute. It measured 0px wide on every screen
+     before this line. */
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.deals__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 36px;
+  margin-block-end: var(--sp-3);
+}
+.deals__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+}
+.deals__dot {
+  width: 8px; height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(242, 89, 20, 0.18);
+}
+
+/* WCAG 2.2.2: anything that changes on its own for longer than five seconds
+   needs a way to stop it. 36px drawn, 46px to a finger. */
+.deals__toggle {
+  position: relative;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line-mid);
+  border-radius: 50%;
+  background: rgba(242, 237, 227, 0.03);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.deals__toggle::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; }
+.deals__toggle:hover { color: var(--text); border-color: var(--line-strong); }
+.deals__toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.deals__toggle svg { width: 14px; height: 14px; }
+.deals__toggle .deals__play,
+.deals.is-stopped .deals__toggle .deals__pause { display: none; }
+.deals.is-stopped .deals__toggle .deals__play { display: block; }
+
+/* Every product sits in the same cell, so the box is as tall as the tallest
+   of them and nothing under it moves when one gives way to the next. One
+   that is not showing is visibility: hidden - out of the tab order and the
+   accessibility tree, not only out of sight. */
+.deals__slides {
+  display: grid;
+  min-height: 0;
+  /* A sideways swipe is rotateDeals()'s; the page still scrolls. */
+  touch-action: pan-y;
+}
+.deal {
+  grid-area: 1 / 1;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.4s var(--ease), visibility 0s linear 0.4s;
+}
+.deal.is-on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.6s var(--ease), visibility 0s;
+}
+.deal__link {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--sp-4);
+  min-height: 0;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--r-lg);
+  -webkit-tap-highlight-color: transparent;
+}
+.deal__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+/* The photograph, on a pool of light. Six of the eight product photos on
+   the live site are cut-outs: drop-shadow follows the tub, not its square.
+   The rounded corners are for the other two - a photo on a white or grey
+   ground reads as a card rather than a hole in the box.
+
+   contain: size keeps the picture from sizing the box. Its height comes
+   from the frame on a desktop and from the clamp on a phone, never from a
+   1200px photograph. */
+.deal__photo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: clamp(180px, 60cqi, 300px);
+  contain: size;
+  isolation: isolate;
+}
+.deal__photo::before {
+  content: '';
+  position: absolute;
+  inset: 4% 8%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(242, 124, 61, 0.30), rgba(242, 124, 61, 0.10) 55%, transparent);
+}
+.deal__photo img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  border-radius: var(--r-md);
+  filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.55));
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.deal__link:hover .deal__photo img { transform: translateY(-6px) scale(1.02); }
+@media (min-width: 900px) {
+  .deal__photo { height: auto; }
+}
+
+.deal__off {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 2%;
+  inset-inline-end: 3%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.4em 0.85em;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: #fff;
+  font-size: clamp(12px, 3.4cqi, 15px);
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  transform: rotate(-4deg);
+}
+[dir="rtl"] .deal__off { transform: rotate(4deg); }
+
+.deal__info { display: grid; gap: var(--sp-2); min-width: 0; }
+/* The brand and the name, held to the bottom of a box two name-lines tall.
+   Every product's price then sits at the same height - some of these names
+   run to six lines - and a one-line name sits on its price instead of a
+   line above it; the spare line goes to the photograph. 20px is the brand's
+   line and the gap under it. */
+.deal__title {
+  font-size: clamp(0.95rem, 0.6rem + 3.2cqi, 1.3rem);
+  min-height: calc(3.2em + 20px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+.deal__brand {
+  align-self: flex-start;
+  font-size: 11px;
+  line-height: 18px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.deal__name {
+  font-weight: 800;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  transition: color var(--dur) var(--ease);
+}
+.deal__link:hover .deal__name { color: var(--amber); }
+.deal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.deal .price { gap: 2px var(--sp-2); }
+.deal .price__now { font-size: clamp(1.1rem, 0.7rem + 3.4cqi, 1.6rem); white-space: nowrap; }
+.deal .price__now .price__unit { font-size: clamp(9px, 2.6cqi, 11px); }
+.deal .price__was { font-size: clamp(11px, 2.9cqi, 13px); }
+/* Not a button: the whole product is the link. This only says so. */
+.deal__go {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--text);
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.deal__go svg { width: 18px; height: 18px; }
+[dir="rtl"] .deal__go svg { transform: scaleX(-1); }
+.deal__link:hover .deal__go,
+.deal__link:focus-visible .deal__go { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* A wide box - a tablet, or a phone on its side - sets the product beside
+   its words instead of above them. */
+@container deals (min-width: 540px) {
+  .deal__link {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-items: center;
+    column-gap: var(--sp-8);
+  }
+  .deal__photo { height: auto; aspect-ratio: 1 / 1; }
+}
+
+/* The product that has just arrived rises into the light, its sticker
+   lands, its words follow. backwards, not both: a held end state would sit
+   on top of the hover lift. tokens.css shortens all of it to nothing under
+   prefers-reduced-motion, which leaves a plain swap. */
+.deal.is-on .deal__photo img { animation: deal-in 0.8s var(--ease-out) backwards; }
+.deal.is-on .deal__off { animation: deal-pop 0.5s 0.25s var(--ease-out) backwards; }
+.deal.is-on .deal__info { animation: deal-rise 0.6s 0.1s var(--ease-out) backwards; }
+@keyframes deal-in { from { opacity: 0; transform: translateY(18px) scale(0.94); } }
+@keyframes deal-pop { from { opacity: 0; transform: scale(0.6); } }
+@keyframes deal-rise { from { opacity: 0; transform: translateY(10px); } }
+
+/* Which product is showing, and how long it has left: the old 3D stage's
+   bars, with a fill that grows for HERO_DEALS_MS (--deals-ms, set by
+   app.js). The fill only pictures the clock - rotateDeals() says why the
+   clock is not the animation. The mark is 4px; the target is the button. */
+.deals__pips {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-block-start: var(--sp-2);
+}
+.deals__pip {
+  position: relative;
+  width: 36px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: width var(--dur) var(--ease);
+}
+.deals__pip::before,
+.deals__pip::after {
+  content: '';
+  position: absolute;
+  inset-inline: 7px;
+  inset-block-start: 20px;
+  height: 4px;
+  border-radius: 2px;
+}
+.deals__pip::before {
+  background: rgba(242, 237, 227, 0.22);
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.deals__pip:hover::before { background: rgba(242, 237, 227, 0.45); }
+.deals__pip::after {
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+[dir="rtl"] .deals__pip::after { transform-origin: right; }
+.deals__pip.is-on { width: 60px; }
+.deals__pip.is-on::after { animation: deals-fill var(--deals-ms, 5500ms) linear forwards; }
+.deals.is-paused .deals__pip.is-on::after { animation-play-state: paused; }
+/* Stopped by the visitor, the bar is only a marker: full, not frozen. */
+.deals.is-stopped .deals__pip.is-on::after { animation: none; transform: none; }
+.deals__pip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@keyframes deals-fill { to { transform: scaleX(1); } }
+
 /* --------------------------------------------------------------------------
    Trust / press strip
    -------------------------------------------------------------------------- */
@@ -400,10 +897,14 @@
 @media (min-width: 900px) { .split { grid-template-columns: 0.9fr 1.1fr; } }
 
 /* Icon trust cards */
+/* The four promises (index.html, «اصولی که به آن پایبندیم»): the icon, the
+   promise as a heading, the one line that makes it concrete, then the
+   detail. Readable at a glance; the detail is still there for whoever
+   checks. */
 .trust-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
+  display: grid;
+  align-content: start;
+  gap: var(--sp-4);
   padding: var(--sp-6);
   background: var(--surface);
   border: 1px solid var(--line);
@@ -413,13 +914,24 @@
 .trust-card:hover { border-color: var(--line-strong); transform: translateY(-4px); }
 .trust-card__icon {
   display: grid; place-items: center;
-  width: 48px; height: 48px;
-  border-radius: var(--r-md);
-  background: rgba(242, 89, 20, 0.12);
+  width: 56px; height: 56px;
+  border-radius: 16px;
   color: var(--accent);
-  margin-block-end: var(--sp-2);
+  background: radial-gradient(circle at 30% 25%, rgba(242, 124, 61, 0.28), rgba(242, 124, 61, 0.07) 70%);
+  box-shadow: inset 0 0 0 1px rgba(242, 124, 61, 0.28);
 }
-.trust-card__icon svg { width: 24px; height: 24px; }
+.trust-card__icon svg { width: 28px; height: 28px; }
+.trust-card__title { margin: 0; font-size: 1.2rem; font-weight: 900; line-height: 1.45; }
+.trust-card__lead { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); font-weight: 700; line-height: 1.85; color: var(--text); }
+.trust-card__more { margin: var(--sp-2) 0 0; font-size: var(--fs-xs); line-height: 1.9; color: var(--text-muted); }
+/* On a phone the icon stands beside the words rather than above them: four
+   cards stacked were a screen and a half of scrolling. */
+@media (max-width: 599px) {
+  .trust-grid { grid-template-columns: minmax(0, 1fr); }
+  .trust-card { grid-template-columns: 48px minmax(0, 1fr); padding: var(--sp-5); }
+  .trust-card__icon { width: 48px; height: 48px; border-radius: 14px; }
+  .trust-card__icon svg { width: 24px; height: 24px; }
+}
 
 /* --------------------------------------------------------------------------
    Promotional banner
@@ -530,7 +1042,7 @@
 /* --------------------------------------------------------------------------
    Footer
    -------------------------------------------------------------------------- */
-.footer { background: var(--footer-bg); padding-block: var(--sp-16) var(--sp-8); margin-block-start: var(--section-y); }
+.footer { background: var(--footer-bg); padding-block: var(--sp-10) var(--sp-6); margin-block-start: var(--section-y); }
 
 .newsletter {
   display: grid;
@@ -546,10 +1058,10 @@
 .footer__cols {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-8);
-  padding-block: var(--sp-12);
+  gap: var(--sp-6) var(--sp-8);
+  padding-block: var(--sp-4) var(--sp-6);
 }
-@media (min-width: 860px) { .footer__cols { grid-template-columns: 1.5fr repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 860px) { .footer__cols { grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)); } }
 
 .footer__col h3 {
   font-size: var(--fs-eyebrow);
@@ -557,13 +1069,18 @@
   letter-spacing: var(--ls-eyebrow);
   text-transform: uppercase;
   color: var(--text-dim);
-  margin-block-end: var(--sp-4);
+  margin-block-end: var(--sp-2);
 }
-.footer__col li { margin-block-end: var(--sp-3); }
+/* Rows touch: each link is its own 34px target (.footer__col a below), well
+   over the 24px WCAG minimum. They were 40px plus 8px between, and the owner
+   found the footer too airy and too tall (2026-10-05). */
+.footer__col li { margin-block-end: 0; }
 .footer__col a { font-size: var(--fs-sm); color: var(--text-muted); transition: color var(--dur) var(--ease); }
 .footer__col a:hover { color: var(--amber); }
+/* Not the logo: it keeps its own colours, cream letters and the orange S. */
+.footer .logo, .footer .logo:hover { color: var(--text); }
 
-.socials { display: flex; gap: var(--sp-2); margin-block-start: var(--sp-5); }
+.socials { display: flex; gap: var(--sp-2); margin-block-start: var(--sp-4); }
 .socials a {
   display: grid; place-items: center;
   width: 38px; height: 38px;
@@ -575,47 +1092,21 @@
 .socials a:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 .socials svg { width: 17px; height: 17px; }
 
-/* Replaced three dashed placeholder seals - one of which advertised a payment
-   gateway the shop does not have - with a plain statement of how paying works.
-   A real trust seal arrives as the issuer's own script; it is never a box we
-   draw. The rule for those is kept below, unused, for when they are issued. */
-.payinfo {
-  margin-block-start: var(--sp-5);
-  padding: var(--sp-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  max-width: 34ch;
-}
-.payinfo__title {
-  margin: 0 0 var(--sp-2);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  color: var(--text);
-}
-.payinfo__body {
-  margin: 0;
-  font-size: var(--fs-xs);
-  /* Persian running text: the same 1.9 the audit settled on elsewhere. */
-  line-height: 1.9;
-  color: var(--text-dim);
-}
+/* «پرداخت چطور انجام می‌شود» used to be a bordered box hanging under the
+   support column, which made that grid row 580px tall on a phone and left
+   the column beside it two thirds empty. Same words, now a plain column of
+   its own, so the row is as tall as its tallest real content. */
+.footer__col p { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.75; margin: 0; }
+/* «پرسیدن قبل از خرید», the phone and the email, under the social circles. */
+.footer__contact { margin-block-start: var(--sp-3); }
 
 /* For the issued seals, when they exist. */
 .trustmarks { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-block-start: var(--sp-5); }
 
-/* Oversized ghost wordmark */
-.footer__mark {
-  font-family: var(--font-display);
-  font-size: clamp(3.5rem, 15vw, 13rem);
-  line-height: 1;
-  letter-spacing: -0.02em;
-  text-align: center;
-  color: rgba(242, 237, 227, 0.05);
-  user-select: none;
-  direction: ltr;
-  padding-block: var(--sp-4);
-}
+/* The oversized ghost «SUPPEX» wordmark stood here. It was 128px of nothing
+   on a phone and up to 208px on a desktop, in a footer the owner already
+   found too long - decoration is the first thing to go when the complaint
+   is length. */
 
 .footer__legal {
   display: flex;
@@ -653,7 +1144,31 @@
   padding-block: var(--sp-8) var(--section-y);
 }
 @media (min-width: 900px) { .pdp { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 900px) { .pdp__gallery { position: sticky; top: 96px; } }
+/* On a desktop the gallery is sticky beside the buy box, and a photograph
+   plus its thumbnails is taller than most screens: the thumbnails sat under
+   the fold for as long as the gallery stayed stuck, and a scroll over them
+   moved the buy box instead. The gallery is now its own scroll area, as tall
+   as the screen allows. The wheel over it moves the pictures and the wheel
+   anywhere else moves the page, and neither hands its scroll on to the other
+   - the owner asked for exactly that separation. */
+@media (min-width: 900px) {
+  .pdp__gallery {
+    position: sticky;
+    top: 96px;
+    max-height: calc(100vh - 96px - var(--sp-4));
+    max-height: calc(100dvh - 96px - var(--sp-4));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* No bar. The thumbnails showing under the photograph already say there
+       is more, and the owner found the bar untidy beside it. */
+    scrollbar-width: none;
+    /* A scroll area clips at its edge, and the thumbnails' focus rings and
+       hover lift sit just outside them. */
+    padding: 4px;
+    margin: -4px;
+  }
+  .pdp__gallery::-webkit-scrollbar { display: none; }
+}
 
 .gallery__main { position: relative; }
 .gallery__thumbs {
@@ -672,7 +1187,81 @@
 .gallery__thumb:hover { transform: translateY(-3px); }
 .gallery__thumb.is-active { border-color: var(--accent); }
 
+/* The photograph is the way into the enlarged view; the arrows move through
+   the pictures without leaving the page. pan-y leaves the page's own scroll
+   to the browser and hands a sideways swipe to the gallery. */
+.gallery__main[data-gallery-main] { touch-action: pan-y; }
+/* The zoom cursor only once app.js answers the click - is-zoomable is set
+   where the magnifier is shown. */
+.gallery__main.is-zoomable { cursor: zoom-in; }
+.gallery__main img { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+.gallery__nav,
+.gallery__zoom {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line-mid);
+  border-radius: 50%;
+  background: rgba(19, 18, 16, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+              color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.gallery__nav {
+  inset-block-start: 50%;
+  width: 44px;
+  height: 44px;
+  margin-block-start: -22px;
+}
+.gallery__nav--prev { inset-inline-start: var(--sp-3); }
+.gallery__nav--next { inset-inline-end: var(--sp-3); }
+.gallery__zoom {
+  inset-block-end: var(--sp-3);
+  inset-inline-start: var(--sp-3);
+  width: 44px;
+  height: 44px;
+}
+.gallery__nav:hover,
+.gallery__zoom:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.gallery__nav:active,
+.gallery__zoom:active { transform: scale(0.94); }
+.gallery__nav:focus-visible,
+.gallery__zoom:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gallery__nav svg { width: 20px; height: 20px; }
+.gallery__zoom svg { width: 18px; height: 18px; }
+.gallery__count {
+  position: absolute;
+  z-index: 3;
+  bottom: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(19, 18, 16, 0.6);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  pointer-events: none;
+}
+
 .pdp__info { display: flex; flex-direction: column; gap: var(--sp-5); }
+/* The product's name, quieter than the page heading it used to be dressed
+   as. .u-h1 is weight 900 - which Vazirmatn does not have, so the browser
+   thickened the 700 by hand - at up to 58px, and a three-line supplement
+   name set that way shouted over the price and the photo beside it. 700 is
+   the real bold; the size tops out at 36px; and a Persian name that wraps
+   needs more line height than 1.15 leaves room for. */
+.pdp__title {
+  font-weight: 700;
+  font-size: clamp(1.45rem, 1.1rem + 1.4vw, 2.25rem);
+  line-height: 1.5;
+  letter-spacing: 0;
+}
 .pdp__field { display: flex; flex-direction: column; gap: var(--sp-3); }
 .pdp__field-label {
   font-size: var(--fs-eyebrow);
@@ -733,21 +1322,41 @@
   align-items: center;
 }
 
-/* The phone number in the footer is a tel: link on a phone - 93x22 is a
-   mis-tap, and the thing being mis-tapped is a call. */
+/* The phone number in the footer is a tel: link on a phone - 93x22 was a
+   mis-tap, and the thing being mis-tapped is a call. The same 34px as the
+   rows around it since 2026-10-05: 44px stood out in the tighter list. */
 .footer a[href^="tel:"],
 .footer a[href^="mailto:"] {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 34px;
+}
+
+/* The social circles lose to the rule below on a specificity tie - both
+   score (0,1,1) and .footer__col a comes later in this file - so they were
+   laid out as inline-flex with no justify-content. In an RTL container that
+   is flex-start against the right edge, which put every glyph 9.7px off
+   centre in its own circle (measured on the live site; the paths are fine,
+   each one's ink centres on 12,12 in its viewBox).
+
+   The size was wrong too and nobody could see it: min-height beats height
+   regardless of specificity, so `height: 38px` lost to the 40px below and
+   the circles were 38x40 ovals. 40x40 squares them up and matches the
+   touch target every other link in the footer already has. */
+.footer__col .socials a {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
 }
 
 /* Footer navigation columns: 32x38 links stacked close together. Padding
-   rather than min-height so the list rhythm is not disturbed. */
+   rather than min-height so the list rhythm is not disturbed. 34px, not 40,
+   since 2026-10-05: see .footer__col li. */
 .footer__col a {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 34px;
   padding-block: 2px;
 }
 
@@ -1062,4 +1671,654 @@ li:lang(fa) {
   letter-spacing: 0.04em;
   margin: 6px 0 8px;
   word-break: break-all;
+}
+
+/* The hero's light drifts, slowly: the one ambient movement on the page,
+   and transform-only, so the compositor does it without the page noticing. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero::before { animation: hero-glow 18s ease-in-out infinite alternate; }
+}
+@keyframes hero-glow {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-7%, 9%, 0) scale(1.14); }
+}
+
+/* ==========================================================================
+   SUPPEX visual system, second pass (2026-10)
+   --------------------------------------------------------------------------
+   The owner asked for a more distinctive look on every section, keeping the
+   black and orange and every word that is true. One layer on top of the rules
+   above, so the whole pass reads in one place:
+
+     - products lit like a studio shot: a spotlight in the well, a shadow on
+       the floor, the light following the pointer across the card;
+     - sections that differ from one another: a bento of goals in their own
+       colours with their own products, one panel of promises instead of four
+       boxes, the starter trio standing in the promo, a band to ask first;
+     - quieter section titles, and half the dead space between sections.
+
+   Motion is transform and opacity only, and none of it runs for a visitor
+   who asked for less.
+   ========================================================================== */
+
+::selection { background: rgba(242, 89, 20, 0.85); color: #fff; }
+html { scrollbar-color: #3a332b var(--bg); }
+
+.section__head { margin-block-end: var(--sp-6); }
+.section__head .u-h2 { text-wrap: balance; }
+
+/* --- Buttons: the primary one lit from above, and it says where it goes --- */
+.btn--primary {
+  background: linear-gradient(180deg, #ff6a24 0%, var(--accent) 52%, #dc4c0e 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 12px 28px -14px rgba(242, 89, 20, 0.75);
+}
+.btn--primary:hover {
+  background: linear-gradient(180deg, #ff7a38 0%, var(--accent-hover) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 16px 36px -14px rgba(242, 89, 20, 0.9);
+  transform: translateY(-1px);
+}
+.btn--ghost { background: rgba(255, 255, 255, 0.025); }
+.btn svg.i-arrow { transition: transform var(--dur) var(--ease-out); }
+.btn:hover svg.i-arrow { transform: translateX(3px); }
+[dir="rtl"] .btn:hover svg.i-arrow { transform: scaleX(-1) translateX(3px); }
+
+.header.is-stuck { box-shadow: 0 1px 0 rgba(242, 89, 20, 0.16), var(--shadow-md); }
+
+/* --- Product card: a studio shot -------------------------------------------
+   The well is lit from above and the product stands on a shadow; on a
+   desktop a soft light follows the pointer (initSpotlight() in app.js). */
+.pcard {
+  position: relative;
+  border-radius: var(--r-xl);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 38%),
+    var(--surface);
+}
+.pcard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+  background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 0%), rgba(242, 89, 20, 0.11), transparent 45%);
+}
+.pcard:hover::before { opacity: 1; }
+.pcard > * { position: relative; z-index: 1; }
+.pcard:hover { box-shadow: 0 26px 50px -30px rgba(242, 89, 20, 0.6); }
+.pcard .media--lit { border-radius: var(--r-lg); background: radial-gradient(75% 65% at 50% 38%, #2b241d 0%, #17140f 78%); }
+.pcard .media--lit::after {
+  content: '';
+  position: absolute;
+  inset-inline: 22%;
+  inset-block-end: 6%;
+  height: 9%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6), transparent);
+  z-index: -1;
+  transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur-slow) var(--ease-out);
+}
+.pcard:hover .media img { transform: translateY(-6px) scale(1.045); }
+.pcard:hover .media--lit::after { transform: scaleX(0.82); opacity: 0.7; }
+.pcard__title { font-size: 0.98rem; }
+.pcard__latin {
+  display: block;
+  margin-block-start: 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.pcard .add-btn { box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.6); }
+.pcard:hover .add-btn:not([disabled]) { background: var(--accent); color: #fff; }
+
+/* --- Goals: a bento, each goal in its own colour with its own product -----
+   The tile's shape follows how many goals have something on sale
+   (data-count, from index.php): five make one large tile and four small. */
+.goal {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-height: 188px;
+  align-content: start;
+  padding: var(--sp-5);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(110% 85% at 0% 100%, var(--goal-tint, rgba(242, 89, 20, 0.3)) 0%, transparent 58%),
+    linear-gradient(165deg, var(--surface-2) 0%, var(--bg) 100%);
+}
+[dir="ltr"] .goal {
+  background:
+    radial-gradient(110% 85% at 100% 100%, var(--goal-tint, rgba(242, 89, 20, 0.3)) 0%, transparent 58%),
+    linear-gradient(165deg, var(--surface-2) 0%, var(--bg) 100%);
+}
+.goal[data-goal="muscle"]      { --goal-tint: rgba(242, 89, 20, 0.36); }
+.goal[data-goal="weight-gain"] { --goal-tint: rgba(245, 166, 35, 0.32); }
+.goal[data-goal="strength"]    { --goal-tint: rgba(226, 61, 86, 0.32); }
+.goal[data-goal="recovery"]    { --goal-tint: rgba(36, 178, 158, 0.30); }
+.goal[data-goal="health"]      { --goal-tint: rgba(97, 189, 103, 0.30); }
+.goal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+  background: radial-gradient(300px circle at var(--mx, 50%) var(--my, 0%), rgba(255, 255, 255, 0.07), transparent 50%);
+}
+.goal:hover::before { opacity: 1; }
+.goal:hover { border-color: var(--line-strong); transform: translateY(-4px); }
+.goal__name, .goal__cats { max-width: 64%; }
+.goal__count { margin-block-start: auto; padding-block-start: var(--sp-3); }
+.goal__photo {
+  position: absolute;
+  z-index: -1;
+  inset-block-end: -10%;
+  inset-inline-end: -8%;
+  width: 54%;
+  max-width: 220px;
+  aspect-ratio: 1;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.55));
+  transform: rotate(8deg);
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+[dir="ltr"] .goal__photo { transform: rotate(-8deg); }
+.goal:hover .goal__photo { transform: rotate(3deg) translateY(-8px) scale(1.05); }
+.goal__go {
+  position: absolute;
+  inset-block-start: var(--sp-5);
+  inset-inline-end: var(--sp-5);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line-mid);
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease-out);
+}
+.goal__go svg { width: 16px; height: 16px; }
+[dir="ltr"] .goal__go svg { transform: scaleX(-1); }
+.goal:hover .goal__go { background: var(--accent); border-color: var(--accent); transform: translateX(-3px); }
+[dir="ltr"] .goal:hover .goal__go { transform: translateX(3px); }
+@media (min-width: 1200px) {
+  .goals[data-count="5"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: minmax(200px, auto);
+  }
+  .goals[data-count="5"] .goal:first-child { grid-column: span 2; grid-row: span 2; }
+  .goals[data-count="5"] .goal:first-child .goal__name { font-size: 1.6rem; }
+  .goals[data-count="5"] .goal:first-child .goal__photo { width: 50%; max-width: 330px; }
+  /* Four: a tall first tile, two beside it, the last one wide. */
+  .goals[data-count="4"] {
+    grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(200px, auto);
+  }
+  .goals[data-count="4"] .goal:first-child { grid-row: span 2; }
+  .goals[data-count="4"] .goal:last-child { grid-column: span 2; }
+  /* Three: a tall first tile and two stacked beside it. */
+  .goals[data-count="3"] {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    grid-auto-rows: minmax(200px, auto);
+  }
+  .goals[data-count="3"] .goal:first-child { grid-row: span 2; }
+  .goals[data-count="4"] .goal:first-child .goal__name,
+  .goals[data-count="3"] .goal:first-child .goal__name { font-size: 1.6rem; }
+  .goals[data-count="4"] .goal:first-child .goal__photo,
+  .goals[data-count="3"] .goal:first-child .goal__photo { width: 62%; max-width: 330px; }
+  /* The smaller tiles here are wider than five's, and a photograph sized by
+     width would climb to the arrow in the corner: sized by height instead. */
+  .goals[data-count="4"] .goal:not(:first-child) .goal__photo,
+  .goals[data-count="3"] .goal:not(:first-child) .goal__photo { width: auto; height: 72%; inset-inline-end: 1.5rem; }
+}
+@media (max-width: 1199px) {
+  .goals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .goals[data-count="5"] .goal:first-child,
+  .goals[data-count="3"] .goal:first-child { grid-column: 1 / -1; min-height: 210px; }
+  .goal__photo { width: auto; height: 74%; max-width: none; inset-inline-end: 1.5rem; }
+  .goal__name, .goal__cats { max-width: 58%; }
+}
+@media (max-width: 559px) {
+  /* A list: one tile to a row, the words on the start side, the photograph
+     on the other and never under them. The whole tile is the link, so the
+     arrow, which would sit on the photograph here, stays for wider screens. */
+  .goals { grid-template-columns: minmax(0, 1fr); }
+  .goals .goal:first-child { grid-column: auto; }
+  .goal { min-height: 136px; padding: var(--sp-4) var(--sp-5); }
+  .goals[data-count="5"] .goal:first-child,
+  .goals[data-count="4"] .goal:first-child,
+  .goals[data-count="3"] .goal:first-child { min-height: 164px; }
+  .goal__go { display: none; }
+  .goal__name, .goal__cats { max-width: 60%; }
+  .goal__photo { width: 34%; height: auto; max-width: 150px; inset-block-end: -18%; inset-inline-end: 3%; }
+}
+
+/* --- The four promises: one panel with hairlines between them ------------ */
+.trust-grid {
+  position: relative;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background:
+    radial-gradient(60% 120% at 50% 0%, rgba(242, 89, 20, 0.07), transparent 70%),
+    var(--surface);
+}
+.trust-grid::before {
+  content: '';
+  position: absolute;
+  inset-inline: 12%;
+  inset-block-start: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.7;
+}
+.trust-card {
+  position: relative;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: var(--sp-8) var(--sp-6);
+}
+.trust-card:hover { transform: none; background: rgba(255, 255, 255, 0.018); }
+.trust-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 0%), rgba(242, 89, 20, 0.08), transparent 55%);
+}
+.trust-card:hover::before { opacity: 1; }
+.trust-card__icon { width: 52px; height: 52px; border-radius: 15px; }
+@media (min-width: 980px) {
+  .trust-card + .trust-card { border-inline-start: 1px solid var(--line); }
+}
+@media (min-width: 600px) and (max-width: 979px) {
+  .trust-card:nth-child(2n) { border-inline-start: 1px solid var(--line); }
+  .trust-card:nth-child(n + 3) { border-block-start: 1px solid var(--line); }
+}
+@media (max-width: 599px) {
+  .trust-card { padding: var(--sp-5); }
+  .trust-card + .trust-card { border-block-start: 1px solid var(--line); }
+}
+
+/* --- The promo: the starter trio standing in its light -------------------- */
+.promo {
+  background:
+    radial-gradient(55% 90% at 12% 55%, rgba(242, 89, 20, 0.30), transparent 70%),
+    linear-gradient(225deg, #2a1c12 0%, #15110d 62%);
+}
+[dir="ltr"] .promo {
+  background:
+    radial-gradient(55% 90% at 88% 55%, rgba(242, 89, 20, 0.30), transparent 70%),
+    linear-gradient(135deg, #2a1c12 0%, #15110d 62%);
+}
+.promo__stack {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 230px;
+}
+.promo__stack:empty { display: none; }
+.promo:has([data-countdown-block]) .promo__stack { display: none; }
+.promo__pick {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  width: 33%;
+  color: var(--text);
+  text-decoration: none;
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.promo__pick img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 26px rgba(0, 0, 0, 0.6));
+}
+.promo__pick:nth-child(1) { transform: rotate(7deg) translateY(12px); }
+.promo__pick:nth-child(2) { width: 40%; z-index: 2; margin-inline: -5%; }
+.promo__pick:nth-child(3) { transform: rotate(-7deg) translateY(12px); }
+.promo__pick:hover { transform: translateY(-8px); }
+.promo__pick-name { font-size: var(--fs-xs); font-weight: 800; color: var(--text-muted); }
+.promo__pick:hover .promo__pick-name { color: var(--amber); }
+@media (max-width: 859px) { .promo__stack { min-height: 0; } }
+
+/* --- «شفافیت»: the statement with its rule, the two items as cards -------- */
+#standard .u-h2 {
+  padding-inline-start: var(--sp-5);
+  border-inline-start: 3px solid var(--accent);
+}
+#standard .feature {
+  padding: var(--sp-6);
+  margin-block-end: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 45%),
+    var(--surface);
+}
+#standard .feature__num { font-size: clamp(2.2rem, 1.6rem + 2vw, 3.2rem); }
+
+/* --- The band before the footer: ask first ------------------------------- */
+.askband {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: grid;
+  gap: var(--sp-6);
+  align-items: center;
+  padding: clamp(2rem, 1.2rem + 3vw, 3.5rem);
+  border: 1px solid rgba(242, 89, 20, 0.35);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(70% 140% at 0% 50%, rgba(242, 89, 20, 0.28), transparent 65%),
+    linear-gradient(180deg, #1d1915, #141210);
+}
+[dir="ltr"] .askband {
+  background:
+    radial-gradient(70% 140% at 100% 50%, rgba(242, 89, 20, 0.28), transparent 65%),
+    linear-gradient(180deg, #1d1915, #141210);
+}
+.askband::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: repeating-linear-gradient(var(--energy-angle), transparent 0 28px, var(--energy-line) 28px 30px);
+  -webkit-mask-image: linear-gradient(90deg, transparent 30%, #000);
+  mask-image: linear-gradient(90deg, transparent 30%, #000);
+}
+.askband .u-lead { max-width: 52ch; margin-block-start: var(--sp-3); }
+.askband__actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+@media (min-width: 860px) { .askband { grid-template-columns: minmax(0, 1fr) auto; } }
+
+/* ==========================================================================
+   Second pass, part two (2026-10): the product page, the listing pages, the
+   footer
+   ========================================================================== */
+
+/* --- The promo's trio: the photographs lean, their names stay level ------- */
+@media (min-width: 860px) { .promo__stack { min-height: 260px; } }
+.promo__pick { width: 36%; }
+.promo__pick:nth-child(2) { width: 44%; }
+.promo__pick:nth-child(1),
+.promo__pick:nth-child(3),
+.promo__pick:hover { transform: none; }
+.promo__pick img { transition: transform var(--dur-slow) var(--ease-out); }
+.promo__pick:nth-child(1) img { transform: rotate(7deg) translateY(12px); }
+.promo__pick:nth-child(3) img { transform: rotate(-7deg) translateY(12px); }
+.promo__pick:hover img { transform: translateY(-8px) rotate(0deg); }
+/* A shelf with nothing on sale has no photograph: two are a matched pair
+   leaning in, one stands alone. */
+.promo__stack:has(> .promo__pick:nth-child(2):last-child) .promo__pick { width: 40%; margin-inline: 1%; }
+.promo__stack:has(> .promo__pick:nth-child(2):last-child) .promo__pick:nth-child(1) img { transform: rotate(6deg) translateY(6px); }
+.promo__stack:has(> .promo__pick:nth-child(2):last-child) .promo__pick:nth-child(2) img { transform: rotate(-6deg) translateY(6px); }
+.promo__stack:has(> .promo__pick:only-child) .promo__pick { width: 50%; }
+.promo__stack:has(> .promo__pick:nth-child(2):last-child) .promo__pick:hover img,
+.promo__stack:has(> .promo__pick:only-child) .promo__pick:hover img { transform: translateY(-8px) rotate(0deg); }
+
+/* --- The hero's deal card: a floor under the product, a rim of light ------ */
+.deal__photo::after {
+  content: '';
+  position: absolute;
+  inset-inline: 24%;
+  inset-block-end: 1%;
+  height: 7%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6), transparent);
+}
+.stage-wrap.has-deals .stage {
+  box-shadow: 0 40px 80px -48px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(242, 237, 227, 0.08),
+              0 0 0 1px rgba(242, 89, 20, 0.05);
+}
+
+/* --- Category tiles and brand tiles: the same light on hover -------------- */
+.ccard { border-radius: var(--r-xl); }
+.ccard:hover { box-shadow: 0 26px 50px -30px rgba(242, 89, 20, 0.55); }
+.bcard { transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+.bcard:hover { border-color: rgba(242, 89, 20, 0.45); box-shadow: 0 22px 44px -28px rgba(242, 89, 20, 0.55); }
+
+/* --- The product page ------------------------------------------------------
+   The photograph lit like the cards; the purchase in one panel; the two
+   assurances as chips; the details in one bordered stack. */
+.pdp .gallery__main.media--lit {
+  background: radial-gradient(75% 65% at 50% 36%, #2d251d 0%, #16130f 80%);
+}
+.pdp .gallery__main.media--lit::after {
+  content: '';
+  position: absolute;
+  inset-inline: 24%;
+  inset-block-end: 6%;
+  height: 7%;
+  border-radius: 50%;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.55), transparent);
+}
+.pdp__purchase {
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(90% 90% at 0% 0%, rgba(242, 89, 20, 0.10), transparent 60%),
+    linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: 0 30px 60px -42px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(242, 237, 227, 0.05);
+}
+[dir="ltr"] .pdp__purchase {
+  background:
+    radial-gradient(90% 90% at 100% 0%, rgba(242, 89, 20, 0.10), transparent 60%),
+    linear-gradient(180deg, var(--surface-2), var(--surface));
+}
+.pdp__purchase .price--lg .price__now { font-size: clamp(1.8rem, 1.3rem + 1.8vw, 2.4rem); }
+.pdp__assur { gap: var(--sp-2); }
+.pdp__assur span {
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(97, 189, 103, 0.22);
+  background: rgba(97, 189, 103, 0.07);
+  color: var(--text-muted);
+}
+.pdp .acc {
+  padding-inline: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.pdp .acc__item { border-color: var(--line); }
+.pdp .acc__item:first-child { border-block-start: 0; }
+.pdp .acc__item:last-child { border-block-end: 0; }
+
+/* --- A listing page's header: a panel, lit from the title's side ---------
+   The category, goal, brand, brands and journal pages all open with a
+   .section__head holding the h1; one rule gives every one of them the same
+   frame without touching five templates. */
+.section__head:has(h1),
+.brand-head {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  padding: clamp(1.5rem, 1rem + 2.5vw, 2.75rem);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(70% 140% at 100% 0%, rgba(242, 89, 20, 0.15), transparent 60%),
+    linear-gradient(180deg, var(--surface), var(--bg));
+}
+[dir="ltr"] .section__head:has(h1),
+[dir="ltr"] .brand-head {
+  background:
+    radial-gradient(70% 140% at 0% 0%, rgba(242, 89, 20, 0.15), transparent 60%),
+    linear-gradient(180deg, var(--surface), var(--bg));
+}
+.section__head:has(h1)::after,
+.brand-head::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(242, 237, 227, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(242, 237, 227, 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: radial-gradient(70% 110% at 100% 0%, #000 10%, transparent 70%);
+  mask-image: radial-gradient(70% 110% at 100% 0%, #000 10%, transparent 70%);
+}
+.section__head:has(h1) h1 { font-size: clamp(1.9rem, 1.3rem + 2.6vw, 3rem); }
+
+/* --- The category guide: a reading card, its headings marked ------------- */
+#guide > .container--narrow {
+  /* !important over the template's inline padding:0, which was there to sit
+     the text flush with the grid above - now it sits in its own card. */
+  padding: clamp(1.5rem, 1rem + 2.4vw, 2.75rem) !important;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 30%),
+    var(--surface);
+}
+.article__body > h2 { display: flex; align-items: flex-start; gap: 12px; }
+.article__body > h2::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  /* Beside the first line when the heading wraps, not halfway down it. */
+  margin-block-start: 0.6em;
+  margin-block-start: calc(0.5lh - 5px);
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(242, 89, 20, 0.15);
+}
+
+/* --- The footer: closer to the page, with a line of the brand's light ---- */
+.footer {
+  position: relative;
+  margin-block-start: calc(var(--section-y) * 0.5);
+  border-block-start: 1px solid var(--line);
+}
+.footer::before {
+  content: '';
+  position: absolute;
+  inset-inline: 15%;
+  inset-block-start: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(242, 89, 20, 0.7), transparent);
+}
+
+/* The category and goal headers' photograph, at the panel's far side. */
+.section__head-photo {
+  position: absolute;
+  z-index: -1;
+  inset-block-start: auto;
+  inset-block-end: -16%;
+  inset-inline-end: clamp(0.5rem, 4vw, 4rem);
+  height: 118%;
+  width: auto;
+  max-width: 42%;
+  object-fit: contain;
+  filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.6));
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+[dir="ltr"] .section__head-photo { transform: rotate(8deg); }
+.section__head:has(.section__head-photo) > div { max-width: 62%; }
+@media (max-width: 699px) {
+  /* On a phone: floated at the far side of the title, the lead wrapping
+     round it and then taking the full width. */
+  .section__head-photo {
+    position: static;
+    z-index: auto;
+    float: left;
+    float: inline-end;
+    width: 34%;
+    max-width: 140px;
+    height: auto;
+    margin-inline-start: var(--sp-3);
+    margin-block: -6px var(--sp-2);
+  }
+  [dir="ltr"] .section__head-photo { float: right; float: inline-end; }
+  .section__head:has(.section__head-photo) > div { max-width: none; display: flow-root; }
+}
+
+/* ==========================================================================
+   Second pass, part three (2026-10): the document pages
+   ========================================================================== */
+
+/* --- The article, info and tracking pages open with the listings' panel --
+   An article's panel takes its cover's colour (--tone, set by article.php
+   from the cover SVG) with the cover's diagonal lines and top bar; the rest
+   keep the accent and the grid. */
+.article__head {
+  --tone: var(--accent);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  padding: clamp(1.5rem, 1rem + 2.5vw, 2.5rem);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(70% 140% at 100% 0%, rgba(242, 89, 20, 0.15), transparent 60%),
+    linear-gradient(180deg, var(--surface), var(--bg));
+  background:
+    radial-gradient(70% 140% at 100% 0%, color-mix(in srgb, var(--tone) 17%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--surface), var(--bg));
+}
+[dir="ltr"] .article__head {
+  background:
+    radial-gradient(70% 140% at 0% 0%, color-mix(in srgb, var(--tone) 17%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--surface), var(--bg));
+}
+.article__head::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(242, 237, 227, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(242, 237, 227, 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: radial-gradient(70% 110% at 100% 0%, #000 10%, transparent 70%);
+  mask-image: radial-gradient(70% 110% at 100% 0%, #000 10%, transparent 70%);
+}
+.article__head > :last-child { margin-block-end: 0; }
+.article__head--cover::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  height: 3px;
+  background: linear-gradient(to left, var(--tone), transparent 85%);
+}
+[dir="ltr"] .article__head--cover::before { background: linear-gradient(to right, var(--tone), transparent 85%); }
+.article__head--cover::after {
+  background-image: repeating-linear-gradient(135deg, transparent 0 38px, var(--tone) 38px 40px);
+  background-size: auto;
+  opacity: 0.2;
+  -webkit-mask-image: radial-gradient(85% 120% at 0% 100%, #000 0%, transparent 72%);
+  mask-image: radial-gradient(85% 120% at 0% 100%, #000 0%, transparent 72%);
+}
+.article__head--cover .u-eyebrow { color: var(--tone); }
+
+/* --- The tracking form: a card ------------------------------------------ */
+.track__form {
+  max-width: none;
+  padding: clamp(1.25rem, 1rem + 1.5vw, 2rem);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%),
+    var(--surface);
+  box-shadow: 0 30px 60px -42px rgba(0, 0, 0, 0.85);
 }

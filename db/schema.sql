@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS product_images (
   id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
   product_id INT UNSIGNED NOT NULL,
   path       VARCHAR(255) NOT NULL,
+  source_name VARCHAR(190) NULL,                 -- the uploaded file an import named
   sort_order INT          NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   KEY idx_pimages_product (product_id, sort_order),
@@ -311,4 +312,80 @@ CREATE TABLE IF NOT EXISTS commission_log (
   created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_commission_log_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Payment receipts the customer sent from the site (lib/receipts.php). The
+-- file is a name inside the private receipts directory, above public_html -
+-- never a web path. sent_* is what Telegram accepted.
+CREATE TABLE IF NOT EXISTS order_receipts (
+  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  order_id    BIGINT UNSIGNED NOT NULL,
+  file        VARCHAR(120) NOT NULL,
+  bytes       INT UNSIGNED NOT NULL DEFAULT 0,
+  width       INT UNSIGNED NOT NULL DEFAULT 0,
+  height      INT UNSIGNED NOT NULL DEFAULT 0,
+  ip          VARBINARY(16) NULL,
+  sent_chat   TINYINT(1) NOT NULL DEFAULT 0,
+  sent_group  TINYINT(1) NOT NULL DEFAULT 0,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_receipts_order (order_id),
+  CONSTRAINT fk_receipts_order FOREIGN KEY (order_id)
+    REFERENCES orders (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What the owner adds to a brand in the panel: a logo, a Persian name, a
+-- line about it, an order, and whether it is shown (lib/brands.php). The
+-- brands themselves come from products.brand; a brand with no row here is
+-- still a brand. Keyed by the slug its products' spellings share.
+CREATE TABLE IF NOT EXISTS brands (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  slug        VARCHAR(120) NOT NULL,
+  name        VARCHAR(120) NOT NULL DEFAULT '',
+  name_fa     VARCHAR(120) NOT NULL DEFAULT '',
+  logo        VARCHAR(255) NOT NULL DEFAULT '',
+  logo_mono   VARCHAR(255) NOT NULL DEFAULT '',
+  logo_color  VARCHAR(255) NOT NULL DEFAULT '',
+  logo_style  VARCHAR(10)  NOT NULL DEFAULT 'mono',
+  blurb       VARCHAR(255) NOT NULL DEFAULT '',
+  sort_order  INT NOT NULL DEFAULT 0,
+  is_visible  TINYINT(1) NOT NULL DEFAULT 1,
+  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_brands_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What buyers wrote about what they bought (lib/reviews.php): one per product
+-- per order, from the tracking page, and shown only once the owner approves
+-- it in the panel.
+CREATE TABLE IF NOT EXISTS product_reviews (
+  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  product_id  INT UNSIGNED NOT NULL,
+  order_id    BIGINT UNSIGNED NOT NULL,
+  rating      TINYINT UNSIGNED NOT NULL,
+  body        TEXT NULL,
+  author      VARCHAR(60) NOT NULL DEFAULT '',
+  status      ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decided_at  DATETIME NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_reviews_order_product (order_id, product_id),
+  KEY idx_reviews_product (product_id, status),
+  KEY idx_reviews_status (status, created_at),
+  CONSTRAINT fk_reviews_product FOREIGN KEY (product_id)
+    REFERENCES products (id) ON DELETE CASCADE,
+  CONSTRAINT fk_reviews_order FOREIGN KEY (order_id)
+    REFERENCES orders (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Photographs uploaded on the import page, waiting for a sheet to name them
+-- (lib/import.php). An import attaches each to its product and deletes the row.
+CREATE TABLE IF NOT EXISTS import_photos (
+  id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name_key      VARCHAR(190) NOT NULL,
+  original_name VARCHAR(255) NOT NULL DEFAULT '',
+  path          VARCHAR(255) NOT NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_import_photos_name (name_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

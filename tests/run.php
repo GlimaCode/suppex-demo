@@ -30,7 +30,10 @@ $php = [
     ['test-preflight.php', 'test-config.php'],
     ['test-backend.php',   'test-config.php'],
     ['test-pricing.php',   'test-config.php'],
+    ['test-rate.php',      'test-config.php'],
+    ['test-quotes.php',    'test-config.php'],
     ['test-import.php',    'test-config.php'],
+    ['test-excel.php',     'test-config.php'],
     ['test-margins.php',   'test-config.php'],
     ['test-seo.php',       'test-config.php'],
     ['test-og.php',        'test-config.php'],
@@ -43,10 +46,20 @@ $php = [
     ['test-category.php',  'test-config.php'],
     ['test-admin.php',     'test-config.php'],
     ['test-chrome.php',    'test-config.php'],
+    ['test-variants.php',  'test-config.php'],
+    ['test-receipts.php',  'test-config.php'],
+    ['test-brands.php',    'test-config.php'],
+    ['test-autoprice.php', 'test-config.php'],
+    ['test-speed.php',     'test-config.php'],
+    ['test-ux.php',        'test-config.php'],
+    ['test-reviews.php',   'test-config.php'],
+    ['test-orderflow.php', 'test-config.php'],
     /* Rebuilds a database from nothing; needs the throwaway one. */
     ['test-migrate.php',   'fresh-config.php'],
 ];
-$node = ['test-herolabels.mjs', 'test-quickspec.mjs', 'test-checkout.mjs'];
+$node = ['test-herolabels.mjs', 'test-quickspec.mjs', 'test-checkout.mjs',
+         'test-adminjs.mjs', 'test-hero.mjs', 'test-gallery.mjs', 'test-receipts.mjs', 'test-brands.mjs',
+         'test-autoprice.mjs', 'test-speed.mjs', 'test-ux.mjs'];
 
 $only = $argv[1] ?? null;          // php tests/run.php pricing  -> just that one
 $pass = 0; $fail = 0; $skipped = [];
@@ -71,6 +84,9 @@ function run(string $cmd, array $env): array
     return [$out, proc_close($p)];
 }
 
+/* Lines are split with /u everywhere below: without it \R also matches the
+   byte 0x85, which is half of the Persian letter «م» in UTF-8, and every
+   FAIL line was cut at its first «م» - «اپتیموم» printed as «اپتی». */
 function tally(string $out): array
 {
     return [
@@ -92,7 +108,7 @@ echo "\n";
     escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg("$root/migrate-db.php"),
     ['SUPPEX_CONFIG' => "$root/test-config.php"]
 );
-foreach (preg_split('/\R/', trim($mOut)) as $line) {
+foreach (preg_split('/\R/u', trim($mOut)) as $line) {
     if (trim($line) !== '') { echo "  schema: " . $line . "
 "; }
 }
@@ -122,7 +138,7 @@ foreach ($php as [$file, $config]) {
     $pass += $p; $fail += $f;
     printf("  %-22s %4d ok  %2d fail%s\n", $file, $p, $f, $f ? '   <<<' : '');
     flush();
-    if ($f) { foreach (preg_split('/\R/', $out) as $l) { if (str_starts_with($l, '  FAIL')) { echo "      $l\n"; } } }
+    if ($f) { foreach (preg_split('/\R/u', $out) as $l) { if (str_starts_with($l, '  FAIL')) { echo "      $l\n"; } } }
     /* A suite that dies mid-run reports few checks and no failures, which would
        otherwise read as a pass. */
     if ($p === 0) { echo "      (no checks ran - suite errored)\n"; $fail++; }
@@ -137,11 +153,14 @@ foreach ([['node --version', 'node']] as [$probe, $bin]) {
 foreach ($node as $file) {
     if ($only !== null && strpos($file, $only) === false) { continue; }
     if (!$hasNode) { $skipped[] = $file; continue; }
-    [$out, ] = run('node ' . escapeshellarg("$root/$file"), []);
+    /* test-adminjs.mjs asks PHP for its answer and compares. Handing it the
+       same binary the runner is using means it works wherever this does. */
+    [$out, ] = run('node ' . escapeshellarg("$root/$file"),
+                   ['SUPPEX_PHP' => PHP_BINARY]);
     [$p, $f] = tally($out);
     $pass += $p; $fail += $f;
     printf("  %-22s %4d ok  %2d fail%s\n", $file, $p, $f, $f ? '   <<<' : '');
-    if ($f) { foreach (preg_split('/\R/', $out) as $l) { if (str_starts_with($l, '  FAIL')) { echo "      $l\n"; } } }
+    if ($f) { foreach (preg_split('/\R/u', $out) as $l) { if (str_starts_with($l, '  FAIL')) { echo "      $l\n"; } } }
 }
 
 echo "\n  " . str_repeat('-', 42) . "\n";

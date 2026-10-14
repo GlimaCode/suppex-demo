@@ -22,6 +22,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/ogimage.php';
+require_once __DIR__ . '/assets.php';
 
 /** Absolute site origin, e.g. https://example.ir — derived, never hardcoded. */
 function seo_origin(): string
@@ -66,6 +67,19 @@ function seo_absolute(string $path): string
         return $path;
     }
     return seo_origin() . '/' . ltrim($path, '/');
+}
+
+/**
+ * The shared picture a link shows when its page has none of its own - the
+ * home page, the brands, the guides - which Telegram and WhatsApp draw in the
+ * chat. Redrawn 2026-10-05 with the shop's own photographs and the new logo,
+ * as a JPEG: a PNG of photographs runs past the ~300 KB WhatsApp will still
+ * preview. Versioned like the stylesheet, so a new cover is a new address and
+ * a preview bot cannot go on showing the old one.
+ */
+function seo_cover(): string
+{
+    return seo_absolute(asset('assets/images/og-cover.jpg'));
 }
 
 /**
@@ -116,7 +130,7 @@ function seo_product_meta(?array $product): array
         return [
             'title'       => 'محصول پیدا نشد | ' . $shop,
             'description' => '',
-            'image'       => seo_absolute('assets/images/og-cover.png'),
+            'image'       => seo_cover(),
             'url'         => seo_origin() . '/product.php',
             'jsonld'      => '',
             'robots'      => 'noindex, follow',
@@ -169,8 +183,15 @@ function seo_product_meta(?array $product): array
         'availability'  => !empty($product['inStock'])
             ? 'https://schema.org/InStock'
             : 'https://schema.org/OutOfStock',
+        /* Sealed and unopened is what the shop sells and says on every page. */
+        'itemCondition' => 'https://schema.org/NewCondition',
         'seller'        => ['@type' => 'Organization', 'name' => $shop],
     ];
+
+    /* One Offer at the card's price, even where sizes or combinations are
+       priced apart: that is the price the page shows first, and a plain
+       Offer is what Google's merchant listings accept - an AggregateOffer
+       range would keep the product out of them. */
 
     /* A breadcrumb, which this page has never had. Of the structured data a
        listing or a product page can carry, BreadcrumbList is the one Google
@@ -194,17 +215,60 @@ function seo_product_meta(?array $product): array
     $crumbs[] = ['@type' => 'ListItem', 'position' => count($crumbs) + 1,
                  'name' => $name, 'item' => seo_product_url((string) $product['slug'])];
 
+    /* The product's own photographs, not the share card: the card carries
+       the price and the name drawn over the picture, which is what a Telegram
+       preview needs and what Google's product results reject - they want the
+       product itself. The card stands in only when there is no photograph. */
+    $photos = [];
+    foreach ((array) ($product['gallery'] ?? []) as $g) {
+        $g = trim((string) $g);
+        if ($g !== '' && !str_ends_with(strtolower($g), '.svg')) {
+            $photos[] = seo_absolute($g);
+        }
+    }
+    $photos = array_slice(array_values(array_unique($photos)), 0, 8) ?: [$image];
+
     $ld = [
         '@context'    => 'https://schema.org',
         '@type'       => 'Product',
         'name'        => $latin !== '' ? $name . ' ' . $latin : $name,
         'description' => $desc,
         'sku'         => (string) $product['slug'],
-        'image'       => [$image],
+        'url'         => seo_product_url((string) $product['slug']),
+        'image'       => $photos,
         'offers'      => $offer,
     ];
     if (!empty($product['brand'])) {
         $ld['brand'] = ['@type' => 'Brand', 'name' => (string) $product['brand']];
+    }
+    if (isset($catName) && $catName !== '') {
+        $ld['category'] = $catName;
+    }
+    /* Ratings from approved reviews by buyers (lib/reviews.php), and none at
+       all until there is one. Only reviews signed with a name go into the
+       list: Google does not take «خریدار» as an author, and it still counts
+       in the average. */
+    $pid = (int) ($product['id'] ?? 0);
+    $sum = review_summaries([$pid])[$pid] ?? null;
+    if ($sum !== null && $sum['count'] > 0) {
+        $ld['aggregateRating'] = [
+            '@type'       => 'AggregateRating',
+            'ratingValue' => (string) $sum['avg'],
+            'reviewCount' => $sum['count'],
+            'bestRating'  => '5',
+            'worstRating' => '1',
+        ];
+        $named = array_values(array_filter(reviews_for_product($pid, 20),
+            static fn(array $r): bool => trim((string) $r['author']) !== ''));
+        if ($named) {
+            $ld['review'] = array_map(static fn(array $r): array => [
+                '@type'         => 'Review',
+                'reviewRating'  => ['@type' => 'Rating', 'ratingValue' => (string) (int) $r['rating'], 'bestRating' => '5'],
+                'author'        => ['@type' => 'Person', 'name' => (string) $r['author']],
+                'datePublished' => date('Y-m-d', (int) strtotime((string) $r['created_at'])),
+                'reviewBody'    => (string) $r['body'],
+            ], array_slice($named, 0, 5));
+        }
     }
 
     return [
@@ -213,12 +277,14 @@ function seo_product_meta(?array $product): array
         'image'       => $image,
         'url'         => seo_product_url((string) $product['slug']),
         'robots'      => 'index, follow',
+        /* JSON_HEX_TAG: reviews put buyers' words in here, and «</script>» in
+           one would close the element and run what follows it. */
         'jsonld'      => json_encode([
             '@context' => 'https://schema.org',
             '@graph'   => [
                 $ld,
                 ['@type' => 'BreadcrumbList', 'itemListElement' => $crumbs],
             ],
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_HEX_TAG) ?: '',
     ];
 }

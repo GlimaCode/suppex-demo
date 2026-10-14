@@ -219,6 +219,112 @@ ok('the fixture category is restored',
    count(products_list(['category' => $victim])) > 0
    || $victim !== 'vitamins');
 
+
+/* ---------------------------------------------------------------------------
+   The panel can set a category image.
+
+   categories.image, categories_list()'s 'image' key and the six bundled SVGs
+   all existed before this; admin/categories.php was the only piece that could
+   not write the value, so a category's picture could be seeded and never
+   changed. The checks below go through the real page rather than UPDATE-ing
+   the row, because the page is the part that was missing.
+   --------------------------------------------------------------------------- */
+head('the panel can set a category image');
+
+$catHarness = __DIR__ . '/catpost.php';
+ok('the category-post harness exists', is_file($catHarness), $catHarness);
+
+$catPost = static function (array $fields, string $role = 'support') use ($catHarness): array {
+    $raw = (string) shell_exec(
+        escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($catHarness) . ' '
+        . escapeshellarg(base64_encode((string) json_encode($fields))) . ' '
+        . escapeshellarg($role) . ' 2>&1');
+    $line = trim((string) strrchr("\n" . trim($raw), "\n"));
+    $rows = json_decode($line, true);
+    if (!is_array($rows)) { return ['_raw' => $raw]; }
+    $bySlug = [];
+    foreach ($rows as $r) { $bySlug[(string) $r['slug']] = $r; }
+    return $bySlug;
+};
+
+db_query("DELETE FROM categories WHERE slug LIKE 'zz-cat-img%'");
+
+/* --- created with an image ------------------------------------------------ */
+$svg = 'assets/images/categories/protein.svg';
+$rows = $catPost([
+    'action' => 'save', 'id' => 0,
+    'name_fa' => 'زد-آزمون تصویر', 'slug' => 'zz-cat-img',
+    'image_path' => $svg, 'sort_order' => 99, 'is_active' => '1',
+]);
+ok('  a new category keeps the image it was given',
+   ($rows['zz-cat-img']['image'] ?? null) === $svg,
+   json_encode($rows['zz-cat-img'] ?? $rows, JSON_UNESCAPED_UNICODE));
+
+$cid = (int) ($rows['zz-cat-img']['id'] ?? 0);
+
+/* --- the read path the storefront actually uses --------------------------- */
+$listed = null;
+foreach (categories_list() as $c) {
+    if ($c['id'] === 'zz-cat-img') { $listed = $c; }
+}
+ok('  and categories_list() serves it to the shop',
+   ($listed['image'] ?? null) === $svg, json_encode($listed, JSON_UNESCAPED_UNICODE));
+
+/* --- editing something else must not drop it ------------------------------
+   The form posts image_path back on every save, so the value survives an edit
+   that was about the name. If that field were ever removed from the form this
+   check is what would notice. */
+$rows = $catPost([
+    'action' => 'save', 'id' => $cid,
+    'name_fa' => 'زد-آزمون تصویر ۲', 'slug' => 'zz-cat-img',
+    'image_path' => $svg, 'sort_order' => 99, 'is_active' => '1',
+]);
+ok('  renaming the category leaves the image alone',
+   ($rows['zz-cat-img']['image'] ?? null) === $svg,
+   json_encode($rows['zz-cat-img'] ?? [], JSON_UNESCAPED_UNICODE));
+
+/* --- swapping one bundled SVG for another --------------------------------- */
+$svg2 = 'assets/images/categories/creatine.svg';
+$rows = $catPost([
+    'action' => 'save', 'id' => $cid,
+    'name_fa' => 'زد-آزمون تصویر ۲', 'slug' => 'zz-cat-img',
+    'image_path' => $svg2, 'sort_order' => 99, 'is_active' => '1',
+]);
+ok('  the image can be swapped for another', ($rows['zz-cat-img']['image'] ?? null) === $svg2);
+/* image_delete() refuses any path outside uploads/, which is the only reason
+   pointing one category at a bundled SVG and then away again does not delete
+   the file out of the repo for every other category using it. */
+ok('  and the bundled file it replaced is still on disk',
+   is_file(SUPPEX_ROOT . '/' . $svg), $svg);
+
+/* --- removing it ---------------------------------------------------------- */
+$rows = $catPost([
+    'action' => 'save', 'id' => $cid,
+    'name_fa' => 'زد-آزمون تصویر ۲', 'slug' => 'zz-cat-img',
+    'image_path' => $svg2, 'image_remove' => '1', 'sort_order' => 99, 'is_active' => '1',
+]);
+ok('  «حذف شود» clears the image', ($rows['zz-cat-img']['image'] ?? null) === '');
+ok('  and still does not delete the bundled file',
+   is_file(SUPPEX_ROOT . '/' . $svg2), $svg2);
+
+/* --- the form must be able to carry a file at all ------------------------- */
+$formSrc = (string) file_get_contents(SUPPEX_ROOT . '/admin/categories.php');
+ok('  the form is multipart, so a file input actually posts',
+   strpos($formSrc, 'enctype="multipart/form-data"') !== false);
+ok('  and the page offers a file input', strpos($formSrc, 'name="image"') !== false);
+
+/* --- the six real categories ---------------------------------------------- */
+$missing = [];
+foreach (categories_list() as $c) {
+    if ($c['id'] === 'zz-cat-img') { continue; }
+    if (trim((string) $c['image']) === '') { $missing[] = $c['id']; }
+}
+ok('  every shipped category has an image', $missing === [], implode(', ', $missing));
+
+db_query('DELETE FROM categories WHERE id = ?', [$cid]);
+ok('  cleaned up', db_value('SELECT id FROM categories WHERE id = ?', [$cid]) === null);
+
+
 echo implode("\n", $out);
 echo "\n\n----------------------------------------\npassed: $pass    failed: $fail\n";
 exit($fail > 0 ? 1 : 0);

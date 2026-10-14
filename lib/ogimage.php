@@ -179,6 +179,16 @@ function og_render(array $product): string
 
     $y = OG_H - 96;
     if ($price > 0) {
+        /* Latin digits here, and NOT money_fa(), even though the shop itself
+           now reads «۱,۸۰۰,۰۰۰». Converting them was tried and the card came
+           back with the whole line reversed - «۰۰۰,۰۰۸,۱ ناموت» - because
+           og_text() reorders to visual order itself and Latin digits are what
+           tells it where the left-to-right run is. Persian digits join the
+           surrounding RTL run and the number flips with it.
+
+           Making this card Persian means teaching that reorder about Arabic
+           numerals, which is a change to the text engine and not to a
+           format string. Until then Latin is the one that renders. */
         $label = number_format($price) . ' ' . arabic_shape('تومان');
         $box   = og_text($im, $label, 46, $right, $y, $ink, true, $wide);
 

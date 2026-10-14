@@ -15,11 +15,28 @@ SUPPEX.store = (function () {
 
   /* A line item is keyed by slug + variant, so the same product in two
      flavours or two sizes stays two separate lines — as a real cart must. */
-  var state = { items: [], customer: {} };
+  var state = { items: [], customer: {}, quote: '' };
   var DIVIDER = '—————————————';
 
+  /* Every axis the line was chosen on, in a stable order.
+
+     Sorted rather than taken as given: the object comes from whichever order
+     the page happened to build it in, and two identical choices that hashed
+     differently would sit in the basket as two lines of one each. */
+  function attrKey(item) {
+    var a = item.attrs;
+    if (!a) { return ''; }
+    var keys = Object.keys(a).sort();
+    var out = [];
+    for (var i = 0; i < keys.length; i++) {
+      if (a[keys[i]]) { out.push(keys[i] + '=' + a[keys[i]]); }
+    }
+    return out.join(';');
+  }
+
   function keyOf(item) {
-    return [item.slug, item.flavorId || '-', item.sizeId || '-'].join('::');
+    return [item.slug, item.flavorId || '-', item.sizeId || '-',
+            attrKey(item) || '-'].join('::');
   }
 
   function load() {
@@ -30,6 +47,11 @@ SUPPEX.store = (function () {
       var parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.items)) { state.items = parsed.items; }
       if (parsed && parsed.customer) { state.customer = parsed.customer; }
+      /* A restored token may already be expired; that is not worth checking
+         here. The server treats an unknown or stale token as no token at all
+         and charges the current price, which is the right answer for a cart
+         that has been sitting in a browser for a week. */
+      if (parsed && typeof parsed.quote === 'string') { state.quote = parsed.quote; }
     } catch (err) {
       /* Corrupt or unavailable storage (private mode, quota) must never stop
          the page from rendering — start empty and carry on. */
@@ -48,6 +70,13 @@ SUPPEX.store = (function () {
 
   function emit() {
     save();
+    notify();
+  }
+
+  /* The listeners alone, without writing back: for a change that came out of
+     storage, which another tab has already written (see the end of this
+     file). */
+  function notify() {
     var snapshot = api.snapshot();
     listeners.forEach(function (fn) { fn(snapshot); });
   }
@@ -90,6 +119,29 @@ SUPPEX.store = (function () {
 
     clear: function () { state.items = []; emit(); },
 
+    /* Take an order's lines out of the basket, and only those.
+
+       The order is sent from a snapshot and the server takes a moment to
+       answer. Emptying the whole basket when it did threw away whatever the
+       shopper added in that moment - two more of the same tub included, so
+       this goes by quantity: what was ordered comes off, the rest stays for
+       the next order. A line the order left out as unavailable goes as well;
+       the drawer already said it was not being sent. */
+    removeLines: function (lines) {
+      var taken = {};
+      (lines || []).forEach(function (l) {
+        var k = keyOf(l);
+        taken[k] = (taken[k] || 0) + Math.max(0, l.qty || 0);
+      });
+      state.items = state.items
+        .map(function (i) {
+          var k = keyOf(i);
+          return taken[k] ? Object.assign({}, i, { qty: i.qty - taken[k] }) : i;
+        })
+        .filter(function (i) { return i.qty > 0; });
+      emit();
+    },
+
     keyOf: keyOf,
 
     /* Reconcile stored cart prices against what the shop charges now.
@@ -130,17 +182,85 @@ SUPPEX.store = (function () {
           return Object.assign({}, item, { unavailable: true });
         }
 
-        /* A size carries its own price, so resolve the same way the server
-           does rather than falling back to the parent's. */
         var price = fresh.price;
         var left  = fresh.stock;
-        if (item.sizeId && Array.isArray(fresh.sizes)) {
+
+        /* A combination first, exactly as order_price_line() resolves it.
+
+           Once a product has these, one row holds the whole price - there is
+           no base and premium left to add up, and running the delta
+           arithmetic below would walk the line back to the size's price. The
+           drawer would then show one number while the server charged
+           another. */
+        var combo = null;
+        if (Array.isArray(fresh.variants) && fresh.variants.length) {
+          var want = {};
+          if (item.sizeId)   { want.size = item.sizeId; }
+          if (item.flavorId) { want.flavor = item.flavorId; }
+          if (item.attrs) {
+            Object.keys(item.attrs).forEach(function (k) { want[k] = item.attrs[k]; });
+          }
+          for (var vi = 0; vi < fresh.variants.length; vi++) {
+            var c = fresh.variants[vi].choice || {};
+            var ck = Object.keys(c);
+            var hit = ck.length === Object.keys(want).length;
+            for (var cj = 0; hit && cj < ck.length; cj++) {
+              if (want[ck[cj]] !== c[ck[cj]]) { hit = false; }
+            }
+            if (hit) { combo = fresh.variants[vi]; break; }
+          }
+
+          /* A product that HAS combinations but none matching this line means
+             the shopper is holding one that was switched off or renamed. The
+             server refuses it, so the drawer must say so here rather than
+             quote a price that will not be honoured. */
+          if (!combo) {
+            changes.push({ nameFa: item.nameFa, from: item.price, to: null, gone: true });
+            return Object.assign({}, item, { unavailable: true });
+          }
+        }
+
+        if (combo) {
+          price = combo.price;
+          left  = combo.stock;
+        } else if (item.sizeId && Array.isArray(fresh.sizes) && fresh.sizes.length) {
+          /* A size carries its own price, so resolve the same way the server
+             does rather than falling back to the parent's. */
+          var sizeHit = false;
           for (var i = 0; i < fresh.sizes.length; i++) {
             if (fresh.sizes[i].id === item.sizeId) {
               price = fresh.sizes[i].price;
               left  = fresh.sizes[i].stock;
+              sizeHit = true;
               break;
             }
+          }
+          /* A size the product no longer has - renamed or removed. The server
+             refuses that line (order_price_line()), so the drawer must not go
+             on quoting it at the product's own price. */
+          if (!sizeHit) {
+            changes.push({ nameFa: item.nameFa, from: item.price, to: null, gone: true });
+            return Object.assign({}, item, { unavailable: true });
+          }
+        }
+
+        /* Then the flavour premium, resolved the same way the server does in
+           order_price_line: the base plus whatever this flavour adds. Without
+           this the drawer would quietly walk a premium flavour back to the
+           plain price every time it refreshed. A flavour that is not there any
+           more is refused by the server, and is marked so here. */
+        if (!combo && item.flavorId && Array.isArray(fresh.flavors)) {
+          var flavorHit = false;
+          for (var k = 0; k < fresh.flavors.length; k++) {
+            if (fresh.flavors[k].id === item.flavorId) {
+              price += (fresh.flavors[k].priceDelta || 0);
+              flavorHit = true;
+              break;
+            }
+          }
+          if (!flavorHit) {
+            changes.push({ nameFa: item.nameFa, from: item.price, to: null, gone: true });
+            return Object.assign({}, item, { unavailable: true });
           }
         }
 
@@ -176,11 +296,23 @@ SUPPEX.store = (function () {
       return changes;
     },
 
+    /* The shop's promise about the prices just handed over. Held with the cart
+       so it survives the shopper wandering off mid-checkout, which is the whole
+       window this is meant to cover. See lib/quotes.php. */
+    setQuote: function (token) {
+      state.quote = typeof token === 'string' ? token : '';
+      emit();
+    },
+
     /* Persisted with the cart so a returning shopper does not retype their
        address. It never leaves the browser except inside the order message. */
-    setCustomer: function (fields) {
+    setCustomer: function (fields, quiet) {
       state.customer = Object.assign({}, state.customer, fields);
-      emit();
+      /* Quiet while the shopper is typing: kept, so a drawer closed by
+         mistake or a reload does not lose an address half written, but not
+         repainted - a repaint per keystroke would bump the basket's badge on
+         every letter. */
+      if (quiet) { save(); } else { emit(); }
     },
     getCustomer: function () { return Object.assign({}, state.customer); },
 
@@ -195,7 +327,11 @@ SUPPEX.store = (function () {
       var subtotal = live.reduce(function (sum, i) { return sum + i.price * i.qty; }, 0);
       var count = live.reduce(function (sum, i) { return sum + i.qty; }, 0);
       var blocked = state.items.length - live.length;
-      var freeShipping = subtotal >= cfg.freeShippingThreshold;
+      /* Zero means the shop has no free shipping at all, the way
+         order_create() reads it. Read here as «everything ships free», the
+         drawer said «رایگان» over an order the server charged the flat rate. */
+      var threshold = cfg.freeShippingThreshold > 0 ? cfg.freeShippingThreshold : 0;
+      var freeShipping = threshold > 0 && subtotal >= threshold;
       var shipping = count === 0 || freeShipping ? 0 : cfg.shippingFlatRate;
 
       return {
@@ -211,18 +347,25 @@ SUPPEX.store = (function () {
         shipping: shipping,
         total: subtotal + shipping,
         freeShipping: freeShipping,
-        remainingForFreeShipping: Math.max(0, cfg.freeShippingThreshold - subtotal),
+        remainingForFreeShipping: threshold > 0 ? Math.max(0, threshold - subtotal) : 0,
+        /* Whether there is a free-shipping line to draw at all. */
+        freeShippingOffered: threshold > 0,
       };
     },
 
     /* Formats the cart as a plain-text order for a messaging app. Kept in the
        store rather than a view because it is the order itself, not a piece of
        presentation — the same text a server would eventually receive. */
-    asOrderText: function () {
-      var snap = api.snapshot();
+    /* `snap` is the snapshot an order was sent from, when there is one: the
+       basket moves on after the order (removeLines()), and the text copied
+       again from the payment panel has to be the order that was sent. `code`
+       is its tracking code, once the shop has given one. */
+    asOrderText: function (snap, code) {
+      snap = snap || api.snapshot();
       var money = cfg.currency.format;
       var unit = cfg.currency.label;
       var lines = [cfg.ordering.intro, ''];
+      if (code) { lines.push('شماره پیگیری سفارش: ' + code, ''); }
 
       snap.items.filter(function (it) { return !it.unavailable; }).forEach(function (item, i) {
         lines.push((i + 1) + ') ' + item.nameFa);
@@ -239,7 +382,7 @@ SUPPEX.store = (function () {
 
       /* The whole point of collecting these is that they arrive WITH the order
          rather than being asked for afterwards, one message at a time. */
-      var c = state.customer || {};
+      var c = snap.customer || state.customer || {};
       var filled = (cfg.customerFields || []).filter(function (f) {
         return String(c[f.id] || '').trim();
       });
@@ -251,6 +394,15 @@ SUPPEX.store = (function () {
           lines.push(f.label.replace(' (اختیاری)', '') + ': ' + String(c[f.id]).trim());
         });
       }
+
+      /* Signed like everything the shop sends (lib/order_messages.php), so the
+         site's address stays in the customer's own chat beside the order. The
+         host is read from the page rather than written here, for the reason
+         config.js keeps its paths relative. */
+      var host = '';
+      try { host = String(window.location.hostname || '').replace(/^www\./, ''); } catch (e) { host = ''; }
+      lines.push('');
+      lines.push('ثبت‌شده در ' + cfg.brand.name + (host ? ' — ' + host : ''));
 
       return lines.join('\n');
     },
@@ -270,11 +422,19 @@ SUPPEX.store = (function () {
             slug: i.slug,
             flavorId: i.flavorId || null,
             sizeId: i.sizeId || null,
+            /* Only when there is one. An empty object on every line would
+               make every order payload claim a third axis nobody chose. */
+            attrs: (i.attrs && Object.keys(i.attrs).length) ? i.attrs : undefined,
             qty: i.qty,
           };
         }),
         customer: Object.assign({}, state.customer),
         channel: channelId || '',
+        /* What the shop said these would cost. The server charges the lower of
+           this and the current price, so the amount the customer already pasted
+           into their chat cannot be undercut by a repricing that happened while
+           they were typing their address. */
+        quote: state.quote || '',
       };
     },
 
@@ -316,6 +476,23 @@ SUPPEX.store = (function () {
 
     init: function () { load(); emit(); },
   };
+
+  /* Another tab changed the basket.
+
+     Each tab keeps the cart in memory and writes the whole of it back on
+     every change, so the tab that wrote last won: a basket filled in one tab
+     was wiped by a quantity changed in another left open since the morning,
+     and the order sent from that one was not the basket the shopper had just
+     built. Re-read and repaint - and do not write back; the other tab already
+     has. */
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('storage', function (e) {
+      if (!cfg.flags.persistCart || (e.key !== null && e.key !== cfg.storageKey)) { return; }
+      state = { items: [], customer: {}, quote: '' };
+      load();
+      notify();
+    });
+  }
 
   return api;
 })();

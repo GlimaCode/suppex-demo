@@ -18,6 +18,12 @@
 
 declare(strict_types=1);
 
+/* What the catalogue sheets put in the price column for a product that has
+   been researched and imported but not yet priced. Kept as a constant so the
+   number has a name where it is checked; the sheets themselves are the only
+   other place it appears. */
+const PREFLIGHT_UNPRICED_MARKER = 999999999;
+
 /**
  * @return array<int,array{group:string,label:string,state:string,detail:string,fix:string}>
  */
@@ -230,7 +236,7 @@ function preflight_checks(): array
     /* --- Catalogue ---------------------------------------------------------- */
     $active = (int) db_value('SELECT COUNT(*) FROM products WHERE is_active = 1');
     $add('کاتالوگ', 'محصول فعال', $active > 0 ? 'ok' : 'blocker', (string) $active,
-        'از صفحه «ورود گروهی» فایل قیمت را وارد کنید.');
+        'از صفحه «ورود از اکسل» فایل قیمت را وارد کنید.');
 
     $aed  = (int) db_value(
         'SELECT (SELECT COUNT(*) FROM products WHERE price_mode = "aed" AND cost_aed > 0)
@@ -256,7 +262,7 @@ function preflight_checks(): array
         $demos === 0 ? 'حذف شده' : $demos . ' محصول ساختگی هنوز فعال است',
         'این‌ها محصولات نمونه‌اند — نام و قیمت و مشخصاتشان واقعی نیست و مشتری '
       . 'می‌تواند سفارششان بدهد. از صفحه محصولات حذفشان کنید یا تیک «در سایت '
-      . 'نمایش داده شود» را بردارید، و کاتالوگ واقعی را از «ورود گروهی» وارد کنید.');
+      . 'نمایش داده شود» را بردارید، و کاتالوگ واقعی را از «ورود از اکسل» وارد کنید.');
 
     $add('کاتالوگ', 'نرخ درهم',
         $aed === 0 ? 'ok' : ($rate === '' ? 'blocker' : 'ok'),
@@ -264,9 +270,43 @@ function preflight_checks(): array
             : ($rate === '' ? 'ثبت نشده' : number_format((float) $rate)),
         'در صفحه قیمت‌گذاری نرخ را وارد و اعمال کنید، وگرنه قیمت این محصولات صفر می‌ماند.');
 
-    $noPrice = (int) db_value('SELECT COUNT(*) FROM products WHERE is_active = 1 AND price <= 0');
+    /* product_variants counts too. Once a product has combinations the
+       combination is what order_price_line() charges, and the parent row is
+       only the headline - so a grid full of zeros is a product that sells
+       for nothing while products.price looks perfectly healthy. */
+    $noPrice = (int) db_value(
+        'SELECT (SELECT COUNT(*) FROM products
+                  WHERE is_active = 1 AND price <= 0)
+              + (SELECT COUNT(*) FROM product_variants v
+                   JOIN products p ON p.id = v.product_id
+                  WHERE p.is_active = 1 AND v.is_active = 1 AND v.price <= 0)');
     $add('کاتالوگ', 'محصول بدون قیمت', $noPrice === 0 ? 'ok' : 'blocker', (string) $noPrice,
-        'قیمتشان را وارد کنید یا از سایت پنهانشان کنید.');
+        'قیمتشان را وارد کنید یا از سایت پنهانشان کنید. اگر محصول ترکیب دارد، '
+      . 'قیمت در جدول ترکیب‌ها گذاشته می‌شود، نه بالای صفحه.');
+
+    /* «بدون قیمت» above means price <= 0, and the catalogue sheets do not
+       leave the column empty - they carry 999,999,999 as the marker for a row
+       that was imported but never priced, which pricing_round_up() then lifts
+       to a round 1,000,000,000. A positive number, so it passed as priced: the
+       whole page reported green while a product with that figure on it sat on
+       the home page. Compared with >= rather than == because whether the
+       rounding has run yet depends on which page last touched the row, and a
+       real supplement is nowhere near either number. */
+    $marker  = (int) db_value(
+        'SELECT (SELECT COUNT(*) FROM products
+                  WHERE is_active = 1 AND price >= ' . PREFLIGHT_UNPRICED_MARKER . ')
+              + (SELECT COUNT(*) FROM product_sizes s
+                   JOIN products p ON p.id = s.product_id
+                  WHERE p.is_active = 1 AND s.price >= ' . PREFLIGHT_UNPRICED_MARKER . ')
+              + (SELECT COUNT(*) FROM product_variants v
+                   JOIN products p ON p.id = v.product_id
+                  WHERE p.is_active = 1 AND v.is_active = 1
+                    AND v.price >= ' . PREFLIGHT_UNPRICED_MARKER . ')');
+    $add('کاتالوگ', 'قیمت جایگزین از فایل ورودی', $marker === 0 ? 'ok' : 'blocker',
+        $marker === 0 ? 'نداریم' : $marker . ' مورد',
+        'این عدد یعنی محصول از فایل وارد شده ولی قیمتش را هنوز نگذاشته‌اید — '
+      . 'مشتری روی سایت عدد ۱,۰۰۰,۰۰۰,۰۰۰ تومان را می‌بیند. قیمت واقعی را '
+      . 'در صفحه ویرایش محصول وارد کنید یا تیک «در سایت نمایش داده شود» را بردارید.');
 
     $noPhoto = (int) db_value(
         "SELECT COUNT(*) FROM products WHERE is_active = 1 AND (image = '' OR image LIKE '%.svg')");

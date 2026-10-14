@@ -94,7 +94,7 @@ admin_head('پشتیبان‌گیری', ['user' => $user]);
   <p style="color:var(--text-muted);line-height:2.1">
     <span class="num"><?= $products ?></span> محصول، دقیقاً با همان ستون‌های فایل اکسل.
     همین فایل را می‌شود دوباره در
-    <a href="import.php" style="text-decoration:underline">ورود گروهی</a>
+    <a href="import.php" style="text-decoration:underline">ورود از اکسل</a>
     بارگذاری کرد — پس برای جابه‌جا کردن کاتالوگ بین دو سایت،
     یا برای ویرایش گروهی قیمت‌ها در اکسل، همین کافی است.
   </p>
@@ -126,12 +126,13 @@ admin_head('پشتیبان‌گیری', ['user' => $user]);
     </div>
   <?php endif; ?>
 
-  <div style="margin-block-start:16px">
+  <div style="margin-block-start:16px;display:flex;flex-wrap:wrap;gap:10px">
+    <a class="btn btn--primary" href="import.php?export=xlsx">دانلود محصولات (اکسل)</a>
     <a class="btn btn--ghost" href="?download=catalogue">دانلود محصولات (CSV)</a>
   </div>
   <p class="hint" style="margin-block-start:14px">
-    عکس‌ها و متن‌های صفحه محصول (ویژگی‌ها، مواد، ارزش غذایی) در این فایل
-    <strong>نیستند</strong> — آن‌ها فقط در پشتیبان کامل بالا هستند.
+    توضیحات، ویژگی‌ها، ترکیبات، روش مصرف و جدول ارزش غذایی در این فایل هستند؛
+    فقط خود <strong>عکس‌ها</strong> نیستند — آن‌ها در پشتیبان کامل بالا هستند.
   </p>
 </div>
 
@@ -162,7 +163,7 @@ admin_head('پشتیبان‌گیری', ['user' => $user]);
 <div class="card">
   <h2 class="card__title">چند وقت یک‌بار</h2>
   <ul style="padding-inline-start:20px;line-height:2.1;color:var(--text-muted)">
-    <li><strong>قبل از هر تغییر بزرگ</strong> — ورود گروهی، اعمال نرخ درهم جدید، به‌روزرسانی دیتابیس.</li>
+    <li><strong>قبل از هر تغییر بزرگ</strong> — ورود از اکسل، اعمال نرخ درهم جدید، به‌روزرسانی دیتابیس.</li>
     <li><strong>هفته‌ای یک‌بار</strong> وقتی سفارش واقعی می‌گیرید. سفارش‌ها فقط در دیتابیس‌اند.</li>
     <li>فایل را <strong>جای دیگری</strong> نگه دارید، نه روی همان هاست. پشتیبانی که کنار اصل بماند، با آن هم از بین می‌رود.</li>
   </ul>

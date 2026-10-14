@@ -30,9 +30,22 @@ SUPPEX.config = {
     label: 'تومان',
     /* Prices are stored as plain integers in Toman. Formatting is centralised
        here so a future switch to Rial (or a server-driven currency) touches
-       one function. Digits stay Latin per the brand decision. */
+       one function.
+
+       Persian digits, as of the owner's decision - this comment used to read
+       «Digits stay Latin per the brand decision». Grouped by en-US first so
+       the thousands separator stays the comma his mock-up shows, then the
+       ten digits are swapped; Intl's own 'fa' locale would also give the
+       Arabic thousands mark ٬ and a different grouping.
+
+       This is DISPLAY only. Nothing is parsed back out of it - the cart
+       posts integers - and lib/util.php's money() deliberately stays Latin
+       for the panel and the owner's Telegram message. */
     format: function (value) {
-      return new Intl.NumberFormat('en-US').format(Math.round(value));
+      var latin = new Intl.NumberFormat('en-US').format(Math.round(value));
+      return latin.replace(/[0-9]/g, function (d) {
+        return String.fromCharCode(0x06F0 + (d.charCodeAt(0) - 48));
+      });
     },
   },
   freeShippingThreshold: 1500000,
@@ -75,17 +88,24 @@ SUPPEX.config = {
        primary button; the rest sit under it.
 
        prefillParam is the query parameter that carries the order text in the
-       URL. Telegram, WhatsApp and Bale all accept `text` — Bale was checked on
-       a real device. For anything still unverified, such as Eitaa, leave it
-       null: the order is copied to the clipboard first and the shopper pastes
-       it into the chat, which works on every app regardless of support. */
+       URL. WhatsApp documents wa.me/<number>?text= and Bale was checked on a
+       real device, so those two carry it. Telegram does NOT: t.me/<username>
+       takes no message parameter - only t.me/share/url and bot ?start= links
+       do - and a link that claims one silently fails to open the app at all.
+       That was assumed here rather than tested, and it cost the shop every
+       Telegram order until somebody tried it.
+
+       Leave prefillParam null for anything not verified on a real device. It
+       is not a degraded path: the order goes on the clipboard and the payment
+       panel keeps «پیست کنید و بفرستید» on screen until it has been pasted,
+       which works on every app whether it supports prefill or not. */
     channels: [
       {
         id: 'telegram',
         label: 'تلگرام',
         enabled: true,
         url: 'https://t.me/ARSENX2003',
-        prefillParam: 'text',
+        prefillParam: null,                 // t.me/<user> has no message parameter
       },
       {
         id: 'bale',
@@ -164,7 +184,7 @@ SUPPEX.config = {
     { id: 'phone',   label: 'شماره تماس',        type: 'tel',   required: true,
       autocomplete: 'tel', placeholder: '09xxxxxxxxx', validate: 'mobile' },
     { id: 'address', label: 'آدرس دقیق',         type: 'textarea', required: true,
-      autocomplete: 'street-address', rows: 3 },
+      autocomplete: 'street-address', rows: 3, validate: 'address' },
     { id: 'postal',  label: 'کد پستی',           type: 'text',  required: true,
       autocomplete: 'postal-code', placeholder: '۱۰ رقم', validate: 'postal' },
     { id: 'note',    label: 'توضیحات (اختیاری)', type: 'textarea', required: false,
@@ -186,7 +206,7 @@ SUPPEX.config = {
        numbers on a demo make the whole thing look dishonest, and a shop
        that has not launched yet has no reviews to show. Turn these on once
        there are real orders behind them. */
-    showRatings: false,        // per-product stars and review counts
+    showRatings: true,         // stars from approved buyers' reviews only (lib/reviews.php)
     showTestimonials: false,   // reviews section, press strip, headline rating
   },
 
@@ -198,9 +218,11 @@ SUPPEX.config = {
      og: tags and never run JavaScript, so on the .html page every shared
      product link shows the same name and the same picture.
 
-     SUPPEX-local/router.php rewrites this for local runs; DEPLOY.md changes it
-     once on the host. */
-  productPage: 'product.html',
+     These defaults are the DEPLOYED ones. They used to be the demo's, which
+     meant every upload of this file quietly unplugged the shop - the storefront
+     fell back to the bundled sample catalogue and stopped recording orders. Set
+     them back to 'product.html' / null only for a deliberate no-backend demo. */
+  productPage: 'product.php',
 
   /* Beside productPage and for the same reason: the page a category links to
      is a deployment decision, not a rendering one. Categories only exist as
@@ -223,7 +245,7 @@ SUPPEX.config = {
        A RELATIVE path on purpose. An absolute one would hard-code the domain
        and break the moment the site moves, is previewed on a staging
        subdomain, or is opened over http instead of https. */
-    baseUrl: null,           // ← on the cPanel deploy set this to 'api/index.php'
+    baseUrl: 'api/index.php',   // null only for the static no-backend demo
 
     /* Route names for the ?r= front controller, not URL paths. */
     endpoints: {

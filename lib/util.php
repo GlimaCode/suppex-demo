@@ -109,11 +109,41 @@ function unique_slug(string $base, string $table, ?int $ignoreId = null): string
 }
 
 /* --- Money -----------------------------------------------------------------
-   Toman integers in, grouped Latin digits out — matching the front-end's
-   formatter exactly so the same order never shows two different totals. */
+   Two formatters, because there are two audiences.
+
+   money() is for the OWNER and for anything mechanical: the admin panel, the
+   margin tables, the Telegram notification. Latin digits, because somebody
+   reconciling a card transfer against a banking app should not have to read
+   the same figure in two shapes.
+
+   money_fa() is for the SHOP, and matches config.js's currency.format
+   exactly - that pairing is what keeps one order from showing two different
+   totals between the cart drawer and the tracking page. Group first, convert
+   after, so the separator stays the comma rather than becoming ٬. */
 function money(int $value): string
 {
     return number_format($value);
+}
+
+function money_fa(int $value): string
+{
+    return fa_digits(number_format($value));
+}
+
+/**
+ * The currency label, marked up for the stacked treatment in components.css:
+ * last letter above, the rest below, the whole word kept as clipped text.
+ *
+ * The same split ui.js does, so a price rendered by the server and the same
+ * price repainted by the browser cannot come out looking different.
+ */
+function price_unit_html(string $label = 'تومان'): string
+{
+    $head = mb_substr($label, -1);
+    $tail = mb_substr($label, 0, -1);
+    return '<span class="price__unit" data-head="' . e($head)
+         . '" data-tail="' . e($tail) . '"><span class="sr-only">'
+         . e($label) . '</span></span>';
 }
 
 /** Accepts "۲,۴۵۰,۰۰۰" or "2450000" and returns 2450000. */

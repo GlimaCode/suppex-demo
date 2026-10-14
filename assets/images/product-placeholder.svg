@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="عکس این محصول به‌زودی">
+  <!-- A product still waiting for its photograph: a plain tub carrying the
+       shop's mark, in the card's own dark tones, instead of an empty black
+       square that reads as a broken page. -->
+  <defs>
+    <linearGradient id="body" x1="0" x2="1">
+      <stop offset="0" stop-color="#25201a"/>
+      <stop offset=".58" stop-color="#3a3128"/>
+      <stop offset="1" stop-color="#1f1a15"/>
+    </linearGradient>
+    <linearGradient id="lid" x1="0" x2="1">
+      <stop offset="0" stop-color="#1b1713"/>
+      <stop offset=".55" stop-color="#2e2720"/>
+      <stop offset="1" stop-color="#181410"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="200" cy="340" rx="104" ry="13" fill="#000" opacity=".38"/>
+  <rect x="126" y="88" width="148" height="38" rx="9" fill="url(#lid)"/>
+  <rect x="114" y="120" width="172" height="218" rx="24" fill="url(#body)"/>
+  <rect x="114" y="178" width="172" height="88" fill="#F25914" opacity=".14"/>
+  <g transform="translate(170 192) scale(1.5)">
+    <rect x="7" y="16" width="5" height="8" rx="2" fill="#F25914" opacity=".85"/>
+    <rect x="13" y="13" width="4" height="14" rx="2" fill="#F2EDE3" opacity=".55"/>
+    <rect x="17" y="18" width="6" height="4" rx="2" fill="#F2EDE3" opacity=".55"/>
+    <rect x="23" y="13" width="4" height="14" rx="2" fill="#F2EDE3" opacity=".55"/>
+    <rect x="28" y="16" width="5" height="8" rx="2" fill="#F25914" opacity=".85"/>
+  </g>
+</svg>

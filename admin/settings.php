@@ -11,15 +11,65 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
+require_once SUPPEX_ROOT . '/lib/notify.php';
 require_once __DIR__ . '/partials/layout.php';
 
 $user   = auth_require();
 $errors = [];
+/* What «پیدا کردن گروه» found, shown on this same page rather than carried
+   through a redirect. */
+$tgGroups = null;
+$tgNote   = '';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     csrf_check();
 
-    if (($_POST['action'] ?? '') === 'password') {
+    $tgAction = (string) ($_POST['action'] ?? '');
+    $tgBot    = suppex_config()['telegram_bot'] ?? [];
+    $tgToken  = !empty($tgBot['enabled']) ? (string) ($tgBot['token'] ?? '') : '';
+
+    if (isset($_POST['tg_pick']) || in_array($tgAction, ['tg_save', 'tg_test', 'tg_find'], true)) {
+        /* The group where receipts are confirmed. The id is not a secret -
+           the token is, and it stays in suppex-config.php - so it lives here,
+           where the owner can change it without touching a file. */
+        $gid = trim(to_latin_digits((string) ($_POST['tg_pick'] ?? $_POST['telegram_group_id'] ?? '')));
+        if ($tgAction === 'tg_find') {
+            if ($tgToken === '') {
+                $tgNote = 'ربات تلگرام در suppex-config.php روشن نیست یا توکن ندارد.';
+            } else {
+                $tgGroups = telegram_recent_groups($tgToken);
+                if ($tgGroups === null) {
+                    $tgNote = 'تلگرام جواب نداد. چند دقیقه بعد دوباره امتحان کنید.';
+                } elseif (!$tgGroups) {
+                    $tgNote = 'گروهی پیدا نشد. ربات را به گروه اضافه کنید، یک پیام در گروه بفرستید و دوباره امتحان کنید.';
+                }
+            }
+        } elseif ($gid !== '' && !preg_match('/\A-?\d{5,20}\z/', $gid)) {
+            flash('error', 'شناسهٔ گروه فقط رقم است و معمولاً با -100 شروع می‌شود.');
+            header('Location: settings.php#telegram');
+            exit;
+        } elseif ($tgAction === 'tg_test') {
+            if ($tgToken === '' || $gid === '') {
+                flash('error', 'اول ربات و شناسهٔ گروه باید تنظیم شده باشند.');
+            } else {
+                settings_save(['telegram_group_id' => $gid]);
+                $sentTest = telegram_send_text($tgToken, $gid,
+                    'پیام آزمایشی ساپکس ✅' . "\n" . 'رسیدهای واریز مشتری‌ها از این به بعد در این گروه هم می‌آید.');
+                if ($sentTest) {
+                    flash('ok', 'پیام آزمایشی به گروه رسید.');
+                } else {
+                    flash('error', 'پیام به گروه نرسید. ربات عضو گروه است؟ شناسه درست است؟');
+                }
+            }
+            header('Location: settings.php#telegram');
+            exit;
+        } else {
+            settings_save(['telegram_group_id' => $gid]);
+            flash('ok', $gid === '' ? 'گروه تلگرام برداشته شد.' : 'گروه تلگرام ذخیره شد.');
+            header('Location: settings.php#telegram');
+            exit;
+        }
+    } elseif (($_POST['action'] ?? '') === 'password') {
         $current = (string) ($_POST['current_password'] ?? '');
         $new     = (string) ($_POST['new_password'] ?? '');
         $confirm = (string) ($_POST['confirm_password'] ?? '');
@@ -324,6 +374,55 @@ admin_head('تنظیمات', ['user' => $user]);
     <button class="btn btn--primary" type="submit">ذخیره تنظیمات</button>
   </div>
 </form>
+
+<?php
+  $tgBotCfg = suppex_config()['telegram_bot'] ?? [];
+  $tgBotOn  = !empty($tgBotCfg['enabled']) && !empty($tgBotCfg['token']);
+  $tgChatOn = trim((string) ($tgBotCfg['chat_id'] ?? '')) !== '';
+?>
+<div class="card" id="telegram">
+  <h2 class="card__title">تلگرام: سفارش‌ها و رسیدها</h2>
+  <p class="hint" style="margin-block-end:16px">
+    <?php if (!$tgBotOn): ?>
+      ربات تلگرام خاموش است یا توکن ندارد؛ آن را در فایل suppex-config.php روشن کنید.
+    <?php else: ?>
+      ربات روشن است<?= $tgChatOn ? ' و سفارش‌ها و رسیدها به گفتگوی شما می‌رسد' : '؛ شناسهٔ گفتگوی شما (chat_id) در suppex-config.php خالی است' ?>.
+    <?php endif; ?>
+    رسید واریزی که مشتری از سایت می‌فرستد، در گروهی که اینجا مشخص کنید هم می‌آید.
+  </p>
+  <form method="post" action="settings.php#telegram">
+    <?= csrf_field() ?>
+    <div class="field">
+      <label for="telegram_group_id">شناسهٔ گروه تأیید سفارش‌ها</label>
+      <input type="text" id="telegram_group_id" name="telegram_group_id" dir="ltr" inputmode="numeric"
+             placeholder="-1001234567890" value="<?= e((string) setting('telegram_group_id', '')) ?>">
+      <span class="hint">
+        ۱) ربات را به گروه اضافه کنید. ۲) یک پیام در گروه بفرستید. ۳) «پیدا کردن گروه» را بزنید
+        و گروه را انتخاب کنید. ۴) با «پیام آزمایشی» مطمئن شوید پیام می‌رسد. خالی بگذارید تا رسیدها
+        فقط به گفتگوی خودتان برود.
+      </span>
+    </div>
+    <?php if ($tgNote !== ''): ?>
+      <div class="flash flash--info" style="margin-block-start:12px"><?= e($tgNote) ?></div>
+    <?php endif; ?>
+    <?php if ($tgGroups): ?>
+      <div class="tg-groups">
+        <?php foreach ($tgGroups as $g): ?>
+          <div class="tg-groups__row">
+            <span><?= e($g['title'] !== '' ? $g['title'] : 'گروه بی‌نام') ?>
+              <span class="num u-dim" dir="ltr"><?= e($g['id']) ?></span></span>
+            <button class="btn btn--ghost btn--sm" type="submit" name="tg_pick" value="<?= e($g['id']) ?>">انتخاب</button>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+    <div class="form-foot" style="gap:8px;flex-wrap:wrap">
+      <button class="btn btn--primary" type="submit" name="action" value="tg_save">ذخیره</button>
+      <button class="btn btn--ghost" type="submit" name="action" value="tg_find">پیدا کردن گروه</button>
+      <button class="btn btn--ghost" type="submit" name="action" value="tg_test">پیام آزمایشی به گروه</button>
+    </div>
+  </form>
+</div>
 
 <div class="card">
   <h2 class="card__title">تغییر رمز عبور</h2>

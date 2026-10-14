@@ -26,3 +26,14 @@ RemoveType    .php .phtml .php3 .php4 .php5 .php7 .php8 .phps
 </FilesMatch>
 
 Options -ExecCGI -Indexes
+
+# ===========================================================================
+# Every file here is written once under a name nobody else gets (a date and
+# random bytes - lib/images.php), and a replacement is a new file. So a
+# browser may keep each one for a year without asking again.
+# ===========================================================================
+<IfModule mod_headers.c>
+  <FilesMatch "\.(webp|jpe?g|png|gif|avif)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>

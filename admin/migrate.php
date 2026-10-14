@@ -25,8 +25,17 @@ require_once SUPPEX_ROOT . '/lib/auth.php';
 
 /* Behind the login, and not merely because /db/ is blocked by .htaccess.
    This endpoint runs ALTER TABLE. Left public, anyone who found the URL
-   could reshape the shop's database on demand. */
-auth_require();
+   could reshape the shop's database on demand.
+
+   And behind the maintenance capability, so «مدیرکل» cannot reach it either -
+   the same bar as backup.php, preflight.php and users.php. It is not in the
+   navigation at all, but a page that is merely unlinked is still a working URL
+   for anyone who has seen it once.
+
+   This does NOT lock the upgrade out of itself: the legacy 'owner' role still
+   carries 'maintenance' in ROLE_CAPABILITIES precisely so that a database
+   still holding the old role can reach this page and be migrated. */
+auth_require_can('maintenance');
 
 /* --- Introspection helpers ------------------------------------------------- */
 

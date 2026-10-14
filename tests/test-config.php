@@ -8,10 +8,15 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 /* Test-only config. Points at a throwaway database so the suite can wipe
    tables between runs without touching anything real. */
 return [
-  'db' => ['host' => '127.0.0.1;port=3399', 'name' => 'suppex_test',
+  /* The port comes from SUPPEX_DB_PORT when set: Windows reserves blocks of
+     ports for Hyper-V and moves them between reboots, and 3399 is sometimes
+     inside one. */
+  'db' => ['host' => '127.0.0.1;port=' . (getenv('SUPPEX_DB_PORT') ?: '3399'), 'name' => 'suppex_test',
            'user' => 'root', 'pass' => '', 'charset' => 'utf8mb4'],
   'uploads_dir'  => __DIR__ . '/tmp/uploads',
   'uploads_url'  => '/uploads',
+  /* Receipts from the suite go here, never beside the project. */
+  'private_dir'  => __DIR__ . '/tmp/private',
   'session_name' => 'suppex_test',
   'https_only'   => false,
   'login'        => ['max_attempts' => 8, 'window_minutes' => 15],

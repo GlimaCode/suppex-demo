@@ -185,3 +185,22 @@ button { cursor: pointer; }
   transition: top var(--dur) var(--ease);
 }
 .skip-link:focus-visible { top: var(--sp-4); }
+
+/* --------------------------------------------------------------------------
+   Between pages: a short cross-fade where the browser can (a cross-document
+   view transition), and a product's photograph carried from the card that
+   was tapped into its page - app.js names that one picture at the tap, and
+   the product page's main photograph carries the same name here. Browsers
+   without it navigate as they always did.
+   -------------------------------------------------------------------------- */
+@view-transition { navigation: auto; }
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: 0.26s; }
+::view-transition-group(product-photo) {
+  animation-duration: 0.42s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pdp__gallery [data-p-image] { view-transition-name: product-photo; }

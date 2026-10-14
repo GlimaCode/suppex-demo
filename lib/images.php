@@ -28,6 +28,20 @@ const UPLOAD_MAX_BYTES = 6 * 1024 * 1024;   // 6 MB
 const UPLOAD_MAX_EDGE  = 1400;              // px; product images are square-ish
 const UPLOAD_JPEG_Q    = 82;
 
+/* Lighter copies of every product photograph, as WebP, beside the original:
+   «x.jpg» gets «x-w160.webp» … «x-w960.webp» and one at its own width. The
+   page then lets the browser pick (srcset), and a thumbnail is a thumbnail.
+
+   PageSpeed measured why: the product page's five gallery thumbnails were the
+   1221x1400 originals, 160 to 216 KB each, drawn at 79x79 - 1.2 MB a phone
+   downloaded for pictures the size of a fingernail, while the main photograph
+   waited behind them. The widths are what the pages draw: a thumbnail at 2x,
+   a card on a phone and on a desktop, the product photograph on a desktop;
+   the full-width copy is the same picture as WebP, a third lighter than the
+   JPEG, for a phone's high-density screen. */
+const IMAGE_VARIANT_WIDTHS = [160, 320, 640, 960];
+const IMAGE_VARIANT_Q      = 76;
+
 function uploads_dir(): string
 {
     $dir = suppex_config()['uploads_dir'] ?? (SUPPEX_ROOT . '/uploads');
@@ -40,11 +54,18 @@ function uploads_url(): string
 }
 
 /**
- * @param array $file  one entry of $_FILES
+ * @param array  $file     one entry of $_FILES
+ * @param string $folder   under uploads/: 'products', or 'brands' for a logo
+ * @param int    $maxEdge  longest side kept, in px
  * @return array{ok:bool,path?:string,error?:string}  path is web-relative
  */
-function image_store(array $file): array
+function image_store(array $file, string $folder = 'products', int $maxEdge = UPLOAD_MAX_EDGE): array
 {
+    /* A fixed list, never a path: this becomes part of a directory name. */
+    if (!in_array($folder, ['products', 'brands'], true)) {
+        $folder = 'products';
+    }
+
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
         return ['ok' => false, 'error' => image_upload_error_message((int) ($file['error'] ?? 0))];
     }
@@ -113,7 +134,7 @@ function image_store(array $file): array
     }
 
     /* Downscale only. Enlarging a small photo makes it blurrier, not better. */
-    $scale = min(1.0, UPLOAD_MAX_EDGE / max($width, $height));
+    $scale = min(1.0, max(1, $maxEdge) / max($width, $height));
     $newW  = max(1, (int) round($width * $scale));
     $newH  = max(1, (int) round($height * $scale));
 
@@ -135,7 +156,7 @@ function image_store(array $file): array
     /* Month folders keep the directory listing usable after a few hundred
        products; a single flat folder becomes painful to browse over FTP. */
     $sub  = date('Y/m');
-    $dir  = uploads_dir() . '/products/' . $sub;
+    $dir  = uploads_dir() . '/' . $folder . '/' . $sub;
     if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
         imagedestroy($dst);
         error_log('[suppex] cannot create upload directory: ' . $dir);
@@ -156,7 +177,21 @@ function image_store(array $file): array
     }
     @chmod($full, 0644);
 
-    return ['ok' => true, 'path' => uploads_url() . '/products/' . $sub . '/' . $name];
+    $webPath = uploads_url() . '/' . $folder . '/' . $sub . '/' . $name;
+
+    /* A product photograph gets its lighter copies now, while the upload is
+       still in memory's reach; a brand logo is drawn small already. A failure
+       here costs speed, never the upload - the page then serves the original,
+       as it always did. */
+    if ($folder === 'products') {
+        try {
+            image_make_variants($webPath);
+        } catch (Throwable $e) {
+            error_log('[suppex] image variants: ' . $e->getMessage());
+        }
+    }
+
+    return ['ok' => true, 'path' => $webPath];
 }
 
 /**
@@ -186,7 +221,254 @@ function image_delete(string $webPath): bool
         return false;
     }
 
+    /* Its lighter copies go with it; nothing links to them once it is gone. */
+    foreach (image_variant_widths($webPath) as $w) {
+        @unlink(dirname($realFile) . '/' . basename(image_variant_path($webPath, $w)));
+    }
+
     return @unlink($realFile);
+}
+
+/* ---------------------------------------------------------------------------
+   Lighter copies
+   --------------------------------------------------------------------------- */
+
+/** The copy of a picture at one width: «…/x.jpg» -> «…/x-w320.webp». */
+function image_variant_path(string $webPath, int $width): string
+{
+    return (string) preg_replace('~\.(jpe?g|png|webp)$~i', '-w' . $width . '.webp', $webPath);
+}
+
+/** Is this web path one of the copies rather than a picture of its own? */
+function image_is_variant(string $webPath): bool
+{
+    return (bool) preg_match('~-w\d+\.webp$~i', $webPath);
+}
+
+/** The file behind an uploads web path, or null for anything else. */
+function image_upload_file(string $webPath): ?string
+{
+    $prefix = uploads_url() . '/';
+    if (strpos($webPath, $prefix) !== 0 || strpos($webPath, '..') !== false
+        || !preg_match('~\.(jpe?g|png|webp)$~i', $webPath)) {
+        return null;
+    }
+    return uploads_dir() . '/' . substr($webPath, strlen($prefix));
+}
+
+/**
+ * The widths this picture has copies at, smallest first - the last is its own
+ * width. [] when it has none, or is not an upload at all (a bundled .svg).
+ *
+ * @return list<int>
+ */
+function image_variant_widths(string $webPath): array
+{
+    static $memo = [];
+    if (isset($memo[$webPath])) {
+        return $memo[$webPath];
+    }
+    $file = image_upload_file($webPath);
+    if ($file === null || image_is_variant($webPath)) {
+        return $memo[$webPath] = [];
+    }
+    $base   = (string) preg_replace('~\.(jpe?g|png|webp)$~i', '', basename($file));
+    $widths = [];
+    /* The names are a date and random hex (image_store()), so nothing in them
+       is a glob pattern; a name that has one is not ours and gets nothing. */
+    if (strpbrk($base, '*?[]{}') === false) {
+        foreach (glob(dirname($file) . '/' . $base . '-w*.webp') ?: [] as $v) {
+            if (preg_match('~-w(\d+)\.webp$~', $v, $m)) {
+                $widths[] = (int) $m[1];
+            }
+        }
+    }
+    sort($widths);
+    return $memo[$webPath] = $widths;
+}
+
+/**
+ * For each of these pictures that has copies, their widths - what the pages
+ * and the API hand the browser to build a srcset from (ui.srcsetAttr()).
+ *
+ * @param iterable<string> $paths
+ * @return array<string,list<int>>
+ */
+function image_variants_map(iterable $paths): array
+{
+    $map = [];
+    foreach ($paths as $p) {
+        $p = (string) $p;
+        if ($p === '' || isset($map[$p])) {
+            continue;
+        }
+        $w = image_variant_widths($p);
+        if ($w) {
+            $map[$p] = $w;
+        }
+    }
+    return $map;
+}
+
+/** srcset="…" sizes="…" for a picture that has copies; '' otherwise. */
+function image_srcset_attr(string $webPath, string $sizes): string
+{
+    $widths = image_variant_widths($webPath);
+    if (!$widths) {
+        return '';
+    }
+    $set = [];
+    foreach ($widths as $w) {
+        $set[] = image_variant_path($webPath, $w) . ' ' . $w . 'w';
+    }
+    return ' srcset="' . e(implode(', ', $set)) . '" sizes="' . e($sizes) . '"';
+}
+
+/**
+ * Make the copies one picture is missing. Returns how many were written.
+ *
+ * Decoded once for all of them. The same guard image_store() applies keeps a
+ * huge picture from exhausting memory; it simply gets no copies.
+ */
+function image_make_variants(string $webPath): int
+{
+    $file = image_upload_file($webPath);
+    if ($file === null || image_is_variant($webPath) || !is_file($file)
+        || !function_exists('imagewebp')) {
+        return 0;
+    }
+    $info = @getimagesize($file);
+    if ($info === false) {
+        return 0;
+    }
+    [$width, $height, $type] = $info;
+    if ($width < 1 || $height < 1) {
+        return 0;
+    }
+
+    $wanted = array_values(array_filter(IMAGE_VARIANT_WIDTHS, static fn(int $w) => $w < $width));
+    $wanted[] = (int) $width;
+    $todo = [];
+    foreach ($wanted as $w) {
+        $target = dirname($file) . '/' . basename(image_variant_path($webPath, $w));
+        if (!is_file($target)) {
+            $todo[$w] = $target;
+        }
+    }
+    if (!$todo) {
+        return 0;
+    }
+
+    $decoders = [
+        IMAGETYPE_JPEG => 'imagecreatefromjpeg',
+        IMAGETYPE_PNG  => 'imagecreatefrompng',
+        IMAGETYPE_WEBP => 'imagecreatefromwebp',
+    ];
+    if (!isset($decoders[$type]) || !function_exists($decoders[$type])) {
+        return 0;
+    }
+    $limit = image_memory_limit_bytes();
+    if ($limit > 0 && $width * $height * 4 * 2 > $limit * 0.8) {
+        return 0;
+    }
+    $src = @$decoders[$type]($file);
+    if ($src === false) {
+        return 0;
+    }
+
+    $made = 0;
+    foreach ($todo as $w => $target) {
+        $h   = max(1, (int) round($height * $w / $width));
+        $dst = imagecreatetruecolor($w, $h);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 255, 255, 255, 127));
+        imagealphablending($dst, true);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $w, $h, $width, $height);
+        imagealphablending($dst, false);
+        if (@imagewebp($dst, $target, IMAGE_VARIANT_Q)) {
+            @chmod($target, 0644);
+            $made++;
+        }
+        imagedestroy($dst);
+    }
+    imagedestroy($src);
+
+    return $made;
+}
+
+/**
+ * Every product photograph already uploaded, and whether its copies exist.
+ *
+ * The drop folder for the bulk importer (uploads/products/bulk) is left out:
+ * those are raw files waiting to be matched, not pictures on the site yet.
+ *
+ * @return list<string> web paths
+ */
+function image_originals(): array
+{
+    $root = uploads_dir() . '/products';
+    if (!is_dir($root)) {
+        return [];
+    }
+    $out = [];
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+    );
+    foreach ($it as $f) {
+        $rel = str_replace('\\', '/', substr($f->getPathname(), strlen($root) + 1));
+        if (strpos($rel, 'bulk/') === 0 || !preg_match('~\.(jpe?g|png|webp)$~i', $rel)) {
+            continue;
+        }
+        $web = uploads_url() . '/products/' . $rel;
+        if (!image_is_variant($web)) {
+            $out[] = $web;
+        }
+    }
+    sort($out);
+    return $out;
+}
+
+/** Does this picture still lack the copy at its own width - the last made? */
+function image_needs_variants(string $webPath): bool
+{
+    $file = image_upload_file($webPath);
+    if ($file === null) {
+        return false;
+    }
+    $info = @getimagesize($file);
+    if ($info === false) {
+        return false;
+    }
+    return !is_file(dirname($file) . '/' . basename(image_variant_path($webPath, (int) $info[0])));
+}
+
+/**
+ * Catch up: copies for the pictures uploaded before they existed, or placed
+ * by the bulk importer, for as long as the time allowed.
+ *
+ * @return array{made:int,done:int,pending:int,total:int}
+ */
+function image_variants_backfill(float $seconds = 5.0): array
+{
+    $start = microtime(true);
+    $made = 0;
+    $pending = 0;
+    $all = image_originals();
+    foreach ($all as $web) {
+        if (!image_needs_variants($web)) {
+            continue;
+        }
+        if (microtime(true) - $start > $seconds) {
+            $pending++;
+            continue;
+        }
+        $made += image_make_variants($web);
+        if (image_needs_variants($web)) {
+            $pending++;      // could not be made (too large, unreadable): counted, not retried for ever
+        }
+    }
+    return ['made' => $made, 'done' => count($all) - $pending, 'pending' => $pending, 'total' => count($all)];
 }
 
 /**

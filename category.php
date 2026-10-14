@@ -34,6 +34,7 @@ require_once __DIR__ . '/lib/bootstrap.php';
 require_once __DIR__ . '/lib/products.php';
 require_once __DIR__ . '/lib/pages.php';
 require_once __DIR__ . '/lib/seo.php';
+require_once __DIR__ . '/lib/goals.php';
 
 $slug     = clean_text($_GET['c'] ?? '', 80);
 $category = $slug === '' ? null : category_get($slug);
@@ -46,6 +47,11 @@ if ($category === null) {
 }
 
 $products = $category === null ? [] : products_list(['category' => $slug, 'limit' => 60]);
+
+/* The list initCategoryPage() asks for, which is this very list: sent with
+   the page rather than fetched again (lib/boot.php). */
+$bootRequests = $category === null ? []
+    : [['products', ['category' => $slug, 'limit' => 60], $products]];
 $guide    = $category === null ? null : category_guide($slug);
 $others   = $category === null ? [] : array_values(array_filter(
     categories_list(),
@@ -70,8 +76,12 @@ $desc = $category === null
     : seo_clip($blurb !== '' ? $blurb : ($guide['summary'] ?? $name));
 
 $url   = seo_category_url($slug);
-$image = seo_absolute($category !== null && $category['image'] !== ''
-    ? $category['image'] : 'assets/images/og-cover.png');
+/* The category's artwork is SVG, which no preview bot draws - Telegram,
+   WhatsApp and Facebook show an empty card for it. The cover instead,
+   unless the owner uploaded a photograph for the category. */
+$image = $category !== null && $category['image'] !== ''
+    && !str_ends_with(strtolower((string) $category['image']), '.svg')
+    ? seo_absolute($category['image']) : seo_cover();
 
 /* An empty category is noindex, on Google's own explicit instruction: "If a
    category has no items, use a noindex robots meta tag". sitemap.php drops it
@@ -93,7 +103,7 @@ if ($category !== null) {
             ['@type' => 'ListItem', 'position' => 2, 'name' => $name,
              'item' => $url],
         ],
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_HEX_TAG);
 }
 ?>
 <!DOCTYPE html>
@@ -103,12 +113,8 @@ if ($category !== null) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#131210">
 
-<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<?php include __DIR__ . '/partials/head-assets.php'; ?>
 
-<link rel="stylesheet" href="assets/css/tokens.css">
-<link rel="stylesheet" href="assets/css/base.css">
-<link rel="stylesheet" href="assets/css/components.css">
-<link rel="stylesheet" href="assets/css/layout.css">
 
 <title><?= e($title) ?> | <?= e($shop) ?></title>
 <meta name="description" content="<?= e($desc) ?>">
@@ -140,7 +146,7 @@ if ($category !== null) {
       <div class="notfound">
         <h1 class="notfound__title">دسته‌بندی پیدا نشد</h1>
         <p class="u-sm u-dim">ممکن است نشانی را اشتباه وارد کرده باشید یا این دسته دیگر نمایش داده نمی‌شود.</p>
-        <p style="margin-top:18px"><a class="btn btn--primary" href="index.html#categories">دیدن همه دسته‌بندی‌ها</a></p>
+        <p style="margin-top:18px"><a class="btn btn--primary" href="./#categories">دیدن همه دسته‌بندی‌ها</a></p>
       </div>
     </div>
   </section>
@@ -149,13 +155,20 @@ if ($category !== null) {
     <div class="container">
 
       <nav class="article__crumbs" aria-label="مسیر صفحه">
-        <a href="index.html">خانه</a>
+        <a href="./">خانه</a>
         <span aria-hidden="true">/</span>
         <span><?= e($name) ?></span>
       </nav>
 
       <div class="section__head" style="margin-block-start:var(--sp-6)">
         <div>
+          <?php /* A photograph from this shelf (layout.css, .section__head-photo):
+                   at the panel's far side on wide screens, floated beside the
+                   title on a phone - hence first in the block. Decorative; the
+                   h1 names the page. */ ?>
+          <?php if ((string) ($category['photo'] ?? '') !== ''): ?>
+            <img class="section__head-photo" src="<?= e((string) $category['photo']) ?>"<?= image_srcset_attr((string) $category['photo'], '(min-width: 700px) 260px, 34vw') ?> alt="" fetchpriority="high" width="300" height="300">
+          <?php endif; ?>
           <p class="u-eyebrow">دسته‌بندی</p>
           <!-- Short, and just the name. The full «خرید و قیمت …» belongs in the
                title tag; repeating it as an h1 reads as a page talking to a
@@ -184,15 +197,20 @@ if ($category !== null) {
           <?php foreach ($products as $p): ?>
             <article class="pcard">
               <a class="media media--1x1 media--lit" href="<?= e('product.php?p=' . rawurlencode((string) $p['slug'])) ?>">
-                <img src="<?= e((string) $p['image']) ?>" alt="<?= e((string) $p['nameFa']) ?>" loading="lazy" width="400" height="400">
+                <img src="<?= e(product_image_or_placeholder((string) $p['image'])) ?>"<?= image_srcset_attr((string) $p['image'], '(min-width: 1100px) 270px, (min-width: 700px) 31vw, 47vw') ?> alt="<?= e((string) $p['nameFa']) ?>" loading="lazy" decoding="async" width="400" height="400">
               </a>
               <div class="pcard__body">
                 <div class="pcard__brand lat"><?= e((string) $p['brand']) ?></div>
                 <h2 class="pcard__title">
                   <a href="<?= e('product.php?p=' . rawurlencode((string) $p['slug'])) ?>"><?= e((string) $p['nameFa']) ?></a>
                 </h2>
+                <?php if (($fact = product_key_fact($p)) !== ''): ?><p class="pcard__fact"><?= e($fact) ?></p><?php endif; ?>
                 <div class="pcard__foot">
-                  <span class="price"><span class="num"><?= money((int) $p['price']) ?></span> تومان</span>
+                  <!-- Through .price__now/.price__unit like every other card on the site.
+                       This one wrote «تومان» as a bare text node, so it rendered at the
+                       container's size while the same word on the home page and the
+                       product page went through the unit class. -->
+                  <span class="price"><span class="price__now"><span class="num"><?= money_fa((int) $p['price']) ?></span>&nbsp;<?= price_unit_html() ?></span></span>
                 </div>
               </div>
             </article>
@@ -204,7 +222,7 @@ if ($category !== null) {
         <!-- Below the grid on purpose. Somebody who came to buy scrolls past
              it; somebody deciding whether they need this at all reads it. The
              short lede above the grid is the blurb. -->
-        <div class="article" style="margin-block-start:var(--sp-10)">
+        <div class="article" id="guide" style="margin-block-start:var(--sp-10)">
           <div class="container container--narrow" style="padding:0">
             <?php if ($guide['heading'] !== ''): ?>
               <h2 class="u-h2" style="font-size:clamp(1.4rem,1.1rem+1.2vw,1.9rem)"><?= e($guide['heading']) ?></h2>
@@ -229,6 +247,20 @@ if ($category !== null) {
             </p>
           </div>
         </div>
+      <?php endif; ?>
+
+      <?php $forGoals = goals_for_category($slug); ?>
+      <?php if ($forGoals): ?>
+        <!-- The goals this category serves (lib/goals.php): the way from «what
+             is creatine» to everything else for the same goal. -->
+        <nav class="page-more" aria-labelledby="cat-goals" style="margin-block-start:var(--sp-10)">
+          <h2 id="cat-goals" class="u-eyebrow">خرید بر اساس هدف</h2>
+          <ul>
+            <?php foreach ($forGoals as $g): ?>
+              <li><a href="<?= e(goal_url((string) $g['slug'])) ?>"><?= e((string) $g['name']) ?></a></li>
+            <?php endforeach; ?>
+          </ul>
+        </nav>
       <?php endif; ?>
 
       <?php if ($others): ?>

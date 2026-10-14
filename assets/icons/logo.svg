@@ -1,11 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 44" role="img" aria-label="SUPPEX">
-  <rect x="1" y="3" width="38" height="38" rx="11" fill="none" stroke="#F2EDE3" stroke-width="1.6" opacity="0.28"/>
-  <rect x="7"  y="18" width="5" height="8"  rx="2" fill="#F25914"/>
-  <rect x="13" y="15" width="4" height="14" rx="2" fill="#F2EDE3"/>
-  <rect x="17" y="20" width="6" height="4"  rx="2" fill="#F2EDE3"/>
-  <rect x="23" y="15" width="4" height="14" rx="2" fill="#F2EDE3"/>
-  <rect x="28" y="18" width="5" height="8"  rx="2" fill="#F25914"/>
-  <text x="50" y="30" font-family="Archivo Black, Arial Black, sans-serif" font-size="21"
-        font-weight="900" fill="#F2EDE3" letter-spacing="0.5">SUPPEX</text>
-  <text x="176" y="19" font-family="Arial, sans-serif" font-size="9" fill="#F97C3D">®</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 585.04 120" role="img" aria-label="SUPPEX">
+  <title>SUPPEX</title>
+  <path fill="#F25914" d="M53.9 12 H107.04 L98.5 32.57 H50.67 L46.56 49.71 H97.99 L88.53 89.14 L65.14 108 H12 L20.54 87.43 H68.37 L72.48 70.29 H21.05 L30.51 30.86 Z"/>
+  <path fill="#131210" d="M113.04 12 L137.04 12 L137.04 90 L173.04 90 L173.04 12 L197.04 12 L197.04 108 L113.04 108 Z"/>
+  <path fill-rule="evenodd" fill="#131210" d="M207.04 12 L291.04 12 L291.04 74 L231.04 74 L231.04 108 L207.04 108 Z M231.04 30 L267.04 30 L267.04 56 L231.04 56 Z"/>
+  <path fill-rule="evenodd" fill="#131210" d="M301.04 12 L385.04 12 L385.04 74 L325.04 74 L325.04 108 L301.04 108 Z M325.04 30 L361.04 30 L361.04 56 L325.04 56 Z"/>
+  <path fill="#131210" d="M395.04 12 L470.04 12 L479.04 30 L419.04 30 L419.04 51 L457.04 51 L466.04 69 L419.04 69 L419.04 90 L470.04 90 L479.04 108 L395.04 108 Z"/>
+  <path fill="#131210" d="M489.04 12 L523.04 12 L571.04 108 L537.04 108 Z M547.04 12 L573.04 12 L515.04 108 L489.04 108 Z"/>
 </svg>

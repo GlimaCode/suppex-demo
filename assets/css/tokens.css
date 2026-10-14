@@ -71,6 +71,12 @@
   --accent-hover:    oklch(0.60 0.19 38);
   --accent-deep:     #9F3501;
   --accent-deep:     oklch(0.48 0.15 40);      /* accent on light panels     */
+  /* Behind SMALL white text. White on --accent is 3.4:1, fine for a button's
+     large bold label and short of the 4.5:1 WCAG asks of small text -
+     PageSpeed failed the active filter chip and the «−۵٪» badges on it.
+     A shade deeper on the same hue: 4.65:1. */
+  --accent-ink:      #D14300;
+  --accent-ink:      oklch(0.58 0.19 40);
   --amber:           #F97C3D;
   --amber:           oklch(0.72 0.17 45);      /* ratings, editorial accents */
   --success:         #61BD67;
@@ -116,7 +122,9 @@
   /* Fluid type scale — every heading interpolates between mobile and desktop */
   --fs-display: clamp(2.6rem, 1.4rem + 5.4vw, 5.6rem);
   --fs-h1:      clamp(2.1rem, 1.3rem + 3.6vw, 3.6rem);
-  --fs-h2:      clamp(1.7rem, 1.2rem + 2.3vw, 2.85rem);
+  /* A section's title, a step quieter than it was (2.85rem): with every
+     section shouting at the same size, none of them stood out. */
+  --fs-h2:      clamp(1.6rem, 1.15rem + 1.9vw, 2.4rem);
   --fs-h3:      clamp(1.25rem, 1.05rem + 0.9vw, 1.6rem);
   --fs-lead:    clamp(1rem, 0.94rem + 0.3vw, 1.125rem);
   --fs-body:    0.975rem;
@@ -135,7 +143,7 @@
   --sp-12: 3rem;    --sp-16: 4rem;    --sp-20: 5rem;    --sp-24: 6rem;
 
   /* Section rhythm scales with viewport so mobile isn't over-padded */
-  --section-y: clamp(3.5rem, 2rem + 6vw, 6rem);
+  --section-y: clamp(3rem, 1.75rem + 4.6vw, 5rem);
   --gutter:    clamp(1.15rem, 0.6rem + 2.2vw, 2rem);
   --container: 1240px;
   --grid-gap:  clamp(0.75rem, 0.35rem + 1.4vw, 1.125rem);

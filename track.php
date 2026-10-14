@@ -13,6 +13,8 @@
 require_once __DIR__ . '/lib/bootstrap.php';
 require_once __DIR__ . '/lib/orders.php';
 require_once __DIR__ . '/lib/track.php';
+require_once __DIR__ . '/lib/receipts.php';
+require_once __DIR__ . '/lib/reviews.php';
 require_once __DIR__ . '/lib/seo.php';
 
 $code  = trim((string) ($_REQUEST['code'] ?? ''));
@@ -21,6 +23,8 @@ $asked = $code !== '' || $phone !== '';
 
 $order    = null;
 $error    = '';
+$reviewFor  = 0;
+$reviewSent = null;
 $throttled = false;
 
 if ($asked) {
@@ -28,12 +32,27 @@ if ($asked) {
         $throttled = true;
         $error = 'تعداد جست‌وجوهای شما زیاد بوده است. چند دقیقه بعد دوباره تلاش کنید.';
     } else {
-        track_record_attempt();
+        /* The hold sweep ran only from admin pages, so an order whose window
+           closed an hour ago still read as "new" to the person looking at it -
+           and would now be offered a card and a countdown that had already run
+           out. Cheap, indexed, and reached only by a real lookup. */
+        orders_expire_due();
         $order = track_find($code, $phone);
         if ($order === null) {
+            /* Only a miss counts towards the throttle, as on the API: every
+               successful look - a customer refreshing to see their order move,
+               a review sent - used to count too, and shut the same customer out
+               of sending their receipt (?r=receipt reads the same counter). */
+            track_record_attempt();
             /* One message for every kind of miss. Telling them which half was
                wrong would confirm that a code exists. */
             $error = 'سفارشی با این شماره پیگیری و شماره موبایل پیدا نشد.';
+        } elseif (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['review_product'])) {
+            /* A review, sent from the form below: the order is the one the
+               code and phone just opened (lib/reviews.php checks the rest). */
+            $reviewFor  = (int) $_POST['review_product'];
+            $reviewSent = review_submit($order, $reviewFor, (int) ($_POST['rating'] ?? 0),
+                                        (string) ($_POST['body'] ?? ''), (string) ($_POST['author'] ?? ''));
         }
     }
 }
@@ -48,12 +67,8 @@ $url   = seo_origin() . '/track.php';
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#131210">
 
-<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<?php include __DIR__ . '/partials/head-assets.php'; ?>
 
-<link rel="stylesheet" href="assets/css/tokens.css">
-<link rel="stylesheet" href="assets/css/base.css">
-<link rel="stylesheet" href="assets/css/components.css">
-<link rel="stylesheet" href="assets/css/layout.css">
 
 <title><?= e($title) ?> | <?= e(setting('shop_name', 'SUPPEX')) ?></title>
 <meta name="description" content="وضعیت سفارش خود را با شماره پیگیری و شماره موبایل ببینید.">
@@ -63,20 +78,38 @@ $url   = seo_origin() . '/track.php';
 
 <?php include __DIR__ . '/partials/chrome-top.php'; ?>
 
-<main id="main">
+<?php /* app.js reads this: arriving here is what counts as having seen the
+         order, so the dot on the account icon clears. */ ?>
+<main id="main" data-track-page>
   <section class="section">
     <div class="container container--narrow">
 
       <nav class="article__crumbs" aria-label="مسیر صفحه">
-        <a href="index.html">خانه</a>
+        <a href="./">خانه</a>
         <span aria-hidden="true">/</span>
         <span>پیگیری سفارش</span>
       </nav>
 
-      <h1 class="article__title" style="margin-bottom:14px">پیگیری سفارش</h1>
-      <p class="article__lede" style="margin-bottom:28px">
-        شماره پیگیری همان کدی است که بعد از ثبت سفارش گرفتید و در گفتگو برایتان ماند.
-      </p>
+      <header class="article__head">
+        <h1 class="article__title">پیگیری سفارش</h1>
+        <p class="article__lede">
+          شماره پیگیری همان کدی است که بعد از ثبت سفارش گرفتید و در گفتگو برایتان ماند.
+        </p>
+      </header>
+
+      <?php /* «سفارش‌های من»: the orders this browser has placed or looked up,
+               drawn by initMyOrders() in app.js from what the browser
+               remembers, then with each one's live status. Hidden until there
+               is one. It lives on the device, not behind a phone number - see
+               the comment on MY_ORDERS_KEY for why. */ ?>
+      <section class="myorders" data-my-orders hidden aria-labelledby="myorders-title">
+        <h2 class="myorders__title" id="myorders-title">سفارش‌های من</h2>
+        <p class="myorders__note">
+          سفارش‌هایی که در این گوشی یا مرورگر ثبت یا پیگیری کرده‌اید. سفارشی را که جای دیگری
+          ثبت کرده‌اید، با شماره پیگیری و موبایلش در فرم پایین پیدا کنید تا به همین فهرست اضافه شود.
+        </p>
+        <ul class="myorders__list" data-my-orders-list></ul>
+      </section>
 
       <?php /* Filled in by app.js from localStorage when this browser has placed
                an order recently, so the usual visitor does not retype a code
@@ -91,18 +124,34 @@ $url   = seo_origin() . '/track.php';
       <?php /* POST, not GET: the phone number would otherwise sit in the URL, in
                browser history, in the referrer of anything the page links to,
                and in every access log between here and the host. */ ?>
-      <form class="track__form" method="post" action="track.php" novalidate>
-        <div class="field">
-          <label for="code">شماره پیگیری</label>
-          <input type="text" id="code" name="code" dir="ltr" autocomplete="off"
-                 placeholder="SPX-000000-XXXX" value="<?= e($code) ?>" required>
+      <?php /* .field and .field__hint are ADMIN classes - they exist in
+               admin/assets/admin.css and in none of the four stylesheets this
+               page loads. base.css strips every input down to no border and no
+               background, and `.input` is what puts the box back, so both fields
+               rendered as bare text and nothing on the page looked fillable.
+               These are the checkout's own classes. */ ?>
+      <form class="form track__form" method="post" action="track.php" novalidate>
+        <p class="form__intro">
+          هر دو کادر را پر کنید: شماره پیگیری و همان شماره موبایلی که
+          هنگام ثبت سفارش نوشتید. بدون هر دو، سفارش پیدا نمی‌شود.
+        </p>
+
+        <div class="form__row">
+          <label class="form__label" for="code">شماره پیگیری<span class="form__req">*</span></label>
+          <input class="input form__control" type="text" id="code" name="code"
+                 dir="ltr" autocomplete="off" placeholder="SPX-000000-XXXX"
+                 value="<?= e($code) ?>" required>
+          <p class="form__hint">کدی که بعد از ثبت سفارش گرفتید — با خط تیره یا بدون آن، فرقی نمی‌کند.</p>
         </div>
-        <div class="field">
-          <label for="phone">شماره موبایل</label>
-          <input type="tel" id="phone" name="phone" dir="ltr" inputmode="numeric"
-                 autocomplete="tel" placeholder="09xxxxxxxxx" value="<?= e($phone) ?>" required>
-          <p class="field__hint">همان شماره‌ای که هنگام ثبت سفارش وارد کردید.</p>
+
+        <div class="form__row">
+          <label class="form__label" for="phone">شماره موبایل<span class="form__req">*</span></label>
+          <input class="input form__control" type="tel" id="phone" name="phone"
+                 dir="ltr" inputmode="numeric" autocomplete="tel"
+                 placeholder="09xxxxxxxxx" value="<?= e($phone) ?>" required>
+          <p class="form__hint">همان شماره‌ای که هنگام ثبت سفارش وارد کردید.</p>
         </div>
+
         <button class="btn btn--primary" type="submit">دیدن وضعیت</button>
       </form>
 
@@ -117,7 +166,9 @@ $url   = seo_origin() . '/track.php';
 
       <?php if ($order !== null): ?>
         <?php $st = (string) $order['status']; ?>
-        <section class="track__result" aria-label="وضعیت سفارش">
+        <section class="track__result" aria-label="وضعیت سفارش" data-found-order
+                 data-code="<?= e((string) $order['code']) ?>" data-phone="<?= e((string) $order['phone']) ?>"
+                 data-total="<?= (int) $order['total'] ?>">
 
           <div class="track__head">
             <div>
@@ -129,7 +180,103 @@ $url   = seo_origin() . '/track.php';
             </span>
           </div>
 
-          <p class="track__note"><?= e(track_status_note($st)) ?></p>
+          <?php
+          /* The note under the badge, unless the receipt box is on this page:
+             then «send the receipt in the chat» would argue with it. Said as
+             what to do next - or, once a receipt is in, that it arrived. */
+          $trackNote = track_status_note($st);
+          if ($st === 'new' && receipts_ready() && receipt_accepts($order)) {
+              $trackNote = receipt_count((int) $order['id']) > 0
+                  ? 'رسید واریز شما رسیده است. پس از بررسی، پرداخت تأیید می‌شود.'
+                  : 'سفارش ثبت شده و منتظر تأیید پرداخت است. اگر واریز کرده‌اید، رسید را همین پایین بفرستید.';
+          }
+          ?>
+          <p class="track__note"><?= e($trackNote) ?></p>
+
+          <?php
+          /* Unpaid and still inside the window: this is what they came back
+             for. Nothing is shown once the order is paid - a card number on a
+             settled order is an invitation to pay twice - and nothing is shown
+             once the hold is over, because that price is no longer the price. */
+          $payDigits  = preg_replace('/\D/', '', (string) setting('card_number', '')) ?? '';
+          $payHasCard = strlen($payDigits) >= 12;
+          $payExpires = $order['expires_at'] === null
+              ? 0 : (int) strtotime((string) $order['expires_at']);
+          /* Nor once a receipt is in. The sweep no longer expires such an
+             order (orders_expire_due()), so its clock would run to zero over
+             a card the customer has already paid - and a card number shown
+             after the receipt is an invitation to pay twice. */
+          $payReceipts = receipts_ready() ? receipt_count((int) $order['id']) : 0;
+          ?>
+          <?php if ($st === 'new' && $payExpires > time() && $payReceipts === 0): ?>
+            <div class="pay" style="padding-block:0;margin-block:var(--sp-5)">
+
+              <div class="pay__hold" data-expires="<?= $payExpires * 1000 ?>"
+                   data-now="<?= time() * 1000 ?>">
+                <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none"
+                     stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 1.9"/>
+                </svg>
+                <span>مهلت پرداخت با این قیمت: <strong data-hold-countdown>—</strong></span>
+              </div>
+
+              <div class="pay__amount">
+                <span class="u-sm u-muted">مبلغ قابل پرداخت</span>
+                <strong><span class="num"><?= money_fa((int) $order['total']) ?></span>
+                  <?= e(setting('currency_label', 'تومان')) ?></strong>
+              </div>
+
+              <?php if ($payHasCard): ?>
+                <div class="pay__card">
+                  <div class="pay__card-head">
+                    <span class="u-eyebrow u-eyebrow--bare"><?= e(setting('bank_name', '')) ?></span>
+                    <button class="pay__copy" type="button"
+                            data-copy-card="<?= e($payDigits) ?>">کپی شماره</button>
+                  </div>
+                  <div class="pay__number num" dir="ltr"><?= e(trim(chunk_split($payDigits, 4, ' '))) ?></div>
+                  <div class="pay__holder">به نام <?= e(setting('card_holder', '—')) ?></div>
+                </div>
+              <?php else: ?>
+                <?php /* Never a number the shop has not set. A customer who copies
+                         one believes they can pay with it. */ ?>
+                <div class="pay__card pay__card--pending">
+                  <div class="pay__holder">شماره کارت در همان گفتگویی که سفارش را
+                    ثبت کردید برایتان فرستاده می‌شود. تا آن موقع مبلغی واریز نکنید.</div>
+                </div>
+              <?php endif; ?>
+
+              <?php /* Shown by app.js when the clock reaches zero, in place of
+                       the card and the amount. */ ?>
+              <div class="pay__expired">
+                <strong>مهلت پرداخت با این قیمت تمام شد.</strong>
+                <span>اگر واریز نکرده‌اید، مبلغی واریز نکنید و سفارش را دوباره ثبت کنید.
+                  اگر واریز کرده‌اید، رسید را همین پایین بفرستید.</span>
+              </div>
+
+              <?php if (!receipts_ready()): ?>
+                <p class="pay__note">پس از واریز، رسید را در همان گفتگویی که سفارش را
+                  ثبت کردید بفرستید تا سفارش نهایی شود.</p>
+              <?php endif; ?>
+            </div>
+          <?php endif; ?>
+
+          <?php /* The receipt, sent from here - for an order still waiting on
+                   its payment, or one that ran out of time with the money
+                   already sent. app.js turns the slot into the box. */ ?>
+          <?php if (receipts_ready() && receipt_accepts($order)): ?>
+            <?php $sentReceipts = receipt_count((int) $order['id']); ?>
+            <?php if ($sentReceipts > 0): ?>
+              <p class="track__receipts u-sm">
+                <span class="num"><?= e(fa_digits((string) $sentReceipts)) ?></span>
+                رسید برای این سفارش فرستاده‌اید.
+              </p>
+            <?php endif; ?>
+            <?php if ($sentReceipts < RECEIPT_PER_ORDER): ?>
+              <div data-receipt-slot data-code="<?= e((string) $order['code']) ?>"
+                   data-phone="<?= e((string) $order['phone']) ?>"></div>
+            <?php endif; ?>
+          <?php endif; ?>
 
           <?php /* The barcode, when there is one. Printed only then: a heading
                    over an empty space reads as something that failed to load
@@ -173,7 +320,7 @@ $url   = seo_origin() . '/track.php';
           <?php endif; ?>
 
           <table class="track__items">
-            <caption class="u-sr-only">کالاهای این سفارش</caption>
+            <caption class="sr-only">کالاهای این سفارش</caption>
             <tbody>
             <?php foreach (($order['items'] ?? []) as $it): ?>
               <tr>
@@ -184,7 +331,7 @@ $url   = seo_origin() . '/track.php';
                   <?php endif; ?>
                 </td>
                 <td class="num u-nowrap"><?= (int) $it['qty'] ?>×</td>
-                <td class="num u-nowrap"><?= money((int) $it['line_total']) ?></td>
+                <td class="num u-nowrap"><?= money_fa((int) $it['line_total']) ?></td>
               </tr>
             <?php endforeach; ?>
             </tbody>
@@ -193,13 +340,13 @@ $url   = seo_origin() . '/track.php';
                 <td>هزینه ارسال</td>
                 <td></td>
                 <td class="num u-nowrap">
-                  <?= (int) $order['shipping'] === 0 ? 'رایگان' : money((int) $order['shipping']) ?>
+                  <?= (int) $order['shipping'] === 0 ? 'رایگان' : money_fa((int) $order['shipping']) ?>
                 </td>
               </tr>
               <tr class="track__total">
                 <td>مبلغ کل</td>
                 <td></td>
-                <td class="num u-nowrap"><?= money((int) $order['total']) ?> تومان</td>
+                <td class="num u-nowrap"><?= money_fa((int) $order['total']) ?> تومان</td>
               </tr>
             </tfoot>
           </table>
@@ -212,6 +359,59 @@ $url   = seo_origin() . '/track.php';
             <?= e((string) $order['customer_name']) ?> —
             <?= e((string) $order['address']) ?>
           </p>
+
+          <?php /* Reviews (lib/reviews.php): once the order has been sent, one
+                   for each product in it. Shown on the product page only after
+                   the owner approves it, which the form says. */
+                $toReview = review_candidates($order); ?>
+          <?php if ($toReview): ?>
+            <div class="track__reviews" id="reviews">
+              <h2 class="u-h3">نظر شما درباره خریدتان</h2>
+              <p class="u-sm u-muted">نظر شما بعد از بررسی، با برچسب «خرید تأییدشده» در صفحهٔ محصول نمایش داده می‌شود.</p>
+              <?php foreach ($toReview as $c): ?>
+                <?php $pid = (int) $c['product_id']; ?>
+                <?php if ($reviewFor === $pid && $reviewSent !== null && !$reviewSent['ok']): ?>
+                  <p class="track__error" role="alert"><?= e((string) $reviewSent['error']) ?></p>
+                <?php endif; ?>
+                <?php if ($c['review'] !== null): ?>
+                  <p class="review-form__done" <?= $reviewFor === $pid ? 'role="status"' : '' ?>>
+                    <strong><?= e($c['name']) ?>:</strong>
+                    <?= $c['review']['status'] === 'approved'
+                        ? 'نظر شما منتشر شده است. <a href="' . e('product.php?p=' . rawurlencode($c['slug'])) . '#reviews">دیدن در صفحهٔ محصول</a>'
+                        : 'نظر شما ثبت شده است؛ ممنون.' ?>
+                  </p>
+                <?php else: ?>
+                  <form class="review-form" method="post" action="track.php#reviews">
+                    <input type="hidden" name="code" value="<?= e((string) $order['code']) ?>">
+                    <input type="hidden" name="phone" value="<?= e((string) $order['phone']) ?>">
+                    <input type="hidden" name="review_product" value="<?= $pid ?>">
+                    <fieldset class="review-form__stars">
+                      <legend>امتیاز شما به «<?= e($c['name']) ?>»</legend>
+                      <div class="stars-input">
+                        <?php for ($s = 5; $s >= 1; $s--): ?>
+                          <input type="radio" id="rv-<?= $pid ?>-<?= $s ?>" name="rating" value="<?= $s ?>" required>
+                          <label for="rv-<?= $pid ?>-<?= $s ?>"><span class="sr-only"><?= $s ?> ستاره</span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9z" fill="currentColor"/></svg></label>
+                        <?php endfor; ?>
+                      </div>
+                    </fieldset>
+                    <?php /* The checkout's own field classes, as the lookup form
+                             above explains - .field is the panel's. */ ?>
+                    <div class="form__row">
+                      <label class="form__label" for="rv-body-<?= $pid ?>">نظرتان (اختیاری)</label>
+                      <textarea class="input form__control" id="rv-body-<?= $pid ?>" name="body" rows="3"
+                                maxlength="<?= REVIEW_BODY_MAX ?>" placeholder="کیفیت، طعم، حل شدن، بسته‌بندی…"></textarea>
+                    </div>
+                    <div class="form__row">
+                      <label class="form__label" for="rv-author-<?= $pid ?>">نامی که کنار نظرتان نوشته شود (اختیاری)</label>
+                      <input class="input form__control" type="text" id="rv-author-<?= $pid ?>" name="author"
+                             maxlength="<?= REVIEW_AUTHOR_MAX ?>" autocomplete="given-name" placeholder="اگر خالی بماند: «خریدار»">
+                    </div>
+                    <button class="btn btn--primary" type="submit">ثبت نظر</button>
+                  </form>
+                <?php endif; ?>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
 
         </section>
       <?php endif; ?>

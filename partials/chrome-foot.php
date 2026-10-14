@@ -19,36 +19,55 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
          شد» while discarding the address. A restock list is worth building for
          a shop that now counts its stock - with a table behind it. -->
 
+    <!-- Measured at 1327px tall on a 640px screen before this rewrite. Three of
+         the twenty-five links were in a column AND in the legal row below it;
+         a bordered payment box stretched its whole grid row to 580px and left
+         the column beside it two thirds empty; and a 128px ghost wordmark sat
+         under the lot. The destinations are all still here, once each. -->
     <div class="footer__cols">
       <div class="footer__col">
-        <a class="logo" href="index.html" aria-label="SUPPEX">
-          <svg class="logo__mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-            <rect x="1" y="1" width="38" height="38" rx="11" stroke="currentColor" stroke-width="1.6" opacity="0.28"/>
-            <rect x="7"  y="16" width="5"  height="8"  rx="2" fill="#F25914"/>
-            <rect x="13" y="13" width="4"  height="14" rx="2" fill="currentColor"/>
-            <rect x="17" y="18" width="6"  height="4"  rx="2" fill="currentColor"/>
-            <rect x="23" y="13" width="4"  height="14" rx="2" fill="currentColor"/>
-            <rect x="28" y="16" width="5"  height="8"  rx="2" fill="#F25914"/>
-          </svg>
+        <a class="logo" href="./" aria-label="SUPPEX">
           <!-- The ® is gone: nothing is registered. ™ would be free to use
                but claims a trademark nobody has asserted either. -->
-          <span class="logo__text">SUPPEX</span>
+          <svg class="logo__mark" viewBox="0 0 95.04 96" aria-hidden="true" focusable="false"><path fill="#F25914" d="M41.9 0 H95.04 L86.5 20.57 H38.67 L34.56 37.71 H85.99 L76.53 77.14 L53.14 96 H0 L8.54 75.43 H56.37 L60.48 58.29 H9.05 L18.51 18.86 Z"/></svg>
+          <svg class="logo__text" viewBox="0 0 460 96" fill="currentColor" aria-hidden="true" focusable="false"><path d="M0 0 L24 0 L24 78 L60 78 L60 0 L84 0 L84 96 L0 96 Z"/><path fill-rule="evenodd" d="M94 0 L178 0 L178 62 L118 62 L118 96 L94 96 Z M118 18 L154 18 L154 44 L118 44 Z"/><path fill-rule="evenodd" d="M188 0 L272 0 L272 62 L212 62 L212 96 L188 96 Z M212 18 L248 18 L248 44 L212 44 Z"/><path d="M282 0 L357 0 L366 18 L306 18 L306 39 L344 39 L353 57 L306 57 L306 78 L357 78 L366 96 L282 96 Z"/><path d="M376 0 L410 0 L458 96 L424 96 Z M434 0 L460 0 L402 96 L376 96 Z"/></svg>
         </a>
         <p class="u-sm u-muted" style="margin-top:14px;max-width:34ch">
-          مکمل اصل برندهای معتبر، پلمب‌شده و مستقیم از دبی. سفارش در تلگرام، پیگیری با کد.
+          مکمل اورجینال برندهای معتبر، پلمب‌شده و مستقیم از دبی. ثبت سفارش در پیام‌رسان، پیگیری با کد.
         </p>
         <!-- Every icon was href="#" on a shop whose customers arrive from
              Instagram and Telegram. They are filled by app.js from ?r=config
              and each one stays hidden until its URL is set in the panel, so an
              account the owner does not have never shows a dead icon - and one
-             he opens later needs no developer. hidden, not display:none, so it
-             is out of the accessibility tree too. -->
+             opened later needs no developer. hidden, not display:none, so it
+             is out of the accessibility tree too.
+
+             Three of these marks were wrong rather than merely plain. WhatsApp
+             was a speech bubble with an arc where the handset belongs;
+             Telegram was a solid quadrilateral with no fold, so the plane read
+             as a sliver at 17px; and Aparat was a play triangle inside a
+             rounded rectangle, which is YouTube's mark and points a visitor at
+             the wrong brand entirely. Bale is new: the shop takes orders
+             there, the panel has had a field for it all along, and the footer
+             had nowhere to put it. -->
         <div class="socials" data-socials>
           <a data-social="instagram" aria-label="اینستاگرام" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/></svg></a>
-          <a data-social="telegram" aria-label="تلگرام" hidden><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 4L3 11l5 1.8L19 6.5l-8.4 8.1.4 5 2.8-3.4L18.5 19z"/></svg></a>
-          <a data-social="whatsapp" aria-label="واتس‌اپ" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.2-3.8A8 8 0 1 1 8.6 19z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5"/></svg></a>
-          <a data-social="aparat" aria-label="آپارات" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M11 9.8l4 2.2-4 2.2z" fill="currentColor" stroke="none"/></svg></a>
+          <a data-social="telegram" aria-label="تلگرام" hidden><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.6 3.2 2.6 10.5c-.8.3-.8 1.4 0 1.7l4.5 1.6 1.8 5.5c.2.7 1.1.9 1.6.3l2.4-2.7 4.6 3.4c.6.4 1.4.1 1.5-.6l3-14.7c.2-.8-.6-1.5-1.4-1.2zM8.6 13.1l9.2-5.6-7.4 6.9-.3 3.3-1.5-4.6z"/></svg></a>
+          <a data-social="bale" aria-label="بله" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.6A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.3 11.6l2.6 2.6 4.8-5"/></svg></a>
+          <a data-social="whatsapp" aria-label="واتس‌اپ" hidden><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.03 2A9.9 9.9 0 0 0 3.6 17.1L2.05 21.4a.5.5 0 0 0 .62.63l4.42-1.5A9.9 9.9 0 1 0 12.03 2zm0 1.8a8.1 8.1 0 1 1-4.2 15.03.9.9 0 0 0-.75-.08l-2.72.92.95-2.62a.9.9 0 0 0-.08-.78A8.1 8.1 0 0 1 12.03 3.8zM8.9 7.3c-.2 0-.5.07-.77.36-.26.29-1 .98-1 2.38s1.03 2.76 1.17 2.95c.14.2 1.98 3.15 4.9 4.29 2.42.94 2.92.76 3.45.71.53-.05 1.7-.69 1.94-1.36.24-.67.24-1.24.17-1.36-.07-.12-.26-.2-.55-.34-.29-.15-1.7-.84-1.96-.93-.26-.1-.46-.15-.65.14-.19.29-.74.93-.91 1.12-.17.2-.34.22-.63.07-.29-.14-1.22-.45-2.32-1.43-.86-.76-1.44-1.7-1.6-1.99-.17-.29-.02-.44.13-.59.13-.13.29-.34.43-.5.15-.17.19-.29.29-.49.1-.19.05-.36-.02-.5-.07-.15-.64-1.57-.9-2.14-.22-.5-.44-.44-.6-.45l-.51-.01z"/></svg></a>
+          <a data-social="aparat" aria-label="آپارات" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7.6"/><circle cx="12" cy="12" r="2.4"/><g fill="currentColor" stroke="none"><circle cx="12" cy="2.6" r="2.2"/><circle cx="12" cy="21.4" r="2.2"/><circle cx="2.6" cy="12" r="2.2"/><circle cx="21.4" cy="12" r="2.2"/></g></svg></a>
         </div>
+        <!-- The ways to reach the shop, under its social circles (moved out of
+             «راهنما و پشتیبانی» at the owner's request, 2026-10-05). Before
+             buying, not only after: this shop's whole funnel is a chat, so the
+             chat belongs here rather than only behind the checkout button.
+             app.js fills and unhides each row from the panel's settings; one
+             that is not filled in is never printed. -->
+        <ul class="footer__contact">
+          <li hidden data-ask><a>پرسیدن قبل از خرید</a></li>
+          <li hidden data-contact="phone"><a dir="ltr" class="num"></a></li>
+          <li hidden data-contact="email"><a dir="ltr"></a></li>
+        </ul>
       </div>
 
       <nav class="footer__col" aria-labelledby="f-shop">
@@ -68,43 +87,25 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
         </ul>
       </nav>
 
-      <nav class="footer__col" aria-labelledby="f-company">
-        <!-- «شرکت» was the wrong word before the links were: there is no
-             registered company. Three of the five entries here were removed
-             rather than built - «گواهی آزمایشگاه» (no lab, no certificates),
-             «فرصت‌های شغلی» and «همکاری در فروش» (nobody to hire, no affiliate
-             scheme). A page saying "we have no vacancies" is a worse answer
-             than not asking the question. -->
-        <h3 id="f-company">درباره ساپکس</h3>
-        <ul>
-          <li><a href="index.html#standard">استاندارد ما</a></li>
-          <li><a href="journal.php">مجله ساپکس</a></li>
-          <li><a href="page.php?p=faq">سؤالات متداول</a></li>
-          <li><a href="page.php?p=terms">قوانین و شرایط استفاده</a></li>
-        </ul>
-      </nav>
-
-      <div class="footer__col">
-        <h3>پشتیبانی</h3>
+      <nav class="footer__col" aria-labelledby="f-help">
+        <!-- «درباره ساپکس» and «پشتیبانی» were two columns holding eight links
+             between them, three of which were repeated in the legal row below.
+             They are one column now. «استاندارد ما» is the only destination
+             that did not survive: it was an anchor to a section of the home
+             page, which is not what somebody opens a footer looking for. -->
+        <h3 id="f-help">راهنما و پشتیبانی</h3>
         <ul>
           <!-- Order tracking first: it is the thing somebody who has already
                paid actually came back for. -->
           <li><a href="track.php">پیگیری سفارش</a></li>
           <li><a href="page.php?p=shipping">رویه ارسال</a></li>
           <li><a href="page.php?p=returns">مرجوعی و بازگشت وجه</a></li>
-          <li><a href="page.php?p=privacy">حریم خصوصی</a></li>
-          <!-- Before buying, not only after. This shop's whole funnel is a
-               chat, so the chat belongs in the footer rather than only behind
-               the checkout button. Filled and unhidden by app.js from the
-               channel the owner has actually configured. -->
-          <li hidden data-ask><a>پرسیدن قبل از خرید</a></li>
-          <!-- A landline (021-88776655) and info@suppex.ir stood here. The
-               owner confirmed neither is real; both are wired to settings and
-               appear the moment he fills them in, rather than being deleted
-               and needing a developer later. -->
-          <li hidden data-contact="phone"><a dir="ltr" class="num"></a></li>
-          <li hidden data-contact="email"><a dir="ltr"></a></li>
+          <li><a href="page.php?p=faq">سؤالات متداول</a></li>
+          <li><a href="journal.php">مجله ساپکس</a></li>
         </ul>
+      </nav>
+
+      <div class="footer__col">
         <!-- These were three empty dashed boxes. One said «درگاه امن», and
              config.js states in its own words that this phase deliberately has
              no payment gateway - so the badge advertised something that does
@@ -112,28 +113,24 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
              What replaces them is the thing that is both true and reassuring:
              how paying actually works here.
 
+             It used to be a bordered box hanging off the bottom of the support
+             column, which stretched that grid row to 580px on a phone. Same
+             words, its own column.
+
              When نماد اعتماد الکترونیکی and ساماندهی are really issued, their
              own script tags go back in this block - a trust seal is a code
              snippet from the issuer, never a box we draw ourselves. -->
-        <div class="payinfo">
-          <p class="payinfo__title">پرداخت چطور انجام می‌شود</p>
-          <p class="payinfo__body">
-            سفارش را در تلگرام ثبت می‌کنید، مبلغ و موجودی تأیید می‌شود، و بعد
-            شماره کارت برایتان فرستاده می‌شود. تا وقتی سفارش تأیید نشده،
-            پرداختی در کار نیست.
-          </p>
-        </div>
-      <!-- There was a fourth </div> here, closing .container early so the
-           watermark and the legal row below rendered OUTSIDE it and lost the
-           page's max-width. It was in article.php, product.php, track.php and
-           product.html - four of the five copies - and index.html was the one
-           that had it right. Which is the argument for this file existing:
-           four hand-maintained copies drifted, and nothing noticed until
-           legal.closest('.container') came back null in a browser. -->
+        <h3>پرداخت</h3>
+        <p>
+          سفارش را ثبت می‌کنید، موجودی و مبلغ تأیید می‌شود و بعد شماره کارت
+          برایتان فرستاده می‌شود. تا وقتی سفارش تأیید نشده، پرداختی در کار نیست.
+        </p>
       </div>
     </div>
 
-    <div class="footer__mark" aria-hidden="true">SUPPEX</div>
+    <!-- An oversized ghost «SUPPEX» wordmark stood here, 128px tall on a phone
+         and up to 208px on a desktop. In a footer the owner had just called too
+         long, decoration is the first thing to go. -->
 
     <div class="footer__legal">
       <!-- «شرکت مکمل‌های ورزشی ساپکس» named a company that is not
@@ -142,10 +139,10 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
       <span>© <span class="num" data-year>2026</span> ساپکس</span>
       <nav aria-label="پیوندهای حقوقی">
         <!-- «قوانین و مقررات» and «شرایط استفاده» were two links to the same
-             document that did not exist. Now one link to one that does. -->
+             document that did not exist. «مرجوعی» was a third link to a page
+             the column above already reaches. -->
         <a href="page.php?p=terms">قوانین و شرایط استفاده</a>
         <a href="page.php?p=privacy">حریم خصوصی</a>
-        <a href="page.php?p=returns">مرجوعی</a>
       </nav>
     </div>
 
@@ -157,16 +154,22 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
 
 <nav class="mobile-nav" data-mobile-nav aria-label="ناوبری موبایل">
   <div class="row row--between" style="margin-bottom:14px">
-    <span class="logo__text" style="font-size:1.1rem">SUPPEX</span>
+    <svg class="mobile-nav__logo" viewBox="0 0 561.04 96" fill="currentColor" role="img" aria-label="SUPPEX"><path fill="#F25914" d="M41.9 0 H95.04 L86.5 20.57 H38.67 L34.56 37.71 H85.99 L76.53 77.14 L53.14 96 H0 L8.54 75.43 H56.37 L60.48 58.29 H9.05 L18.51 18.86 Z"/><path d="M101.04 0 L125.04 0 L125.04 78 L161.04 78 L161.04 0 L185.04 0 L185.04 96 L101.04 96 Z"/><path fill-rule="evenodd" d="M195.04 0 L279.04 0 L279.04 62 L219.04 62 L219.04 96 L195.04 96 Z M219.04 18 L255.04 18 L255.04 44 L219.04 44 Z"/><path fill-rule="evenodd" d="M289.04 0 L373.04 0 L373.04 62 L313.04 62 L313.04 96 L289.04 96 Z M313.04 18 L349.04 18 L349.04 44 L313.04 44 Z"/><path d="M383.04 0 L458.04 0 L467.04 18 L407.04 18 L407.04 39 L445.04 39 L454.04 57 L407.04 57 L407.04 78 L458.04 78 L467.04 96 L383.04 96 Z"/><path d="M477.04 0 L511.04 0 L559.04 96 L525.04 96 Z M535.04 0 L561.04 0 L503.04 96 L477.04 96 Z"/></svg>
     <button class="icon-btn" type="button" data-close aria-label="بستن منو">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
   </div>
-  <a class="mobile-nav__link" href="index.html" data-close>خانه</a>
-  <a class="mobile-nav__link" href="index.html#featured" data-close>محصولات</a>
-  <a class="mobile-nav__link" href="index.html#categories" data-close>دسته‌بندی‌ها</a>
-  <a class="mobile-nav__link" href="index.html#promo" data-close>تخفیف‌ها</a>
-  <a class="mobile-nav__link" href="index.html#standard" data-close>درباره ما</a>
+  <?php /* The lists chrome-top.php drew for the desktop menu, or the same
+           worked out here when this file is drawn on its own. */
+        require_once dirname(__DIR__) . '/lib/goals.php';
+        $chromeGoals  = $chromeGoals ?? nav_goal_items();
+        $chromeGuides = $chromeGuides ?? nav_guide_items(); ?>
+  <a class="mobile-nav__link" href="./" data-close>خانه</a>
+  <?= nav_panel_group_html('هدف‌ها', $chromeGoals) ?>
+  <a class="mobile-nav__link" href="./#categories" data-close>دسته‌بندی‌ها</a>
+  <a class="mobile-nav__link" href="brands.php" data-close>برندها</a>
+  <?= nav_panel_group_html('راهنماها', $chromeGuides) ?>
+  <a class="mobile-nav__link" href="./#standard" data-close>درباره ما</a>
   <a class="mobile-nav__link" href="#contact" data-close>تماس با ما</a>
 </nav>
 
@@ -214,11 +217,21 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
 
 <div class="toast-stack" data-toasts aria-live="polite"></div>
 
-<script src="assets/js/config.js"></script>
-<script src="assets/js/catalog.js"></script>
-<script src="assets/js/repo.js"></script>
-<script src="assets/js/store.js"></script>
-<script src="assets/js/ui.js"></script>
-<script src="assets/js/app.js"></script>
+<?php
+/* The answers this page's script is about to ask the API for, sent with the
+   page (lib/boot.php): the shop's settings always, and whatever the page put
+   in $bootRequests before including this file. Before the scripts, which
+   read it when they start.
+
+   Then the scripts, each under a URL that carries its version (asset() in
+   lib/assets.php): a new upload is a new URL, so .htaccess can let browsers
+   keep them for a year instead of asking on every page. */
+require_once dirname(__DIR__) . '/lib/boot.php';
+require_once dirname(__DIR__) . '/lib/assets.php';
+echo boot_script($bootRequests ?? []), "\n";
+foreach (['config', 'catalog', 'repo', 'store', 'ui', 'app'] as $script) {
+    echo '<script src="', e(asset('assets/js/' . $script . '.js')), '"></script>', "\n";
+}
+?>
 </body>
 </html>

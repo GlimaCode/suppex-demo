@@ -6,6 +6,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/orders.php';
+require_once SUPPEX_ROOT . '/lib/receipts.php';
 require_once __DIR__ . '/partials/layout.php';
 
 $user = auth_require();
@@ -14,6 +15,14 @@ $user = auth_require();
    the page that reads the list. Doing it here rather than on write means an
    order expires on time even if nobody places another one. */
 orders_expire_due();
+
+/* Expired price quotes go the same way, and for the same reason. There is an
+   hourly cron now, but a shop should not depend on it to tidy up after itself:
+   a table that only shrinks when a separate job is healthy grows without bound
+   exactly when something is already wrong. */
+if (function_exists('quotes_sweep')) {
+    quotes_sweep();
+}
 
 $filters = [
     'status' => (string) ($_GET['status'] ?? ''),
@@ -107,6 +116,9 @@ admin_head('سفارش‌ها', ['user' => $user]);
               <span class="pill pill--<?= e($o['status']) ?>">
                 <?= e(ORDER_STATUS_FA[$o['status']] ?? $o['status']) ?>
               </span>
+              <?php if (receipt_count((int) $o['id']) > 0): ?>
+                <span class="pill pill--receipt" title="مشتری رسید واریز را از سایت فرستاده است">رسید</span>
+              <?php endif; ?>
             </td>
             <td class="num u-nowrap u-dim"><?= e(date('Y/m/d H:i', strtotime($o['created_at']))) ?></td>
             <td class="u-right">

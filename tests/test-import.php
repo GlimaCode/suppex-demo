@@ -1183,5 +1183,246 @@ ok("  and does not blame the column headers",
 @unlink($utf8Csv);
 @unlink($ansiCsv);
 
+
+/* ---------------------------------------------------------------------------
+   A long flavour name must not abort the import.
+
+   slugify() clamps at 110 characters; product_flavors.ext_id and
+   product_sizes.ext_id are both VARCHAR(60). A real catalogue row - «نعناع
+   شکلاتی باسکین رابینز (Baskin-Robbins Mint Chocolate Chip)», whose slug is
+   exactly 61 characters - overran that by one and MySQL answered with
+   SQLSTATE[22001]. The exception escaped import_apply(), so a six-file import
+   stopped after the fourth file with four files already committed and nothing
+   on screen naming the flavour that did it.
+   --------------------------------------------------------------------------- */
+echo "
+== a flavour name too long for ext_id does not abort the import ==
+";
+
+$longFlavor = "نعناع شکلاتی باسکین رابینز (Baskin-Robbins Mint Chocolate Chip)";
+$longSize   = "بسته بسیار بزرگ ۴۵۳۵ گرمی ده پوندی مخصوص باشگاه (Ten Pound Club Size)";
+ok("  the fixture flavour really is over the column width",
+   mb_strlen(slugify($longFlavor)) > 60, (string) mb_strlen(slugify($longFlavor)));
+
+db_query("DELETE FROM products WHERE name_fa = ?", ["زد-آزمون طعم بلند"]);
+
+$rows = [[
+    "name_fa" => "زد-آزمون طعم بلند", "category" => "پروتئین",
+    "price_toman" => "500000", "in_stock" => "بله",
+    "flavors" => $longFlavor . "، " . $longFlavor . " دوم",
+    "size_label" => $longSize,
+    "_line" => 2,
+]];
+$plan = import_plan($rows, array_keys(IMPORT_COLUMNS));
+ok("  the sheet plans without error", count($plan["errors"]) === 0,
+   implode(" | ", $plan["errors"]));
+
+$threw = null;
+try {
+    import_apply($plan["products"], ["id" => 1, "name" => "test"]);
+} catch (Throwable $e) {
+    $threw = $e->getMessage();
+}
+ok("  import_apply does not throw", $threw === null, (string) $threw);
+
+$newId = (int) db_value("SELECT id FROM products WHERE name_fa = ?", ["زد-آزمون طعم بلند"]);
+ok("  the product was written", $newId > 0);
+
+$exts = array_column(
+    db_all("SELECT ext_id FROM product_flavors WHERE product_id = ?", [$newId]), "ext_id");
+ok("  both flavours were stored", count($exts) === 2, (string) count($exts));
+foreach ($exts as $e) {
+    ok("  the flavour id fits the column", mb_strlen($e) <= 60, $e . " (" . mb_strlen($e) . ")");
+}
+/* Clamping two similar names to 60 characters is exactly how a collision gets
+   made, and neither table has a unique key that would catch it. */
+ok("  and the two ids are still distinct", count(array_unique($exts)) === 2,
+   implode(" / ", $exts));
+
+$sizeExts = array_column(
+    db_all("SELECT ext_id FROM product_sizes WHERE product_id = ?", [$newId]), "ext_id");
+foreach ($sizeExts as $e) {
+    ok("  the size id fits the column", mb_strlen($e) <= 60, $e . " (" . mb_strlen($e) . ")");
+}
+
+db_query("DELETE FROM products WHERE id = ?", [$newId]);
+ok("  cleaned up", db_value("SELECT id FROM products WHERE id = ?", [$newId]) === null);
+
+
+
+echo "\n== a re-import keeps what the sheet has no column for ==\n";
+/* The sheet carries flavour NAMES but not their prices. That is enough to make
+   the importer rebuild the flavour rows, and the rebuild used to drop the
+   dirham premium — so one round trip through Excel, which admin/backup.php
+   actively recommends for moving a catalogue, silently sold every premium
+   flavour at the plain price. */
+db_query("DELETE FROM products WHERE slug LIKE 'zz-fkeep%'");
+
+$fkPid = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, is_active, in_stock,
+                           cost_aed, profit_percent)
+     VALUES ('zz-fkeep', 'زد-حفظ طعم', 2400000, 'aed', 1, 1, 40, 80)");
+db_query(
+    "INSERT INTO product_flavors (product_id, ext_id, name, cost_delta_aed,
+                                  price_delta_toman, sort_order)
+     VALUES (?, 'vanilla', 'وانیل', NULL, 0, 0),
+            (?, 'cookies', 'کوکی', 3, 330000, 1)",
+    [$fkPid, $fkPid]);
+
+$fkRow = array_fill_keys(array_keys(IMPORT_COLUMNS), '');
+$fkRow['name_fa']     = 'زد-حفظ طعم';
+$fkRow['category']    = 'پروتئین';
+$fkRow['price_toman'] = '2400000';
+$fkRow['flavors']     = 'وانیل، کوکی';
+$fkRow['_line']       = 2;
+
+$fkPlan = import_plan([$fkRow], array_keys(IMPORT_COLUMNS));
+ok('the sheet plans cleanly', count($fkPlan['errors']) === 0,
+   implode(' | ', $fkPlan['errors']));
+import_apply($fkPlan['products'], ['id' => 1, 'name' => 'test']);
+
+$fkAfter = [];
+foreach (db_all('SELECT name, cost_delta_aed, price_delta_toman
+                   FROM product_flavors WHERE product_id = ? ORDER BY sort_order',
+                [$fkPid]) as $f) {
+    $fkAfter[(string) $f['name']] = $f;
+}
+
+ok('both flavours are still there', count($fkAfter) === 2, (string) count($fkAfter));
+ok('the premium flavour keeps its dirham figure',
+   isset($fkAfter['کوکی']) && (float) $fkAfter['کوکی']['cost_delta_aed'] === 3.0,
+   $fkAfter['کوکی']['cost_delta_aed'] ?? 'NULL');
+ok('  and its resolved toman figure',
+   (int) ($fkAfter['کوکی']['price_delta_toman'] ?? 0) === 330000,
+   (string) ($fkAfter['کوکی']['price_delta_toman'] ?? 0));
+/* And a flavour that never had one must not acquire one. */
+ok('the plain flavour is still plain',
+   ($fkAfter['وانیل']['cost_delta_aed'] ?? null) === null
+   && (int) ($fkAfter['وانیل']['price_delta_toman'] ?? 0) === 0);
+
+db_query("DELETE FROM products WHERE slug LIKE 'zz-fkeep%'");
+ok('cleaned up',
+   (int) db_value("SELECT COUNT(*) FROM products WHERE slug LIKE 'zz-fkeep%'") === 0);
+
+
+echo "\n== a re-import keeps the flavour picture too ==\n";
+/* Same trap the premiums fell into. The sheet has the flavour NAMES, so the
+   rebuild fires, and anything the sheet has no column for is gone. A picture
+   uploaded one flavour at a time is worse to lose than a number somebody can
+   retype from their own records. */
+db_query("DELETE FROM products WHERE slug LIKE 'zz-fimg%'");
+
+$fiPid = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, is_active, in_stock)
+     VALUES ('zz-fimg', 'زد-عکس طعم', 2400000, 'manual', 1, 1)");
+db_query(
+    "INSERT INTO product_flavors (product_id, ext_id, name, image, sort_order)
+     VALUES (?, 'choco', 'شکلاتی', 'uploads/products/2026/09/choco.webp', 0),
+            (?, 'plain', 'ساده',   '',                                    1)",
+    [$fiPid, $fiPid]);
+
+$fiRow = array_fill_keys(array_keys(IMPORT_COLUMNS), '');
+$fiRow['name_fa']     = 'زد-عکس طعم';
+$fiRow['category']    = 'پروتئین';
+$fiRow['price_toman'] = '2400000';
+$fiRow['flavors']     = 'شکلاتی، ساده';
+$fiRow['_line']       = 2;
+
+$fiPlan = import_plan([$fiRow], array_keys(IMPORT_COLUMNS));
+ok('the sheet plans cleanly', count($fiPlan['errors']) === 0,
+   implode(' | ', $fiPlan['errors']));
+import_apply($fiPlan['products'], ['id' => 1, 'name' => 'test']);
+
+$fiAfter = [];
+foreach (db_all('SELECT name, image FROM product_flavors WHERE product_id = ? ORDER BY sort_order',
+                [$fiPid]) as $f) {
+    $fiAfter[(string) $f['name']] = (string) $f['image'];
+}
+ok('the flavour keeps its picture through the round trip',
+   ($fiAfter['شکلاتی'] ?? null) === 'uploads/products/2026/09/choco.webp',
+   $fiAfter['شکلاتی'] ?? 'MISSING');
+ok('  and one that never had a picture does not acquire one',
+   ($fiAfter['ساده'] ?? null) === '', $fiAfter['ساده'] ?? 'MISSING');
+
+db_query("DELETE FROM products WHERE slug LIKE 'zz-fimg%'");
+ok('flavour-image fixtures cleaned up',
+   (int) db_value("SELECT COUNT(*) FROM products WHERE slug LIKE 'zz-fimg%'") === 0);
+
+echo "\n== an import keeps a converted product's grid in step ==\n";
+/* The importer rebuilds product_sizes and product_flavors wholesale, and the
+   axes are built from those two. Without a re-sync a converted product goes
+   on selling a flavour the sheet dropped and never offers one it added. */
+require_once SUPPEX_ROOT . '/lib/variants.php';
+db_query("DELETE FROM products WHERE slug LIKE 'zz-vimp%'");
+
+$viPid = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, is_active, in_stock)
+     VALUES ('zz-vimp', 'زد-ایمپورت ترکیب', 2400000, 'manual', 1, 1)");
+db_query("INSERT INTO product_flavors (product_id, ext_id, name, sort_order)
+          VALUES (?, 'vanilla', 'وانیل', 0), (?, 'cookies', 'کوکی', 1)", [$viPid, $viPid]);
+variants_adopt($viPid);
+db_query("UPDATE product_variants SET price = 5555000, stock_qty = 7
+           WHERE product_id = ? AND ext_id = 'cookies'", [$viPid]);
+db_query("UPDATE product_variants SET image = 'uploads/v.webp'
+           WHERE product_id = ? AND ext_id = 'vanilla'", [$viPid]);
+
+$viRow = array_fill_keys(array_keys(IMPORT_COLUMNS), '');
+$viRow['name_fa']     = 'زد-ایمپورت ترکیب';
+$viRow['category']    = 'پروتئین';
+$viRow['price_toman'] = '2400000';
+$viRow['flavors']     = 'وانیل، توت‌فرنگی';
+$viRow['_line']       = 2;
+$viPlan = import_plan([$viRow], array_keys(IMPORT_COLUMNS));
+ok('the sheet plans cleanly', count($viPlan['errors']) === 0,
+   implode(' | ', $viPlan['errors']));
+import_apply($viPlan['products'], ['id' => 1, 'name' => 'test']);
+
+/* A flavour's id is what a basket stores and what a combination is keyed by.
+   Regenerating it - which this rebuild used to do - retires the row and
+   builds a fresh one at zero, taking the typed price and the uploaded
+   photograph with it. */
+ok('a flavour that stayed keeps its id',
+   (string) db_value("SELECT ext_id FROM product_flavors
+                       WHERE product_id = ? AND name = 'وانیل'", [$viPid]) === 'vanilla',
+   (string) db_value("SELECT ext_id FROM product_flavors
+                       WHERE product_id = ? AND name = 'وانیل'", [$viPid]));
+ok('  so its combination keeps its picture',
+   (string) db_value("SELECT image FROM product_variants
+                       WHERE product_id = ? AND ext_id = 'vanilla'", [$viPid]) === 'uploads/v.webp');
+ok('the flavour the sheet dropped stops being sellable',
+   (int) db_value("SELECT COUNT(*) FROM product_variants
+                    WHERE product_id = ? AND ext_id = 'cookies'", [$viPid]) === 0);
+ok('the flavour the sheet added gets a combination',
+   (int) db_value("SELECT COUNT(*) FROM product_variants WHERE product_id = ?",
+                  [$viPid]) === 2,
+   (string) db_value('SELECT COUNT(*) FROM product_variants WHERE product_id = ?', [$viPid]));
+
+/* Converting a product is a decision the owner makes one at a time. An
+   import must not make it for the whole catalogue. */
+$viPlain = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, is_active, in_stock)
+     VALUES ('zz-vimp-plain', 'زد-ایمپورت ساده', 900000, 'manual', 1, 1)");
+db_query("INSERT INTO product_flavors (product_id, ext_id, name, sort_order)
+          VALUES (?, 'a', 'الف', 0)", [$viPlain]);
+$viRow2 = $viRow;
+$viRow2['name_fa'] = 'زد-ایمپورت ساده';
+$viRow2['flavors'] = 'الف، ب';
+$viPlan2 = import_plan([$viRow2], array_keys(IMPORT_COLUMNS));
+import_apply($viPlan2['products'], ['id' => 1, 'name' => 'test']);
+ok('a product with no combinations is left without them',
+   variants_has($viPlain) === false);
+
+foreach ([$viPid, $viPlain] as $viId) {
+    db_query('DELETE vv FROM product_variant_values vv JOIN product_variants v
+                ON v.id = vv.variant_id WHERE v.product_id = ?', [$viId]);
+    db_query('DELETE FROM product_variants WHERE product_id = ?', [$viId]);
+    db_query('DELETE av FROM product_attribute_values av JOIN product_attributes a
+                ON a.id = av.attribute_id WHERE a.product_id = ?', [$viId]);
+    db_query('DELETE FROM product_attributes WHERE product_id = ?', [$viId]);
+}
+db_query("DELETE FROM products WHERE slug LIKE 'zz-vimp%'");
+ok('variant-import fixtures cleaned up',
+   (int) db_value("SELECT COUNT(*) FROM products WHERE slug LIKE 'zz-vimp%'") === 0);
+
 echo "\n----------------------------------------\npassed: $pass    failed: $fail\n";
 exit($fail > 0 ? 1 : 0);

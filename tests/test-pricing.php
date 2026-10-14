@@ -369,9 +369,12 @@ db_query('UPDATE product_sizes SET commission_percent = NULL');
 
 /* Two units, same product, very different margins - the case the client
    described: one line with little competition, one with a lot. */
-db_query("UPDATE product_sizes SET cost_aed=40,  profit_toman=2000000
+/* profit_percent is cleared alongside, because setting a toman profit by hand
+   states a FIXED intent. Left in place, the locked ratio would win at the next
+   repricing and these two carefully-chosen margins would quietly become one. */
+db_query("UPDATE product_sizes SET cost_aed=40,  profit_toman=2000000, profit_percent=NULL
            WHERE product_id=? AND ext_id='900'", [$wheyId]);
-db_query("UPDATE product_sizes SET cost_aed=110, profit_toman=200000
+db_query("UPDATE product_sizes SET cost_aed=110, profit_toman=200000, profit_percent=NULL
            WHERE product_id=? AND ext_id='1800'", [$wheyId]);
 pricing_apply(25000, $admin, array_map(
     static fn($u) => $u['kind'] . ':' . $u['id'], pricing_preview(25000)));
@@ -454,5 +457,333 @@ db_query('UPDATE product_sizes SET commission_percent = NULL WHERE product_id = 
 db_query('UPDATE products SET commission_percent = NULL WHERE id = ?', [$wheyId]);
 settings_save(['commission_basis' => 'goods']);
 
+
+/* ---------------------------------------------------------------------------
+   Profit as a RATIO rather than a fixed toman sum.
+
+   profit_toman is a fixed amount, so the percentage margin shrinks every time
+   the dirham climbs — 52.9% on a 40-dirham tub at a rate of 20,000 becomes
+   31.0% at 50,000 — while every shelf price rises, so nothing looks wrong.
+   Storing the ratio re-derives the toman profit from the cost each time.
+   --------------------------------------------------------------------------- */
+echo "
+== profit kept as a ratio survives a moving dirham ==
+";
+
+$pct = pricing_percent_from(800000, 900000);
+ok("  the ratio is taken against COST", abs($pct - 112.5) < 0.001, (string) $pct);
+ok("  no ratio can be inferred without a cost", pricing_percent_from(0, 900000) === null);
+ok("  nor without a profit", pricing_percent_from(800000, 0) === null);
+
+$fixed = ["cost_aed" => 40.0, "profit_toman" => 900000, "profit_percent" => null, "promo_toman" => 0];
+$ratio = ["cost_aed" => 40.0, "profit_toman" => 900000, "profit_percent" => $pct, "promo_toman" => 0];
+
+/* At the rate the ratio was derived from, the two must agree exactly — so
+   adopting the model does not reprice a single product on the day it lands. */
+$a = pricing_compute($fixed, 20000.0);
+$b = pricing_compute($ratio, 20000.0);
+ok("  at the entry rate both models give the same price",
+   $a["price"] === $b["price"], $a["price"] . " vs " . $b["price"]);
+
+/* And then they diverge, which is the whole point. */
+$fixedAt50 = pricing_compute($fixed, 50000.0);
+$ratioAt50 = pricing_compute($ratio, 50000.0);
+ok("  the fixed model's margin erodes",
+   pricing_margin_pct($fixedAt50["cost"], $fixedAt50["price"]) < 32.0,
+   (string) pricing_margin_pct($fixedAt50["cost"], $fixedAt50["price"]));
+ok("  the ratio model holds its margin",
+   abs(pricing_margin_pct($ratioAt50["cost"], $ratioAt50["price"]) - 52.9) < 0.6,
+   (string) pricing_margin_pct($ratioAt50["cost"], $ratioAt50["price"]));
+
+/* Across the whole plausible range, not just two points. */
+$held = true;
+foreach ([18000, 25000, 33000, 41000, 60000, 90000] as $r) {
+    $c = pricing_compute($ratio, (float) $r);
+    if (abs(pricing_margin_pct($c["cost"], $c["price"]) - 52.9) > 0.6) { $held = false; }
+}
+ok("  and holds it at every rate from 18,000 to 90,000", $held);
+
+/* A unit with no ratio must keep behaving exactly as it did. */
+ok("  a null ratio still uses the typed toman profit",
+   pricing_profit(["profit_toman" => 750000, "profit_percent" => null], 1000000) === 750000);
+ok("  a zero ratio is treated as no ratio, not as zero profit",
+   pricing_profit(["profit_toman" => 750000, "profit_percent" => 0.0], 1000000) === 750000);
+
+/* The two ways of saying the same thing. */
+ok("  margin on price is the mirror of markup on cost",
+   abs(pricing_margin_pct(800000, 1700000) - 52.9) < 0.05,
+   (string) pricing_margin_pct(800000, 1700000));
+
+echo "
+== the ratio is written, and the derived profit written with it ==
+";
+
+db_query("DELETE FROM products WHERE slug = ?", ["zz-ratio"]);
+$rid = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, cost_aed, profit_toman,
+                           profit_percent, is_active, in_stock)
+     VALUES ('zz-ratio', 'زد-آزمون درصدی', 0, 'aed', 40, 900000, ?, 1, 1)",
+    [$pct]);
+
+$before = (int) db_value("SELECT profit_toman FROM products WHERE id = ?", [$rid]);
+pricing_apply(50000.0, ["id" => 1, "name" => "test"], ["product:" . $rid]);
+$row = db_one("SELECT price, cost_toman, profit_toman, profit_percent FROM products WHERE id = ?", [$rid]);
+
+ok("  the price used the ratio", (int) $row["price"] === $ratioAt50["price"],
+   $row["price"] . " vs " . $ratioAt50["price"]);
+/* If profit_toman were left at the entered figure the margin sheet and the
+   order profit snapshot would disagree with price - cost. */
+ok("  profit_toman was re-derived, not left stale",
+   (int) $row["profit_toman"] > $before, $before . " -> " . $row["profit_toman"]);
+ok("  and it equals price minus cost",
+   (int) $row["profit_toman"] === (int) $row["price"] - (int) $row["cost_toman"],
+   $row["profit_toman"] . " vs " . ((int) $row["price"] - (int) $row["cost_toman"]));
+ok("  the ratio itself was not disturbed",
+   abs((float) $row["profit_percent"] - $pct) < 0.01, (string) $row["profit_percent"]);
+
+echo "
+== a unit priced before any ratio existed gets one locked in ==
+";
+
+db_query("DELETE FROM products WHERE slug = ?", ["zz-noratio"]);
+$nid = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, cost_aed, profit_toman,
+                           profit_percent, is_active, in_stock)
+     VALUES ('zz-noratio', 'زد-آزمون بدون درصد', 0, 'aed', 40, 900000, NULL, 1, 1)");
+ok("  it starts with no ratio",
+   db_value("SELECT profit_percent FROM products WHERE id = ?", [$nid]) === null);
+
+pricing_apply(20000.0, ["id" => 1, "name" => "test"], ["product:" . $nid]);
+$locked = db_value("SELECT profit_percent FROM products WHERE id = ?", [$nid]);
+ok("  the first apply locks the ratio in", $locked !== null, var_export($locked, true));
+ok("  and locks in the ratio the operator actually typed",
+   abs((float) $locked - 112.5) < 0.5, (string) $locked);
+
+db_query("DELETE FROM products WHERE slug IN ('zz-ratio', 'zz-noratio')");
+ok("  cleaned up",
+   (int) db_value("SELECT COUNT(*) FROM products WHERE slug LIKE 'zz-%ratio'") === 0);
+
+
+
+echo "\n== a save must not move the margin ==\n";
+/* The ratio is what survives a rising dirham; a save that touches nothing must
+   not touch it either. Driven through the real admin page rather than a copy of
+   its SQL, because the defect was IN the page: product_sizes.profit_percent was
+   absent from both the carry-over SELECT and the rebuild INSERT, so every save
+   wiped it. */
+db_query("DELETE FROM products WHERE slug LIKE 'zz-ratio%'");
+$ratioSaver = __DIR__ . '/editsave.php';
+ok('the edit-save harness exists', is_file($ratioSaver), $ratioSaver);
+
+settings_save(['aed_rate' => '66000']);   // higher than the rate it was locked at
+
+$rpid = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, is_active, in_stock,
+                           cost_aed, profit_toman, profit_percent)
+     VALUES ('zz-ratio', 'آزمون درصد', 0, 'aed', 1, 1, 40, 1000000, 50.000)");
+db_query(
+    "INSERT INTO product_sizes (product_id, ext_id, label, price, cost_aed,
+                                profit_toman, profit_percent, sort_order)
+     VALUES (?, '900', '۹۰۰ گرم', 0, 20, 1000000, 50.000, 0),
+            (?, '2270', '۲۲۷۰ گرم', 0, 40, 2000000, 50.000, 1)",
+    [$rpid, $rpid]);
+
+shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($ratioSaver)
+           . ' ' . $rpid . ' 2>&1');
+
+$rProd = db_value('SELECT profit_percent FROM products WHERE id = ?', [$rpid]);
+ok('the product keeps its locked ratio after a save that changed nothing',
+   $rProd !== null && abs((float) $rProd - 50.0) < 0.01,
+   $rProd === null ? 'NULL' : (string) $rProd);
+
+$rSizes = db_all('SELECT ext_id, profit_percent FROM product_sizes
+                   WHERE product_id = ? ORDER BY sort_order', [$rpid]);
+ok('  both sizes still have one', count($rSizes) === 2);
+foreach ($rSizes as $rs) {
+    ok('  size ' . $rs['ext_id'] . ' kept 50%',
+       $rs['profit_percent'] !== null && abs((float) $rs['profit_percent'] - 50.0) < 0.01,
+       $rs['profit_percent'] === null ? 'NULL — wiped' : (string) $rs['profit_percent']);
+}
+
+/* The margin must not drift even after several rounds — this was a ratchet,
+   losing a little on every edit while the dirham climbed. */
+foreach (['70000', '74000'] as $r) {
+    settings_save(['aed_rate' => $r]);
+    shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($ratioSaver)
+               . ' ' . $rpid . ' 2>&1');
+}
+$rProd = db_value('SELECT profit_percent FROM products WHERE id = ?', [$rpid]);
+ok('and three saves at three rising rates still leave it at 50%',
+   $rProd !== null && abs((float) $rProd - 50.0) < 0.01,
+   $rProd === null ? 'NULL' : (string) $rProd);
+
+db_query("DELETE FROM products WHERE slug LIKE 'zz-ratio%'");
+ok('ratio fixtures cleaned up',
+   (int) db_value("SELECT COUNT(*) FROM products WHERE slug LIKE 'zz-ratio%'") === 0);
+
+
+echo "\n== pressing save must not lose a flavour picture ==\n";
+/* The flavour rows are rebuilt wholesale on every save - DELETE then INSERT -
+   and no form field carries the picture back, because it is a file input and
+   an untouched one posts nothing. So the page has to read the existing
+   pictures out of the database first and put them back. Driven through the
+   real admin page, because that is where the defect would be. */
+db_query("DELETE FROM products WHERE slug LIKE 'zz-fsave%'");
+$fsSaver = __DIR__ . '/editsave.php';
+
+$fsPid = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, is_active, in_stock)
+     VALUES ('zz-fsave', 'زد-ذخیره طعم', 2400000, 'manual', 1, 1)");
+db_query(
+    "INSERT INTO product_flavors (product_id, ext_id, name, image, price_delta_toman, sort_order)
+     VALUES (?, 'choco', 'شکلاتی', 'uploads/products/2026/09/choco.webp', 0, 0),
+            (?, 'plain', 'ساده',   '',                                    0, 1),
+            (?, 'cook',  'کوکی',   'uploads/products/2026/09/cook.webp', 250000, 2)",
+    [$fsPid, $fsPid, $fsPid]);
+
+shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($fsSaver)
+           . ' ' . $fsPid . ' 2>&1');
+
+$fsAfter = [];
+foreach (db_all('SELECT name, image, price_delta_toman FROM product_flavors
+                   WHERE product_id = ? ORDER BY sort_order', [$fsPid]) as $f) {
+    $fsAfter[(string) $f['name']] = $f;
+}
+ok('all three flavours survive the save', count($fsAfter) === 3,
+   (string) count($fsAfter));
+ok('  the first keeps its picture',
+   ($fsAfter['شکلاتی']['image'] ?? null) === 'uploads/products/2026/09/choco.webp',
+   $fsAfter['شکلاتی']['image'] ?? 'MISSING');
+ok('  the third keeps its picture and its premium',
+   ($fsAfter['کوکی']['image'] ?? null) === 'uploads/products/2026/09/cook.webp'
+   && (int) ($fsAfter['کوکی']['price_delta_toman'] ?? 0) === 250000);
+ok('  and the one with none does not acquire one',
+   ($fsAfter['ساده']['image'] ?? null) === '', $fsAfter['ساده']['image'] ?? 'MISSING');
+
+/* Several saves in a row, because a ratchet loses a little each time rather
+   than everything at once. */
+shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($fsSaver) . ' ' . $fsPid . ' 2>&1');
+shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($fsSaver) . ' ' . $fsPid . ' 2>&1');
+ok('three saves later they are still there',
+   (int) db_value("SELECT COUNT(*) FROM product_flavors
+                    WHERE product_id = ? AND image <> ''", [$fsPid]) === 2,
+   (string) db_value("SELECT COUNT(*) FROM product_flavors
+                       WHERE product_id = ? AND image <> ''", [$fsPid]));
+
+db_query("DELETE FROM products WHERE slug LIKE 'zz-fsave%'");
+ok('flavour-save fixtures cleaned up',
+   (int) db_value("SELECT COUNT(*) FROM products WHERE slug LIKE 'zz-fsave%'") === 0);
+
+echo "\n== a converted product still moves with the dirham ==\n";
+/* The pricing page lists sizes, and a converted product does not sell sizes
+   any more - so converting one took it out of the preview entirely and froze
+   its prices at whatever rate was current that day. For a shop whose whole
+   model is «buy in dirhams, sell in toman, keep the margin», that is the one
+   thing that must not quietly stop. */
+require_once SUPPEX_ROOT . '/lib/variants.php';
+
+$pvWipe = static function (): void {
+    foreach (db_all("SELECT id FROM products WHERE slug LIKE 'zz-pv%'") as $r) {
+        $id = (int) $r['id'];
+        db_query('DELETE vv FROM product_variant_values vv JOIN product_variants v
+                    ON v.id = vv.variant_id WHERE v.product_id = ?', [$id]);
+        db_query('DELETE FROM product_variants WHERE product_id = ?', [$id]);
+        db_query('DELETE av FROM product_attribute_values av JOIN product_attributes a
+                    ON a.id = av.attribute_id WHERE a.product_id = ?', [$id]);
+        db_query('DELETE FROM product_attributes WHERE product_id = ?', [$id]);
+    }
+    db_query("DELETE FROM products WHERE slug LIKE 'zz-pv%'");
+};
+$pvWipe();
+
+settings_save(['aed_rate' => '60000', 'price_rounding_step' => '10000']);
+
+$pvPid = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, is_active, in_stock, cost_aed)
+     VALUES ('zz-pv', 'زد-درهمی', 0, 'aed', 1, 1, NULL)");
+db_query("INSERT INTO product_sizes (product_id, ext_id, label, price, cost_aed, profit_toman, sort_order)
+          VALUES (?, '900', '۹۰۰ گرم', 0, 20, 400000, 0),
+                 (?, '2270','۲۲۷۰ گرم',0, 45, 900000, 1)", [$pvPid, $pvPid]);
+db_query("INSERT INTO product_flavors (product_id, ext_id, name, cost_delta_aed, sort_order)
+          VALUES (?, 'plain', 'ساده', NULL, 0),
+                 (?, 'cook',  'کوکی',  3,   1)", [$pvPid, $pvPid]);
+
+pricing_apply(60000.0, ['id' => 1, 'name' => 'tester'], null, 'manual');
+variants_adopt($pvPid);
+
+$pvMine = static fn(array $preview): array => array_values(array_filter(
+    $preview, static fn($r) => (int) $r['product_id'] === $pvPid));
+
+$pvRows = $pvMine(pricing_preview(72000.0));
+ok('the preview offers one row per combination, not per size',
+   count($pvRows) === 4, (string) count($pvRows));
+ok('  and they are combinations',
+   count(array_filter($pvRows, static fn($r) => $r['kind'] === 'variant')) === 4,
+   implode(',', array_column($pvRows, 'kind')));
+
+pricing_apply(72000.0, ['id' => 1, 'name' => 'tester'], null, 'manual');
+
+$pvAfter = [];
+foreach (db_all('SELECT ext_id, price, profit_percent FROM product_variants
+                   WHERE product_id = ?', [$pvPid]) as $v) {
+    $pvAfter[(string) $v['ext_id']] = $v;
+}
+ok('the plain combination reprices with the rate',
+   (int) $pvAfter['900|plain']['price'] === 1920000,
+   (string) ($pvAfter['900|plain']['price'] ?? '—'));
+/* The dearer flavour's dirham premium rides along: 20 + 3 aed, not 20. */
+ok('  and the dearer flavour carries its dirham premium',
+   (int) $pvAfter['900|cook']['price'] === 2210000,
+   (string) ($pvAfter['900|cook']['price'] ?? '—'));
+ok('  every combination keeps its locked ratio',
+   count(array_filter($pvAfter, static fn($v) =>
+       $v['profit_percent'] !== null && abs((float) $v['profit_percent'] - 33.333) < 0.01)) === 4);
+
+/* The card and the catalogue show the parent row, so it has to track the
+   cheapest thing a shopper can actually buy - a combination now, not a size. */
+ok('the card price tracks the cheapest combination',
+   (int) db_value('SELECT price FROM products WHERE id = ?', [$pvPid]) === 1920000,
+   (string) db_value('SELECT price FROM products WHERE id = ?', [$pvPid]));
+
+/* What «still on the old rate» counts is what is sold. The sizes of a
+   converted product are never repriced, so counting them reported every such
+   product as behind after the first change of rate - for good. */
+$pvBehind0 = pricing_staleness()['behind'];
+db_query('UPDATE product_sizes SET price_applied_rate = 111 WHERE product_id = ?', [$pvPid]);
+ok('a converted product\'s sizes are not counted as behind - they are not what is sold',
+   pricing_staleness()['behind'] === $pvBehind0, json_encode(pricing_staleness()));
+db_query("UPDATE product_variants SET price_applied_rate = 111 WHERE product_id = ? AND ext_id = '900|cook'", [$pvPid]);
+ok('  its combinations are', pricing_staleness()['behind'] === $pvBehind0 + 1, json_encode(pricing_staleness()));
+db_query("UPDATE product_variants SET price_applied_rate = 72000 WHERE product_id = ? AND ext_id = '900|cook'", [$pvPid]);
+ok('the dashboard gets the drift it prints', array_key_exists('drift_pct', pricing_staleness()));
+
+/* The pricing page's own apply: it filtered the ticked rows down to products
+   and sizes, so on a catalogue priced by combination it applied nothing. */
+$pricingPage = (string) file_get_contents(SUPPEX_ROOT . '/admin/pricing.php');
+ok('the panel\'s manual apply keeps combination rows',
+   strpos($pricingPage, 'preg_match(\'/^(product|size|variant):[0-9]+$/\', $k)') !== false);
+
+db_query("UPDATE product_variants SET price = 1, is_active = 0
+           WHERE product_id = ? AND ext_id = '900|plain'", [$pvPid]);
+pricing_sync_parent($pvPid);
+ok('  and a switched-off one never sets it',
+   (int) db_value('SELECT price FROM products WHERE id = ?', [$pvPid]) === 2210000,
+   (string) db_value('SELECT price FROM products WHERE id = ?', [$pvPid]));
+
+/* Everything that was not converted must behave exactly as it did. */
+$pvPlain = db_insert(
+    "INSERT INTO products (slug, name_fa, price, price_mode, is_active, in_stock, cost_aed)
+     VALUES ('zz-pv-plain', 'زد-بدون ترکیب', 0, 'aed', 1, 1, NULL)");
+db_query("INSERT INTO product_sizes (product_id, ext_id, label, price, cost_aed, profit_toman, sort_order)
+          VALUES (?, '900', '۹۰۰ گرم', 0, 20, 400000, 0)", [$pvPlain]);
+$pvPlainRows = array_values(array_filter(pricing_preview(72000.0),
+    static fn($r) => (int) $r['product_id'] === $pvPlain));
+ok('an unconverted product is still priced by its sizes',
+   count($pvPlainRows) === 1 && $pvPlainRows[0]['kind'] === 'size',
+   $pvPlainRows ? $pvPlainRows[0]['kind'] : 'none');
+
+$pvWipe();
+ok('pricing-variant fixtures cleaned up',
+   (int) db_value("SELECT COUNT(*) FROM products WHERE slug LIKE 'zz-pv%'") === 0);
 echo "\n----------------------------------------\npassed: $pass    failed: $fail\n";
 exit($fail > 0 ? 1 : 0);
