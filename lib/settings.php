@@ -146,6 +146,24 @@ function settings_save(array $pairs): void
     Settings::save($pairs);
 }
 
+/** Public shipping copy, using the same settings as the order total. */
+function storefront_shipping_html(bool $details = false): string
+{
+    $threshold = setting_int('free_shipping_threshold', 1500000);
+    $flat = setting_int('shipping_flat_rate', 65000);
+    $amount = static fn(int $n): string => '<span class="num">' . money_fa($n) . '</span> تومان';
+    if ($flat <= 0) {
+        return $details ? 'ارسال همهٔ سفارش‌ها رایگان است.' : 'ارسال رایگان';
+    }
+    if ($threshold <= 0) {
+        return 'هزینهٔ ارسال ' . $amount($flat) . ($details ? ' است.' : '');
+    }
+    return $details
+        ? 'ارسال سفارش‌های ' . $amount($threshold) . ' و بیشتر رایگان است؛ برای سفارش‌های کمتر، '
+            . $amount($flat) . ' هزینهٔ ارسال محاسبه می‌شود.'
+        : 'ارسال رایگان از ' . $amount($threshold);
+}
+
 /**
  * Normalise the shop's canonical origin.
  *

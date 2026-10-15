@@ -91,7 +91,11 @@ head('product.html is byte-identical to the partials it cannot include');
    the same page, one address live and one that also works from the disk
    (see the top of chrome-top.php). Compared as the same link. */
 $homeAsFile = static fn(string $s): string => (string) preg_replace('~href="\./(?=[#"])~', 'href="index.html', $s);
+$shippingBefore = ['free_shipping_threshold' => setting('free_shipping_threshold', '1500000'),
+                   'shipping_flat_rate' => setting('shipping_flat_rate', '65000')];
+settings_save(['free_shipping_threshold' => '1500000', 'shipping_flat_rate' => '65000']);
 $top  = chrome_norm($homeAsFile(chrome_render($root . '/partials/chrome-top.php')));
+settings_save($shippingBefore);
 $foot = chrome_norm($homeAsFile(chrome_render($root . '/partials/chrome-foot.php')));
 $ph   = (string) file_get_contents($root . '/product.html');
 

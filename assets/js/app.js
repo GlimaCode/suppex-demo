@@ -322,7 +322,7 @@ SUPPEX.app = (function () {
     if (ship) {
       ship.textContent = snapshot.count === 0
         ? '—'
-        : (snapshot.freeShipping ? 'رایگان' : ui.money(snapshot.shipping) + ' ' + cfg.currency.label);
+        : (snapshot.shipping === 0 ? 'رایگان' : ui.money(snapshot.shipping) + ' ' + cfg.currency.label);
     }
 
     var total = $('[data-cart-total]');
@@ -330,10 +330,12 @@ SUPPEX.app = (function () {
 
     var hint = $('[data-cart-hint]');
     if (hint) {
-      if (snapshot.count === 0 || snapshot.freeShippingOffered === false) {
+      if (snapshot.count === 0) {
         hint.textContent = '';
-      } else if (snapshot.freeShipping) {
+      } else if (snapshot.shipping === 0) {
         hint.innerHTML = ui.icon('truck') + ' ارسال این سفارش رایگان است';
+      } else if (snapshot.freeShippingOffered === false) {
+        hint.textContent = '';
       } else {
         hint.innerHTML = ui.icon('truck') + ' <span><span class="num">' +
           ui.money(snapshot.remainingForFreeShipping) + '</span> ' + cfg.currency.label +
@@ -1705,6 +1707,27 @@ SUPPEX.app = (function () {
     return null;
   }
 
+  function renderShippingCopy() {
+    var threshold = cfg.freeShippingThreshold;
+    var flat = cfg.shippingFlatRate;
+    var amount = function (n) { return '<span class="num">' + ui.money(n) + '</span> تومان'; };
+    var announcement;
+    var policy;
+    if (flat <= 0) {
+      announcement = 'ارسال رایگان';
+      policy = 'ارسال همهٔ سفارش‌ها رایگان است.';
+    } else if (threshold <= 0) {
+      announcement = 'هزینهٔ ارسال ' + amount(flat);
+      policy = announcement + ' است.';
+    } else {
+      announcement = 'ارسال رایگان از ' + amount(threshold);
+      policy = 'ارسال سفارش‌های ' + amount(threshold) + ' و بیشتر رایگان است؛ برای سفارش‌های کمتر، '
+        + amount(flat) + ' هزینهٔ ارسال محاسبه می‌شود.';
+    }
+    $$('[data-shipping-announcement]').forEach(function (el) { el.innerHTML = announcement; });
+    $$('[data-shipping-policy]').forEach(function (el) { el.innerHTML = policy; });
+  }
+
   function mergeRemoteConfig(remote) {
     if (!remote) { return false; }
 
@@ -1729,10 +1752,13 @@ SUPPEX.app = (function () {
     if (usable.length) {
       cfg.ordering.channels = usable;
     }
+    renderShippingCopy();
     return true;
   }
 
   function initChrome() {
+    /* PHP has already rendered the current settings. Static pages use config.js. */
+    if (!window.SUPPEX_BOOT) { renderShippingCopy(); }
     /* Sticky header shadow */
     var header = $('[data-header]');
     if (header) {

@@ -43,9 +43,9 @@ function boot(files) {
 
 
 /** app.js on top of the store, with just enough DOM for it to load. It only
-    touches the document from inside its controllers, and the merge under test
-    touches none of it. */
-function bootApp() {
+    touches the document from inside its controllers; shipping text nodes can
+    be supplied to verify the settings merge on the rendered text as well. */
+function bootApp(shippingNodes = {}) {
   const mem = {};
   const noop = () => {};
   const el = { addEventListener: noop, classList: { toggle: noop, add: noop, remove: noop } };
@@ -57,7 +57,7 @@ function bootApp() {
       documentElement: {},
       addEventListener: noop,
       querySelector: () => null,
-      querySelectorAll: () => [],
+      querySelectorAll: (selector) => shippingNodes[selector] || [],
       body: el,
     },
     localStorage: {
@@ -182,6 +182,22 @@ head('a cart holding more than the shop has is trimmed, not refused at the end')
                   sizes: [{ id: '900', price: 400000, stock: 2 }] }]);
   ok('a size carries its own count, and it wins', S.snapshot().items[0].qty === 2,
      String(S.snapshot().items[0].qty));
+}
+
+head('shipping announcements follow the same settings as the cart');
+for (const c of JSON.parse(fs.readFileSync(new URL('tests/shipping-copy.json', ROOT), 'utf8'))) {
+  const announcement = { innerHTML: '' }, policy = { innerHTML: '' };
+  const { app, store: S } = bootApp({ '[data-shipping-announcement]': [announcement], '[data-shipping-policy]': [policy] });
+  app.mergeRemoteConfig({ freeShippingThreshold: c.threshold, shippingFlatRate: c.flat });
+  const text = (html) => html.replace(/<[^>]*>/g, '');
+  ok('announcement reflects ' + c.threshold + '/' + c.flat, text(announcement.innerHTML) === c.announcement);
+  ok('policy reflects ' + c.threshold + '/' + c.flat, text(policy.innerHTML) === c.policy);
+  S.add({slug: 'shipping-check', nameFa: 'آزمایشی', price: 1000000, qty: 1});
+  ok('below threshold the cart charges the configured flat rate', S.snapshot().shipping === c.flat);
+  if (c.threshold > 0) {
+    S.add({slug: 'shipping-more', nameFa: 'آزمایشی', price: c.threshold, qty: 1});
+    ok('above threshold the cart is free', S.snapshot().shipping === 0);
+  }
 }
 
 head('the payment panel never invents a card number');

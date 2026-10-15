@@ -61,6 +61,11 @@ $put = static function (string $marker, string $with, string $label) use (&$html
     $html = substr($html, 0, $at) . $with . substr($html, $at + strlen($marker));
 };
 
+$put('<span data-shipping-announcement>ارسال رایگان از <span class="num">۱,۵۰۰,۰۰۰</span> تومان</span>',
+    '<span data-shipping-announcement>' . storefront_shipping_html() . '</span>', 'shipping announcement');
+$put('<span data-shipping-policy>ارسال سفارش‌های <span class="num">۱,۵۰۰,۰۰۰</span> تومان و بیشتر رایگان است؛ برای سفارش‌های کمتر، <span class="num">۶۵,۰۰۰</span> تومان هزینهٔ ارسال محاسبه می‌شود.</span>',
+    '<span data-shipping-policy>' . storefront_shipping_html(true) . '</span>', 'shipping policy');
+
 /* --- the content ---------------------------------------------------------- */
 $categories = [];
 $featured   = [];

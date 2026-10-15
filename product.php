@@ -308,10 +308,8 @@ $unit   = 'تومان';
                    reason - and «مرجوعی تا ۷ روز», which is narrower than the
                    ۷ روز کاری the law gives and the returns page states.
 
-                   The two shipping numbers stay: those are real, and the
-                   server enforces them when it recomputes the order. -->
-              ارسال بالای <span class="num">۱,۵۰۰,۰۰۰</span> تومان رایگان است و در غیر این صورت
-              <span class="num">۶۵,۰۰۰</span> تومان محاسبه می‌شود. زمان ارسال هر سفارش را در
+                   Shipping copy follows the shop settings. -->
+              <span data-shipping-policy><?= storefront_shipping_html(true) ?></span> زمان ارسال هر سفارش را در
               همان گفتگو می‌گوییم. مرجوعی تا ۷ روز کاری پذیرفته می‌شود؛ شرایط و
               استثناهایش در صفحه مرجوعی و بازگشت وجه نوشته شده است.
             </p></div></div>
