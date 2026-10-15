@@ -28,7 +28,6 @@ require_once SUPPEX_ROOT . "/lib/pricing.php";
 
 auth_start_session();
 $_SESSION["admin_id"] = 1; $_SESSION["admin_name"] = "tester"; $_SESSION["admin_role"] = "support";
-require_once __DIR__ . '/admin-session.php'; test_admin_session();
 
 $pass = 0; $fail = 0; $out = [];
 function ok(string $l, bool $c, ?string $x = ""): void {

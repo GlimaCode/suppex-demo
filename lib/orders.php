@@ -15,7 +15,6 @@
    =========================================================================== */
 
 declare(strict_types=1);
-require_once __DIR__ . '/catalog_readiness.php';
 
 require_once __DIR__ . '/products.php';
 require_once __DIR__ . '/pricing.php';
@@ -233,7 +232,6 @@ function order_price_line(array $line, array $quoted = []): ?array
         }
 
         $vPrice = (int) $variant['price'];
-        if (!catalog_price_valid($vPrice)) { return null; }
         /* The whole combination is quoted under one key - the variant's own
            ext_id - rather than a base and a premium added back together. With
            a price per combination there is nothing left to add. */
@@ -243,7 +241,7 @@ function order_price_line(array $line, array $quoted = []): ?array
         }
         /* A dirham product saved active before the pricing page has run sits
            at zero, and zero is never a real price. */
-        if (!catalog_price_valid($vPrice)) {
+        if ($vPrice <= 0) {
             return null;
         }
 
@@ -392,7 +390,6 @@ function order_price_line(array $line, array $quoted = []): ?array
        CUT reaches a shopper holding an old quote too. There is no way to
        combine them that charges more than expected, which is also why an old
        token is not worth hoarding. */
-    if (!catalog_price_valid($unitPrice + $flavorDelta)) { return null; }
     if ($quoted !== []) {
         $unitPrice   = quote_price_for($quoted, (string) $product['slug'], $sizeExt, $unitPrice);
         $flavorDelta = quote_flavor_delta_for(
@@ -407,7 +404,7 @@ function order_price_line(array $line, array $quoted = []): ?array
     /* A price of zero is never a real price. A dirham product saved active
        before the pricing page has computed its price sits at 0, and this would
        otherwise sell it for nothing and hand out an order code for it. */
-    if (!catalog_price_valid($unitPrice)) {
+    if ($unitPrice <= 0) {
         return null;
     }
 
@@ -700,19 +697,6 @@ function order_create(array $payload): array
     }
 
     return ['ok' => true, 'order' => order_get($orderId)];
-}
-
-function order_requires_stock_confirmation(array $order): bool
-{
-    if (($order['status'] ?? '') !== 'new') { return false; }
-    if (isset($order['items'])) {
-        foreach ($order['items'] as $item) {
-            if (empty($item['stock_from'])) { return true; }
-        }
-        return false;
-    }
-    return db_value('SELECT 1 FROM order_items WHERE order_id = ? AND stock_from IS NULL LIMIT 1',
-                    [(int) $order['id']]) !== null;
 }
 
 function order_get(int $id): ?array

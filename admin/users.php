@@ -30,7 +30,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $target = $id > 0 ? db_one('SELECT id, username, role, is_active FROM admins WHERE id = ?', [$id]) : null;
     $supports = (int) db_value("SELECT COUNT(*) FROM admins WHERE role = 'support' AND is_active = 1");
 
-    if ($action !== 'create' && $target === null) {
+    if ($target === null) {
         $errors[] = 'این کاربر وجود ندارد.';
 
     } elseif ($action === 'role') {

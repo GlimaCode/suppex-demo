@@ -146,16 +146,6 @@ function settings_save(array $pairs): void
     Settings::save($pairs);
 }
 
-/** One source for the announcement in PHP pages and the static fallback. */
-function shipping_announcement_html(): string
-{
-    $threshold = setting_int('free_shipping_threshold', 1500000);
-    if ($threshold <= 0) {
-        return 'هزینه ارسال در سبد خرید محاسبه می‌شود';
-    }
-    return 'ارسال رایگان از <span class="num">' . money_fa($threshold) . '</span> تومان';
-}
-
 /**
  * Normalise the shop's canonical origin.
  *

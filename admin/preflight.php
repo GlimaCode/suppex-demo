@@ -17,7 +17,6 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/preflight.php';
-require_once SUPPEX_ROOT . '/lib/catalog_readiness.php';
 
 /* Fail CLOSED. The only unauthenticated window is a database that positively
    reports zero administrators - a shop nobody has claimed yet, where there is
@@ -37,16 +36,6 @@ if ($chrome) {
     require_once __DIR__ . '/partials/layout.php';
 }
 
-$prepared = null;
-$prepareError = '';
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    auth_require_can('maintenance');
-    csrf_check();
-    if (($_POST['action'] ?? '') === 'prepare-launch') {
-        try { $prepared = launch_prepare(); }
-        catch (Throwable $e) { error_log('[suppex] launch preparation: ' . $e->getMessage()); $prepareError = 'آماده‌سازی کامل نشد؛ خطای سرور و بخش مدیریت تصاویر را بررسی و دوباره اجرا کنید.'; }
-    }
-}
 $checks  = preflight_checks();
 $summary = preflight_summary($checks);
 
@@ -90,22 +79,6 @@ if ($chrome) {
   <?php endif; ?>
 </div>
 
-<?php if ($chrome): ?>
-  <?php if ($prepareError !== ''): ?><div class="flash flash--error"><?= e($prepareError) ?></div><?php endif; ?>
-  <?php if ($prepared !== null): ?>
-    <div class="flash flash--ok">تصاویر بررسی‌شده متصل شدند و <?= (int) $prepared['logos'] ?> لوگوی خالی تکمیل شد. <?= count($prepared['hidden']) ?> محصول نیازمند تکمیل از نمایش عمومی خارج شد؛ اطلاعات و موجودی آن‌ها حفظ شده است.</div>
-    <?php foreach ($prepared['hidden'] as $p): ?><div class="flash flash--info"><?= e($p['name'] . ' — ' . $p['reason']) ?></div><?php endforeach; ?>
-  <?php endif; ?>
-  <div class="card">
-    <h2 class="card__title">آماده‌سازی کاتالوگ برای فروش</h2>
-    <p>عکس‌های WebP بررسی‌شدهٔ Zoomad و Mutant متصل یا ارتقا داده می‌شوند. محصولات دارای قیمت نامعتبر یا عکس خالی موقتاً پنهان می‌شوند؛ پس از ثبت قیمت واقعی و عکس صحیح، از صفحهٔ محصول دوباره فعالشان کنید. هیچ محصول، سفارش یا موجودی حذف نمی‌شود.</p>
-    <form method="post" action="preflight.php">
-      <?= csrf_field() ?>
-      <input type="hidden" name="action" value="prepare-launch">
-      <button class="btn btn--primary" type="submit">اجرای آماده‌سازی فروشگاه</button>
-    </form>
-  </div>
-<?php endif; ?>
 <?php foreach ($groups as $name => $items): ?>
   <div class="card">
     <h2 class="card__title"><?= e($name) ?></h2>

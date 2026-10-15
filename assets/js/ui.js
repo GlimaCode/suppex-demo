@@ -698,9 +698,6 @@ SUPPEX.ui = (function () {
             '</div>'
           : '') +
 
-        (server && server.requiresStockConfirmation
-          ? '<p class="notice" data-stock-confirmation>موجودی این سفارش نیاز به تأیید فروشگاه دارد. پیش از واریز، در گفتگو موجودی را تأیید بگیرید.</p>'
-          : '') +
         '<div class="pay__amount">' +
           '<span class="u-sm u-muted">مبلغ قابل پرداخت</span>' +
           '<strong><span class="num">' +

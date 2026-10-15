@@ -32,8 +32,6 @@ function head(string $t): void { global $out; $out[] = "\n== $t =="; }
 require __DIR__ . '/../lib/bootstrap.php';
 
 $root = SUPPEX_ROOT;
-/* Compare static fallback markup at its own documented fallback setting. */
-settings_save(['free_shipping_threshold' => '1500000']);
 
 /** A file, with every line ending and trailing space normalised away. */
 function chrome_norm(string $s): string

@@ -36,7 +36,7 @@
 - Run relevant existing suites for a change, and the complete suite for changes spanning checkout, pricing, stock, migrations or shared data contracts: `php tests/run.php`.
 - Test databases are destructive disposable databases named `suppex_test` and `suppex_fresh`. Inspect configs and confirm isolation before running. `SUPPEX_DB_PORT` selects the local MariaDB port; defaults to 3399. `SUPPEX_CONFIG` is a process environment override, not request input.
 - A fresh test instance needs the base schema and seed before `tests/run.php`, because the runner applies migrations before running suites.
-- The runner validates PHP and Node child exit codes and rejects empty test output. Confirm each Node suite actually ran and printed checks; investigate any stderr or missing output.
+- The PHP runner currently does not validate Node child exit codes. Confirm each Node suite actually ran and printed checks; investigate any stderr or missing output.
 - PHP's built-in web server does not process `.htaccess`. Local HTTP checks do not establish Apache/LiteSpeed rewrite or protection behavior.
 
 ## Secrets, media and release ZIPs

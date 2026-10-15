@@ -25,7 +25,6 @@ auth_start_session();
 $_SESSION['admin_id']   = (int) $admin['id'];
 $_SESSION['admin_name'] = $admin['name'];
 $_SESSION['admin_role'] = $admin['role'];
-require_once __DIR__ . '/admin-session.php'; test_admin_session();
 $_SESSION['csrf']       = 't';
 
 $_GET  = ['id' => (string) $id];

@@ -27,7 +27,6 @@ auth_start_session();
 $_SESSION['admin_id']   = (int) ($admin['id'] ?? 1);
 $_SESSION['admin_name'] = (string) ($admin['name'] ?? 'tester');
 $_SESSION['admin_role'] = (string) ($admin['role'] ?? 'support');
-require_once __DIR__ . '/admin-session.php'; test_admin_session();
 $_SESSION['csrf']       = 't';
 
 $get  = json_decode((string) base64_decode((string) ($argv[2] ?? ''), true), true);

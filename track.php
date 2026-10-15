@@ -221,9 +221,6 @@ $url   = seo_origin() . '/track.php';
                 <span>مهلت پرداخت با این قیمت: <strong data-hold-countdown>—</strong></span>
               </div>
 
-              <?php if (order_requires_stock_confirmation($order)): ?>
-                <p class="notice" data-stock-confirmation>موجودی این سفارش نیاز به تأیید فروشگاه دارد. پیش از واریز، در گفتگو موجودی را تأیید بگیرید.</p>
-              <?php endif; ?>
               <div class="pay__amount">
                 <span class="u-sm u-muted">مبلغ قابل پرداخت</span>
                 <strong><span class="num"><?= money_fa((int) $order['total']) ?></span>

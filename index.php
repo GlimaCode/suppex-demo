@@ -62,8 +62,6 @@ $put = static function (string $marker, string $with, string $label) use (&$html
 };
 
 /* --- the content ---------------------------------------------------------- */
-$put('<span data-shipping-announcement>ارسال رایگان از <span class="num">۱,۵۰۰,۰۰۰</span> تومان</span>',
-     '<span data-shipping-announcement>' . shipping_announcement_html() . '</span>', 'shipping announcement');
 $categories = [];
 $featured   = [];
 $deals      = [];
