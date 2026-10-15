@@ -670,7 +670,7 @@ SUPPEX.app = (function () {
                the group. */
             paintReceipt(state, 'done', sent.res.duplicate
               ? 'این همان رسیدی است که قبلاً فرستادید و به دست ما رسیده است. لازم نیست دوباره بفرستید.'
-              : 'رسید دریافت شد و برای ما فرستاده شد. بعد از بررسی، سفارش تأیید می‌شود.', null, sent.blob);
+              : 'رسید در سفارش شما ثبت شد. پرداخت پس از بررسی فروشگاه تأیید می‌شود.', null, sent.blob);
             if (label) { label.textContent = 'ارسال رسید دیگر'; }
             box.classList.add('is-sent');
             /* Nothing is owed any more, so the pinned button stops looking

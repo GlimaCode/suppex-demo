@@ -43,7 +43,7 @@ $chromeGuides = nav_guide_items();
     </span>
     <span class="announce__item">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M21 4L3 11l5 1.8L19 6.5l-8.4 8.1.4 5 2.8-3.4L18.5 19z" fill="currentColor" stroke="none"/></svg>
-      ثبت سفارش در تلگرام
+      ثبت سفارش در سایت
     </span>
   </div>
 </div>

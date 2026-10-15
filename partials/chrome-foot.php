@@ -33,7 +33,7 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
           <svg class="logo__text" viewBox="0 0 460 96" fill="currentColor" aria-hidden="true" focusable="false"><path d="M0 0 L24 0 L24 78 L60 78 L60 0 L84 0 L84 96 L0 96 Z"/><path fill-rule="evenodd" d="M94 0 L178 0 L178 62 L118 62 L118 96 L94 96 Z M118 18 L154 18 L154 44 L118 44 Z"/><path fill-rule="evenodd" d="M188 0 L272 0 L272 62 L212 62 L212 96 L188 96 Z M212 18 L248 18 L248 44 L212 44 Z"/><path d="M282 0 L357 0 L366 18 L306 18 L306 39 L344 39 L353 57 L306 57 L306 78 L357 78 L366 96 L282 96 Z"/><path d="M376 0 L410 0 L458 96 L424 96 Z M434 0 L460 0 L402 96 L376 96 Z"/></svg>
         </a>
         <p class="u-sm u-muted" style="margin-top:14px;max-width:34ch">
-          مکمل اورجینال برندهای معتبر، پلمب‌شده و مستقیم از دبی. ثبت سفارش در پیام‌رسان، پیگیری با کد.
+          مکمل اورجینال برندهای معتبر، پلمب‌شده و مستقیم از دبی. ثبت سفارش در سایت، پرداخت کارت‌به‌کارت و پیگیری با کد.
         </p>
         <!-- Every icon was href="#" on a shop whose customers arrive from
              Instagram and Telegram. They are filled by app.js from ?r=config
@@ -100,7 +100,6 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
           <li><a href="track.php">پیگیری سفارش</a></li>
           <li><a href="page.php?p=shipping">رویه ارسال</a></li>
           <li><a href="page.php?p=returns">مرجوعی و بازگشت وجه</a></li>
-          <li><a href="page.php?p=faq">سؤالات متداول</a></li>
           <li><a href="journal.php">مجله ساپکس</a></li>
         </ul>
       </nav>
@@ -122,9 +121,11 @@ if (!defined('SUPPEX_ROOT')) { http_response_code(404); exit; }
              snippet from the issuer, never a box we draw ourselves. -->
         <h3>پرداخت</h3>
         <p>
-          سفارش را ثبت می‌کنید، موجودی و مبلغ تأیید می‌شود و بعد شماره کارت
-          برایتان فرستاده می‌شود. تا وقتی سفارش تأیید نشده، پرداختی در کار نیست.
+          پس از ثبت سفارش در سایت، کد پیگیری، مبلغ و شماره کارت را در صفحهٔ پرداخت
+          می‌بینید. کارت‌به‌کارت واریز کنید و رسید را از همان صفحه یا بخش پیگیری سفارش
+          بفرستید. پرداخت پس از بررسی فروشگاه تأیید می‌شود.
         </p>
+        <a href="page.php?p=faq">راهنمای خرید و پرداخت</a>
       </div>
     </div>
 

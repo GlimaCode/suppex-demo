@@ -93,7 +93,7 @@ $url   = seo_origin() . '/track.php';
       <header class="article__head">
         <h1 class="article__title">پیگیری سفارش</h1>
         <p class="article__lede">
-          شماره پیگیری همان کدی است که بعد از ثبت سفارش گرفتید و در گفتگو برایتان ماند.
+          شماره پیگیری همان کدی است که پس از ثبت سفارش در سایت دریافت کردید.
         </p>
       </header>
 
@@ -159,7 +159,7 @@ $url   = seo_origin() . '/track.php';
         <p class="track__error" role="alert"><?= e($error) ?></p>
         <?php if (!$throttled): ?>
           <p class="u-xs u-dim" style="margin-top:10px">
-            اگر کد را گم کرده‌اید، در همان گفتگویی که سفارش را ثبت کردید بپرسید.
+            اگر کد را گم کرده‌اید، از پشتیبانی فروشگاه کمک بگیرید.
           </p>
         <?php endif; ?>
       <?php endif; ?>
@@ -241,8 +241,8 @@ $url   = seo_origin() . '/track.php';
                 <?php /* Never a number the shop has not set. A customer who copies
                          one believes they can pay with it. */ ?>
                 <div class="pay__card pay__card--pending">
-                  <div class="pay__holder">شماره کارت در همان گفتگویی که سفارش را
-                    ثبت کردید برایتان فرستاده می‌شود. تا آن موقع مبلغی واریز نکنید.</div>
+                  <div class="pay__holder">شماره کارت نمایش داده نمی‌شود. برای دریافت اطلاعات پرداخت
+                    با پشتیبانی فروشگاه تماس بگیرید. تا پیش از دریافت اطلاعات معتبر، واریز نکنید.</div>
                 </div>
               <?php endif; ?>
 
@@ -255,8 +255,8 @@ $url   = seo_origin() . '/track.php';
               </div>
 
               <?php if (!receipts_ready()): ?>
-                <p class="pay__note">پس از واریز، رسید را در همان گفتگویی که سفارش را
-                  ثبت کردید بفرستید تا سفارش نهایی شود.</p>
+                <p class="pay__note">رسید واریز را همراه کد پیگیری برای پشتیبانی فروشگاه
+                  بفرستید. پرداخت پس از بررسی فروشگاه تأیید می‌شود.</p>
               <?php endif; ?>
             </div>
           <?php endif; ?>

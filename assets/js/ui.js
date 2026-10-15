@@ -596,9 +596,9 @@ SUPPEX.ui = (function () {
     return '<div class="order-help">' +
       icon('info') +
       '<div>' +
-        '<strong>اگر متن سفارش خودش در کادر پیام نوشته نشد</strong>، نگران نباشید — ' +
-        'با زدن دکمه، متن سفارش در حافظهٔ گوشی کپی می‌شود و در صفحهٔ بعد هم دکمهٔ «کپی متن سفارش» هست. ' +
-        'در گفتگوی فروشگاه روی کادر تایپ نگه دارید، گزینهٔ «چسباندن / Paste» را بزنید و پیام را بفرستید.' +
+        '<strong>سفارش در سایت ثبت می‌شود.</strong> پس از ثبت، کد پیگیری، مبلغ و شماره کارت را در همین پنجره می‌بینید. ' +
+        'متن سفارش را برای هماهنگی در پیام‌رسان انتخابی بفرستید. اگر متن در کادر پیام نوشته نشد، ' +
+        'با دکمهٔ «کپی متن سفارش» آن را کپی کنید، در گفتگوی فروشگاه بچسبانید و بفرستید.' +
       '</div>' +
     '</div>';
   }
@@ -657,7 +657,8 @@ SUPPEX.ui = (function () {
     return '' +
       '<div class="pay" data-pay-panel>' +
         '<div class="pay__done">' + icon('check') +
-          '<span>سفارش شما آماده ارسال در ' + esc(appName) + ' است</span></div>' +
+          '<span>' + (pending ? 'در حال ثبت سفارش…' : server && server.code
+            ? 'سفارش شما ثبت شد' : 'سفارش شما آماده ارسال در ' + esc(appName) + ' است') + '</span></div>' +
 
         /* Shown only when the order really was recorded. It is the reference
            the shopper quotes if anything goes wrong, so inventing one in
@@ -721,8 +722,8 @@ SUPPEX.ui = (function () {
               '<div class="pay__holder">به نام ' + esc(cardHolder) + '</div>' +
             '</div>'
           : '<div class="pay__card pay__card--pending">' +
-              '<div class="pay__holder">شماره کارت در همان گفتگوی ' + esc(appName) +
-              ' برایتان فرستاده می‌شود. تا آن موقع مبلغی واریز نکنید.</div>' +
+              '<div class="pay__holder">شماره کارت نمایش داده نمی‌شود. برای دریافت اطلاعات پرداخت با پشتیبانی فروشگاه ' +
+              'تماس بگیرید. تا پیش از دریافت اطلاعات معتبر، واریز نکنید.</div>' +
             '</div>') +
 
         (server && server.expiresAt ? payExpired(true) : '') +
@@ -879,8 +880,8 @@ SUPPEX.ui = (function () {
               '<span class="receipt-up__icon">' + icon('upload') + '</span>' +
               '<div>' +
                 '<strong class="receipt-up__title">رسید واریز را همین‌جا بفرستید</strong>' +
-                '<span class="receipt-up__sub">عکس یا اسکرین‌شات رسید. برای ما در تلگرام فرستاده می‌شود ' +
-                  'تا سفارش زودتر تأیید شود.</span>' +
+                '<span class="receipt-up__sub">عکس یا اسکرین‌شات رسید را بارگذاری کنید. ' +
+                  'پرداخت پس از بررسی فروشگاه تأیید می‌شود.</span>' +
               '</div>' +
             '</div>') +
         '<label class="btn ' + (dock ? 'btn--primary' : 'btn--ghost') + ' btn--block receipt-up__pick">' +
