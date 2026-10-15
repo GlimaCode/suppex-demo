@@ -38,7 +38,8 @@ $admin = db_one('SELECT id, name, role FROM admins ORDER BY id LIMIT 1');
 auth_start_session();
 $_SESSION['admin_id']   = (int) ($admin['id'] ?? 1);
 $_SESSION['admin_name'] = (string) ($admin['name'] ?? 'tester');
-$_SESSION['admin_role'] = (string) ($admin['role'] ?? 'owner');
+$_SESSION['admin_role'] = (string) ($admin['role'] ?? 'support');
+require_once __DIR__ . '/admin-session.php'; test_admin_session();
 $_SESSION['csrf']       = 't';
 unset($_SESSION['flash']);
 

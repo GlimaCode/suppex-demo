@@ -26,6 +26,7 @@ auth_start_session();
 $_SESSION['admin_id']   = (int) $admin['id'];
 $_SESSION['admin_name'] = $admin['name'];
 $_SESSION['admin_role'] = (string) ($argv[2] ?? 'support');
+require_once __DIR__ . '/admin-session.php'; test_admin_session();
 $_SESSION['csrf']       = 't';
 
 /* base64, not raw JSON. On Windows escapeshellarg() replaces every double

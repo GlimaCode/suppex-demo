@@ -125,6 +125,7 @@ ok('and the leftover installer blocks',
 echo "\n== the page renders ==\n";
 auth_start_session();
 $_SESSION['admin_id'] = 1; $_SESSION['admin_name'] = 'tester'; $_SESSION['admin_role'] = 'support';
+require_once __DIR__ . '/admin-session.php'; test_admin_session();
 ob_start(); include SUPPEX_ROOT . '/admin/preflight.php'; $html = ob_get_clean();
 ok('renders a page', strlen($html) > 4000, (string) strlen($html));
 /* Matched on a fragment that does not straddle the template's line break. */

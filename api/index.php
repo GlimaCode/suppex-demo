@@ -389,6 +389,7 @@ try {
                             ? null : strtotime((string) $existing['expires_at']) * 1000;
                         $again['serverNow']   = time() * 1000;
                         $again['holdMinutes'] = order_hold_minutes();
+                        $again['requiresStockConfirmation'] = order_requires_stock_confirmation($existing);
                         $again['payment']     = [
                             'cardNumber' => setting('card_number'),
                             'cardHolder' => setting('card_holder'),
@@ -424,6 +425,7 @@ try {
                     ? null : strtotime($order['expires_at']) * 1000,
                 'serverNow'  => time() * 1000,
                 'holdMinutes' => order_hold_minutes(),
+                'requiresStockConfirmation' => order_requires_stock_confirmation($order),
                 'payment' => [
                     'cardNumber' => setting('card_number'),
                     'cardHolder' => setting('card_holder'),

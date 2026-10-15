@@ -193,7 +193,9 @@ button { cursor: pointer; }
    the product page's main photograph carries the same name here. Browsers
    without it navigate as they always did.
    -------------------------------------------------------------------------- */
-@view-transition { navigation: auto; }
+/* Cross-document transitions abort during form navigation and rapid tracking
+   requests in Chrome. Keep navigation immediate; in-page motion remains. */
+@view-transition { navigation: none; }
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }
 }

@@ -48,6 +48,19 @@ function auth_user(): ?array
     if (empty($_SESSION['admin_id'])) {
         return null;
     }
+    $admin = db_one('SELECT id, name, username, role, is_active, password_hash FROM admins WHERE id = ?',
+                    [(int) $_SESSION['admin_id']]);
+    $fingerprint = $admin === null ? '' : hash('sha256', (string) $admin['password_hash']);
+    if ($admin === null || !(int) $admin['is_active']
+        || empty($_SESSION['admin_auth'])
+        || !hash_equals($fingerprint, (string) $_SESSION['admin_auth'])) {
+        /* Old sessions must sign in once after this security upgrade. */
+        $_SESSION = [];
+        session_regenerate_id(true);
+        return null;
+    }
+    $_SESSION['admin_name'] = $admin['name'] !== '' ? $admin['name'] : $admin['username'];
+    $_SESSION['admin_role'] = $admin['role'];
     return [
         'id'   => (int) $_SESSION['admin_id'],
         'name' => (string) ($_SESSION['admin_name'] ?? ''),
@@ -96,7 +109,11 @@ function auth_can(string $capability): bool
     if ($user === null) {
         return false;
     }
-    $role = (string) $user['role'];
+    return auth_role_can((string) $user['role'], $capability);
+}
+
+function auth_role_can(string $role, string $capability): bool
+{
     /* An unknown role gets nothing extra rather than everything. A row whose
        role was hand-edited to something misspelled must fail closed. */
     return in_array($capability, ROLE_CAPABILITIES[$role] ?? [], true);
@@ -225,14 +242,16 @@ function auth_login(string $username, string $password): array
 
     /* Re-hash if PHP's default cost has moved on since this password was set. */
     if (password_needs_rehash($admin['password_hash'], PASSWORD_DEFAULT)) {
+        $admin['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
         db_query('UPDATE admins SET password_hash = ? WHERE id = ?',
-            [password_hash($password, PASSWORD_DEFAULT), (int) $admin['id']]);
+            [$admin['password_hash'], (int) $admin['id']]);
     }
 
     session_regenerate_id(true);
     $_SESSION['admin_id']   = (int) $admin['id'];
     $_SESSION['admin_name'] = $admin['name'] !== '' ? $admin['name'] : $admin['username'];
     $_SESSION['admin_role'] = $admin['role'];
+    $_SESSION['admin_auth'] = hash('sha256', (string) $admin['password_hash']);
 
     db_query('UPDATE admins SET last_login_at = NOW() WHERE id = ?', [(int) $admin['id']]);
     auth_clear_failures($username);

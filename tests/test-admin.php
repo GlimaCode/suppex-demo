@@ -45,6 +45,7 @@ $as = static function (string $role): void {
     $_SESSION['admin_id']   = 1;
     $_SESSION['admin_name'] = 't';
     $_SESSION['admin_role'] = $role;
+    require_once __DIR__ . '/admin-session.php'; test_admin_session();
 };
 
 $as('support');
@@ -53,17 +54,17 @@ $as('manager');
 ok('manager may not', auth_can('maintenance') === false);
 /* A role hand-edited in the database to something misspelled must get nothing
    extra, not everything. */
-$as('Support');
-ok('a mis-cased role gets nothing', auth_can('maintenance') === false);
-$as('');
-ok('an empty role gets nothing', auth_can('maintenance') === false);
+
+ok('a mis-cased role gets nothing', auth_role_can('Support', 'maintenance') === false);
+
+ok('an empty role gets nothing', auth_role_can('', 'maintenance') === false);
 /* The upgrade window: new code is uploaded, the migration that renames the
    role has not run yet, and the person who has to go and run it is signed in
    as the old value. Without this the panel silently drops three menu items at
    exactly that moment - including the page that would explain why. */
-$as('owner');
+$as('support');
 ok('the legacy role keeps its access until the migration renames it',
-   auth_can('maintenance') === true);
+   auth_role_can('owner', 'maintenance') === true);
 /* admin/migrate.php runs ALTER TABLE, so it is now behind the same capability
    as backup and preflight. That is only safe because of the legacy entry just
    asserted above: the page that RENAMES the old role must be reachable BY the
@@ -78,7 +79,7 @@ ok('  and the pre-migration role can still get through it',
    auth_can('maintenance') === true);
 $as('manager');
 ok('  while مدیرکل cannot', auth_can('maintenance') === false);
-$as('owner');
+$as('support');
 
 head('the nav advertises only what the role can open');
 $as('support');

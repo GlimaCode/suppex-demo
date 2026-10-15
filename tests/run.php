@@ -55,6 +55,7 @@ $php = [
     ['test-ux.php',        'test-config.php'],
     ['test-reviews.php',   'test-config.php'],
     ['test-orderflow.php', 'test-config.php'],
+    ['test-launch.php',    'test-config.php'],
     /* Rebuilds a database from nothing; needs the throwaway one. */
     ['test-migrate.php',   'fresh-config.php'],
 ];
@@ -156,9 +157,17 @@ foreach ($node as $file) {
     if (!$hasNode) { $skipped[] = $file; continue; }
     /* test-adminjs.mjs asks PHP for its answer and compares. Handing it the
        same binary the runner is using means it works wherever this does. */
-    [$out, ] = run('node ' . escapeshellarg("$root/$file"),
+    [$out, $code] = run('node ' . escapeshellarg("$root/$file"),
                    ['SUPPEX_PHP' => PHP_BINARY]);
     [$p, $f] = tally($out);
+    if ($code !== 0 && $f === 0) {
+        $f++;
+        $out .= "\n  FAIL suite exited with code $code after $p checks";
+    }
+    if ($p === 0 && $f === 0) {
+        $f++;
+        $out .= "\n  FAIL no checks ran";
+    }
     $pass += $p; $fail += $f;
     printf("  %-22s %4d ok  %2d fail%s\n", $file, $p, $f, $f ? '   <<<' : '');
     if ($f) { foreach (preg_split('/\R/u', $out) as $l) { if (str_starts_with($l, '  FAIL')) { echo "      $l\n"; } } }

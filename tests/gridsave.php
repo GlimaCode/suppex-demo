@@ -17,6 +17,7 @@ require_once SUPPEX_ROOT . '/lib/auth.php';
 
 auth_start_session();
 $_SESSION['admin_id'] = 1; $_SESSION['admin_name'] = 'tester'; $_SESSION['admin_role'] = 'support';
+require_once __DIR__ . '/admin-session.php'; test_admin_session();
 $_SESSION['csrf'] = 't';
 
 $id = (int) ($argv[1] ?? 0);

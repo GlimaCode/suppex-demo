@@ -1729,6 +1729,11 @@ SUPPEX.app = (function () {
     if (usable.length) {
       cfg.ordering.channels = usable;
     }
+    $$('[data-shipping-announcement]').forEach(function (el) {
+      el.innerHTML = cfg.freeShippingThreshold > 0
+        ? 'ارسال رایگان از <span class="num">' + ui.money(cfg.freeShippingThreshold) + '</span> تومان'
+        : 'هزینه ارسال در سبد خرید محاسبه می‌شود';
+    });
     return true;
   }
 

@@ -17,12 +17,13 @@
    =========================================================================== */
 
 declare(strict_types=1);
+require_once __DIR__ . '/catalog_readiness.php';
 
 /* What the catalogue sheets put in the price column for a product that has
    been researched and imported but not yet priced. Kept as a constant so the
    number has a name where it is checked; the sheets themselves are the only
    other place it appears. */
-const PREFLIGHT_UNPRICED_MARKER = 999999999;
+const PREFLIGHT_UNPRICED_MARKER = CATALOG_UNPRICED_MARKER;
 
 /**
  * @return array<int,array{group:string,label:string,state:string,detail:string,fix:string}>
