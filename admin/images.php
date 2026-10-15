@@ -22,21 +22,9 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/images.php';
-require_once SUPPEX_ROOT . '/lib/catalog_photos.php';
 require_once __DIR__ . '/partials/layout.php';
 
 $user = auth_require();
-
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'catalog-photos') {
-    csrf_check();
-    $selected = is_array($_POST['catalog_slugs'] ?? null) ? $_POST['catalog_slugs'] : [];
-    $applied = catalog_photos_apply($selected);
-    flash($applied['errors'] ? 'error' : 'ok',
-        $applied['products'] . ' محصول و ' . $applied['gallery'] . ' تصویر گالری به‌روزرسانی شد.'
-        . ($applied['errors'] ? ' ' . implode(' ', $applied['errors']) : ''));
-    header('Location: images.php');
-    exit;
-}
 
 /** Where the folder is dropped. Relative to uploads/, so it sits beside the
     month folders the ordinary uploader writes into. */
@@ -283,39 +271,6 @@ foreach (image_originals() as $orig) {
 
 admin_head('تصاویر محصولات', ['user' => $user]);
 ?>
-
-<?php $reviewedPhotos = catalog_photos_status(); if ($reviewedPhotos): ?>
-<div class="card">
-  <h2 class="card__title">عکس‌های بررسی‌شدهٔ محصولات</h2>
-  <p class="hint">عکس‌ها WebP با پس‌زمینهٔ شفاف و ۱۰۰ پیکسل فاصلهٔ خالی در بالا و پایین فایل اصلی‌اند. عکس هر طعم به همان طعم وصل می‌شود. نسخهٔ قبلی همین بسته نیز اصلاح می‌شود و عکس‌هایی که خودتان انتخاب کرده‌اید حفظ می‌شوند.</p>
-  <form method="post">
-    <?= csrf_field() ?>
-    <input type="hidden" name="action" value="catalog-photos">
-    <table class="t">
-      <thead><tr><th></th><th>تصویر</th><th>محصول</th><th>وضعیت</th></tr></thead>
-      <tbody>
-      <?php foreach ($reviewedPhotos as $reviewed): ?>
-        <tr>
-          <td><input type="checkbox" name="catalog_slugs[]" value="<?= e($reviewed['slug']) ?>"
-                     <?= $reviewed['matches'] && $reviewed['valid'] ? '' : 'disabled' ?>
-                     <?= ($reviewed['missing'] || $reviewed['upgrade']) && $reviewed['valid'] ? 'checked' : '' ?>></td>
-          <td><img src="<?= e('../' . ($reviewed['pack']['photos'][0]['file'] ?? '')) ?>"
-                   alt="<?= e($reviewed['pack']['label']) ?>" width="72" height="72" loading="lazy"
-                   style="object-fit:contain"></td>
-          <td><?= e($reviewed['product']['name_fa'] ?? $reviewed['pack']['label']) ?><br>
-              <span class="hint"><?= e($reviewed['pack']['label']) ?> · <?= count($reviewed['pack']['photos']) ?> عکس</span></td>
-          <td><?= !$reviewed['matches'] ? 'محصول یا برند مطابق بسته نیست'
-                  : (!$reviewed['valid'] ? 'فایل تصویر ناقص است؛ ZIP را کامل استخراج کنید'
-                  : ($reviewed['upgrade'] ? 'نسخهٔ قبلی این بسته — آمادهٔ اصلاح'
-                  : ($reviewed['missing'] ? 'بدون تصویر — آمادهٔ اتصال' : 'تصویر اصلی دارد — انتخاب نشده'))) ?></td>
-        </tr>
-      <?php endforeach; ?>
-      </tbody>
-    </table>
-    <button class="btn btn--primary" type="submit" style="margin-block-start:16px">وصل کردن عکس‌های بررسی‌شده</button>
-  </form>
-</div>
-<?php endif; ?>
 
 <div class="card">
   <h2 class="card__title">نسخه‌های سبک تصاویر</h2>
