@@ -341,9 +341,11 @@ db_query("INSERT INTO product_flavors (product_id, ext_id, name, price_delta_tom
                  (?, 'cook',  'کوکی',   250000, 1)", [$gPid, $gPid]);
 
 $gRun = static function (array $args) {
-    return shell_exec(escapeshellarg(PHP_BINARY) . ' '
+    exec(escapeshellarg(PHP_BINARY) . ' '
         . escapeshellarg(__DIR__ . '/gridsave.php') . ' '
-        . implode(' ', array_map('escapeshellarg', $args)) . ' 2>&1');
+        . implode(' ', array_map('escapeshellarg', $args)) . ' 2>&1', $lines, $code);
+    if ($code !== 0) { throw new RuntimeException('grid save helper failed: ' . implode("\n", $lines)); }
+    return implode("\n", $lines);
 };
 
 /* Pressing save is all it takes: the grid builds itself from the axes. */
@@ -390,6 +392,38 @@ ok('pressing save again changes nothing',
    $gBefore === db_all('SELECT ext_id, price, cost_toman, stock_qty, is_active
                           FROM product_variants WHERE product_id = ? ORDER BY ext_id', [$gPid]));
 
+head('a product editor must not put reserved stock back');
+$gQty = static fn() => db_value("SELECT stock_qty FROM product_variants WHERE product_id=? AND ext_id='900|choco'", [$gPid]);
+db_query("UPDATE product_variants SET stock_qty=10 WHERE product_id=? AND ext_id='900|choco'", [$gPid]);
+$gOriginal = base64_encode(json_encode(['900|choco' => '10']));
+db_query('DELETE FROM login_attempts WHERE username = ?', [ORDER_THROTTLE_USER]);
+$gOrder = order_create(['items' => [['slug' => 'zz-var-grid', 'sizeId' => '900', 'flavorId' => 'choco', 'qty' => 1]],
+                        'customer' => $oCust]);
+ok('an order reserves one while the editor still shows ten', !empty($gOrder['ok']) && (int) $gQty() === 9);
+$gRun([(string) $gPid, '900|choco:1850000:900000:۱۰:1', $gOriginal]);
+ok('an untouched Persian-digit count preserves that reservation', (int) $gQty() === 9);
+ok('other edits on the stale page still save',
+   (int) db_value("SELECT price FROM product_variants WHERE product_id=? AND ext_id='900|choco'", [$gPid]) === 1850000);
+$gConflict = $gRun([(string) $gPid, '900|choco:9990000:900000:12:1', $gOriginal]);
+ok('an edited stale count is refused with an actionable message', mb_strpos((string) $gConflict, 'موجودی از زمان باز شدن این صفحه تغییر کرده') !== false);
+ok('a conflict keeps the actual count and rolls back other edits too', (int) $gQty() === 9
+   && (int) db_value("SELECT price FROM product_variants WHERE product_id=? AND ext_id='900|choco'", [$gPid]) === 1850000);
+$gRun([(string) $gPid, '900|choco:1850000:900000:7:1', base64_encode(json_encode(['900|choco'=>'9']))]);
+ok('a fresh explicit edit writes the new count', (int) $gQty() === 7);
+$gRun([(string) $gPid, '900|choco:1850000:900000::1', base64_encode(json_encode(['900|choco'=>'7']))]);
+ok('explicitly clearing a fresh count restores NULL, not zero', $gQty() === null);
+$gRun([(string) $gPid, '900|choco:1850000:900000:۰:1', base64_encode(json_encode(['900|choco'=>'']))]);
+ok('zero is a real edit distinct from NULL', $gQty() !== null && (int) $gQty() === 0);
+$gRun([(string) $gPid, '900|choco:1850000:900000:10:1', 'legacy']);
+ok('an already-open legacy form cannot restore its old count', (int) $gQty() === 0);
+db_query("UPDATE product_variants SET stock_qty=-2 WHERE product_id=? AND ext_id='900|choco'", [$gPid]);
+$gRun([(string) $gPid, '900|choco:1850000:900000:-2:1', base64_encode(json_encode(['900|choco'=>'-2']))]);
+ok('an unchanged oversold count is preserved', (int) $gQty() === -2);
+$gRun([(string) $gPid, '900|choco:1800000:900000:5:1', base64_encode(json_encode(['900|choco'=>'-2']))]);
+ok('an oversold count can be corrected deliberately', (int) $gQty() === 5);
+db_query("DELETE oi FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.customer_name='آزمون ترکیب'");
+db_query("DELETE FROM orders WHERE customer_name='آزمون ترکیب'");
+
 /* The save that has bitten twice already in this project: adding one option
    must not cost the operator the figures they typed into the others. */
 db_query("INSERT INTO product_flavors (product_id, ext_id, name, price_delta_toman, sort_order)
@@ -398,7 +432,9 @@ $gRun([(string) $gPid,
        '900|choco:1800000:900000:5:1,'
      . '900|cook:3333000:1000000::1,'
      . '2270|choco:4100000:2000000:2:1,'
-     . '2270|cook:4350000:2000000:2:']);
+     . '2270|cook:4350000:2000000:2:,'
+     . '900|berry:1800000:900000:4:1,'
+     . '2270|berry:4100000:2000000::1']);
 
 ok('adding a flavour grows the grid to six',
    (int) db_value('SELECT COUNT(*) FROM product_variants WHERE product_id = ?', [$gPid]) === 6,
@@ -412,6 +448,10 @@ ok('  so does the switched-off row',
 ok('  and the two new combinations are there',
    (int) db_value("SELECT COUNT(*) FROM product_variants
                     WHERE product_id = ? AND ext_id LIKE '%berry'", [$gPid]) === 2);
+ok('a count entered for a new combination is saved on its first save',
+   (int) db_value("SELECT stock_qty FROM product_variants WHERE product_id=? AND ext_id='900|berry'", [$gPid]) === 4);
+ok('a new blank combination keeps its inherited count',
+   (int) db_value("SELECT stock_qty FROM product_variants WHERE product_id=? AND ext_id='2270|berry'", [$gPid]) === 2);
 
 
 head('a value the owner deleted must stop selling');

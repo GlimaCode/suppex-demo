@@ -92,6 +92,8 @@ db_query("INSERT INTO admins (id, username, password_hash, name, role)
           VALUES (1, ?, ?, ?, ?)", ["tester", password_hash("x", PASSWORD_DEFAULT), "tester", "support"]);
 auth_start_session();
 $_SESSION["admin_id"] = 1; $_SESSION["admin_name"] = "tester"; $_SESSION["admin_role"] = "support";
+$_SESSION['csrf'] = 'fresh-migration-test';
+$_POST['_csrf'] = 'fresh-migration-test';
 
 head("admin/migrate.php completes in ONE run");
 ob_start();

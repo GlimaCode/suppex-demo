@@ -80,6 +80,29 @@ $as('manager');
 ok('  while مدیرکل cannot', auth_can('maintenance') === false);
 $as('owner');
 
+head('migration requests need the owner capability and a valid CSRF token');
+$migrationRequest = static function (string $mode, string $role = 'support'): array {
+    $cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/migration-request.php')
+         . ' ' . escapeshellarg($mode) . ' ' . escapeshellarg($role);
+    exec($cmd . ' 2>&1', $lines, $code);
+    $last = json_decode((string) end($lines), true);
+    return $code === 0 && is_array($last) ? $last : ['error' => implode("\n", $lines)];
+};
+$mGet = $migrationRequest('get');
+ok('GET renders a token without running migrations',
+   ($mGet['status'] ?? 0) === 200 && !empty($mGet['formToken']) && empty($mGet['ran']));
+foreach (['missing', 'wrong'] as $mode) {
+    $mBad = $migrationRequest($mode);
+    ok($mode . ' CSRF token is refused before migrations run',
+       ($mBad['status'] ?? 0) === 419 && empty($mBad['ran']), json_encode($mBad));
+}
+$mGood = $migrationRequest('valid');
+ok('a valid owner POST can still run migrations',
+   ($mGood['status'] ?? 0) === 200 && !empty($mGood['ran']), json_encode($mGood));
+$mManager = $migrationRequest('valid', 'manager');
+ok('a valid token does not give a manager maintenance access',
+   ($mManager['status'] ?? 0) === 302 && empty($mManager['ran']), json_encode($mManager));
+
 head('the nav advertises only what the role can open');
 $as('support');
 $navSupport = array_column(admin_nav_items(), 'href');

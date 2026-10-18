@@ -3,7 +3,8 @@
    Own process: product-edit.php declares helpers at file scope.
 
    argv[1] = product id
-   argv[2] = ext:price:cost:stock:active , … */
+   argv[2] = ext:price:cost:stock:active , …
+   argv[3] = optional base64 JSON original-count map; "legacy" omits snapshots */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
 $_SERVER['REMOTE_ADDR']    = '127.0.0.1';
@@ -78,10 +79,18 @@ if (($argv[2] ?? '') !== '') {
     $_POST['variant_cost']   = $cost;
     $_POST['variant_stock']  = $stock;
     $_POST['variant_active'] = $active;
+    if (($argv[3] ?? '') !== 'legacy') {
+        $original = [];
+        foreach (db_all('SELECT ext_id, stock_qty FROM product_variants WHERE product_id = ?', [$id]) as $v) {
+            $original[(string) $v['ext_id']] = $v['stock_qty'] === null ? '' : (string) $v['stock_qty'];
+        }
+        $_POST['variant_stock_was'] = isset($argv[3])
+            ? json_decode(base64_decode($argv[3], true), true, 512, JSON_THROW_ON_ERROR) : $original;
+    }
 }
 
 
  ob_start();
  include SUPPEX_ROOT . '/admin/product-edit.php';
- ob_end_clean();
+ echo ob_get_clean();
  

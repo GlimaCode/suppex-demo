@@ -324,6 +324,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         $columns = array_keys($fields);
         $priced  = null;
         $droppedPremium = false;
+        $stockConflict = false;
+        $legacyStockForm = false;
         $pdo = db();
         $pdo->beginTransaction();
 
@@ -655,6 +657,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                value. In that order: a variant whose value was just deleted has
                to go before the grid is drawn, or a stale cart could still
                resolve to a flavour the shop stopped stocking. */
+            /* Existing rows need the count the form was drawn with. New
+               combinations have no old input to compare against. */
+            $existingGridKeys = array_fill_keys(array_column(db_all(
+                'SELECT ext_id FROM product_variants WHERE product_id = ?', [$id]
+            ), 'ext_id'), true);
             variants_adopt($id);
             variants_generate($id);
             variants_prune($id);
@@ -669,7 +676,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             $gPrice  = (array) ($_POST['variant_price'] ?? []);
             $gCost   = (array) ($_POST['variant_cost'] ?? []);
             $gStock  = (array) ($_POST['variant_stock'] ?? []);
+            $gWas    = (array) ($_POST['variant_stock_was'] ?? []);
             $gActive = (array) ($_POST['variant_active'] ?? []);
+            $parseGridStock = static function (string $raw): ?int {
+                $raw = trim(to_latin_digits($raw));
+                if ($raw === '') { return null; }
+                $n = (int) preg_replace('/\D/', '', $raw);
+                return str_starts_with($raw, '-') ? -$n : $n;
+            };
 
             foreach ($gExt as $gi => $extRaw) {
                 $extRaw = trim((string) $extRaw);
@@ -678,8 +692,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 /* Matched on the key, not on $gi. The grid posts back in render
                    order, but renaming a value in the block above reorders it -
                    and by index the 900g price would land on the 2270g row. */
-                $gRow = db_one('SELECT id FROM product_variants
-                                 WHERE product_id = ? AND ext_id = ?', [$id, $extRaw]);
+                $gRow = db_one('SELECT id, stock_qty FROM product_variants
+                                 WHERE product_id = ? AND ext_id = ? FOR UPDATE', [$id, $extRaw]);
                 if ($gRow === null) { continue; }
                 $gvId = (int) $gRow['id'];
 
@@ -690,14 +704,44 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                    that distinction everywhere else and the grid says so in
                    its own placeholder. */
                 $stockRaw = trim(to_latin_digits((string) ($gStock[$gi] ?? '')));
-                $stockIn  = $stockRaw === '' ? null
-                    : max(0, (int) preg_replace('/\D/', '', $stockRaw));
+                $stockIn  = $parseGridStock($stockRaw);
 
                 $costRaw = trim(to_latin_digits((string) ($gCost[$gi] ?? '')));
                 $costRaw = str_replace(',', '', $costRaw);
 
-                $gSets = ['stock_qty = ?', 'is_active = ?'];
-                $gVals = [$stockIn, empty($gActive[$extRaw]) ? 0 : 1];
+                $gSets = ['is_active = ?'];
+                $gVals = [empty($gActive[$extRaw]) ? 0 : 1];
+
+                /* An unchanged input must never undo an order placed while
+                   the editor was open. For a genuine edit, the locking read
+                   above sees today's count, even under REPEATABLE READ; a
+                   stale edit is refused and the whole save rolled back.
+                   Old, already-open forms have no snapshot: preserve their
+                   existing counts and ask for a reload rather than guessing. */
+                $writeStock = false;
+                if (isset($existingGridKeys[$extRaw])) {
+                    if (array_key_exists($extRaw, $gWas)) {
+                        $wasStock = $parseGridStock((string) $gWas[$extRaw]);
+                        if ($stockIn !== $wasStock) {
+                            $currentStock = $gRow['stock_qty'] === null ? null : (int) $gRow['stock_qty'];
+                            if ($currentStock !== $wasStock) {
+                                $stockConflict = true;
+                                throw new RuntimeException('variant stock changed while editor was open');
+                            }
+                            $writeStock = true;
+                        }
+                    } else {
+                        $legacyStockForm = true;
+                    }
+                } else {
+                    /* A new blank row keeps its inherited count. A number
+                       typed for it is the first explicit count. */
+                    $writeStock = $stockRaw !== '';
+                }
+                if ($writeStock) {
+                    $gSets[] = 'stock_qty = ?';
+                    $gVals[] = $stockIn;
+                }
                 if ($priceMode === 'aed') {
                     /* Blank is «what its size - or the product - costs, plus
                        its flavour's premium», worked out by
@@ -768,8 +812,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             $pdo->commit();
         } catch (Throwable $ex) {
             $pdo->rollBack();
-            error_log('[suppex] product save failed: ' . $ex->getMessage());
-            $errors['_'] = 'ذخیره محصول با خطا مواجه شد.';
+            if (!$stockConflict) {
+                error_log('[suppex] product save failed: ' . $ex->getMessage());
+            }
+            $errors['_'] = $stockConflict
+                ? 'موجودی از زمان باز شدن این صفحه تغییر کرده است؛ هیچ تغییری ذخیره نشد. صفحه را دوباره باز کنید، موجودی تازه را ببینید و سپس ویرایش کنید.'
+                : 'ذخیره محصول با خطا مواجه شد.';
         }
 
         /* --- Image order ----------------------------------------------------
@@ -871,6 +919,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             if ($droppedPremium) {
                 flash('info', 'اضافه‌بهای طعم‌ها به واحد قبلی وارد شده بود و با عوض شدن حالت '
                     . 'قیمت‌گذاری کنار گذاشته شد. اگر طعمی گران‌تر است، اضافه‌بهایش را دوباره وارد کنید.');
+            }
+            if ($legacyStockForm) {
+                flash('info', 'این فرم پیش از به‌روزرسانی باز شده بود؛ موجودی قبلی حفظ شد. برای تغییر تعداد، از همین صفحهٔ تازه استفاده کنید.');
             }
             header('Location: product-edit.php?id=' . $id);
             exit;
@@ -1797,6 +1848,8 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
                      placeholder="شمارش نمی‌شود"
                      value="<?= e($gv['stock_qty'] === null ? '' : (string) $gv['stock_qty']) ?>"
                      aria-label="موجودی">
+              <input type="hidden" name="variant_stock_was[<?= e($gk) ?>]"
+                     value="<?= e($gv['stock_qty'] === null ? '' : (string) $gv['stock_qty']) ?>">
               <div class="flavor-img">
                 <?php if ((string) $gv['image'] !== ''): ?>
                   <img class="flavor-img__thumb" src="<?= e(admin_img($gv['image'])) ?>"

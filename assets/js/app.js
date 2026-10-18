@@ -2905,6 +2905,22 @@ SUPPEX.app = (function () {
     });
   }
 
+  /* An absent combination in a variant catalogue is not a legacy price.
+     The API omits disabled rows, including when every row is disabled. */
+  function productAvailability(product, variant, legacyStock) {
+    var left = variant ? variant.stock : legacyStock;
+    var available = product.inStock !== false
+      && (!Array.isArray(product.variants) || !!variant)
+      && !(typeof left === 'number' && left <= 0);
+    return {
+      available: available,
+      stock: left,
+      ceiling: available
+        ? (typeof left === 'number' ? Math.max(1, Math.min(20, left)) : 20)
+        : 1,
+    };
+  }
+
   function renderProduct(product) {
     /* --- state local to this page --- */
     /* An empty array is not a size list, and `[] || fallback` keeps the empty
@@ -3260,6 +3276,7 @@ SUPPEX.app = (function () {
              first saw the real figure in the cart. */
           paintPrice();
           paintChoiceImage();
+          paintAvailability();
         });
       }
     }
@@ -3418,12 +3435,8 @@ SUPPEX.app = (function () {
        size lowers it to what exists, so the page cannot offer to sell three of
        something there are two of and then refuse at checkout. */
     function qtyCeiling() {
-      var v = currentVariant();
-      /* A combination's own count wins: it is what the server will reserve
-         against, so offering three of something it holds two of would be a
-         refusal at checkout after the address has been typed. */
-      var left = v ? v.stock : (selected.size ? selected.size.stock : null);
-      return typeof left === 'number' ? Math.max(1, Math.min(20, left)) : 20;
+      return productAvailability(product, currentVariant(),
+        selected.size ? selected.size.stock : null).ceiling;
     }
 
     var qtyBox = $('[data-p-qty]');
@@ -3440,13 +3453,14 @@ SUPPEX.app = (function () {
     var buyBtn   = $('[data-p-add]');
     var buyLabel = buyBtn ? buyBtn.textContent : '';
 
-    /* Availability is a property of the SELECTED SIZE, not of the product, so
-       it has to be repainted every time the selection moves. The button used
-       to be disabled once at render time from product.inStock alone, which is
-       true of the product and says nothing about the tub in front of you. */
+    /* The selected combination owns availability, including a missing row
+       that the owner switched off. Repaint both buy buttons and both stock
+       descriptions on every option change. */
     function paintAvailability() {
-      var left = selected.size ? selected.size.stock : null;
-      var sold = !product.inStock || left === 0;
+      var state = productAvailability(product, currentVariant(),
+        selected.size ? selected.size.stock : null);
+      var left = state.stock;
+      var sold = !state.available;
 
       if (selected.qty > qtyCeiling()) { selected.qty = qtyCeiling(); paintQty(); }
 
@@ -3459,6 +3473,8 @@ SUPPEX.app = (function () {
         barBtn.disabled    = sold;
         barBtn.textContent = sold ? 'ناموجود' : 'افزودن به سبد';
       }
+
+      set('[data-p-stock]', sold ? 'ناموجود' : 'موجود در انبار');
 
       set('[data-p-rating]', ui.ratingHtml(product) +
         '<span class="u-xs" style="color:' +
@@ -3595,6 +3611,7 @@ SUPPEX.app = (function () {
     rememberMyOrder: rememberMyOrder,
     forgetMyOrder: forgetMyOrder,
     cardAddPlan: cardAddPlan,
+    productAvailability: productAvailability,
     VALIDATORS: VALIDATORS,
     normaliseMobile: normaliseMobile,
     init: function () {

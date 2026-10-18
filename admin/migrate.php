@@ -49,6 +49,7 @@ $log = [];
 $ran = false;
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    csrf_check();
     $ran = true;
     migrate_run($log);
 }
@@ -98,6 +99,7 @@ $allDone = !in_array(false, $pending, true);
         </a>
       <?php else: ?>
         <form method="post" action="migrate.php">
+          <?= csrf_field() ?>
           <button class="btn btn--primary btn--block" type="submit" style="margin-block-start:16px">
             اجرای دوباره
           </button>
@@ -132,6 +134,7 @@ $allDone = !in_array(false, $pending, true);
       </p>
 
       <form method="post" action="migrate.php">
+        <?= csrf_field() ?>
         <button class="btn btn--primary btn--block" type="submit" style="margin-block-start:16px">
           اجرای به‌روزرسانی
         </button>

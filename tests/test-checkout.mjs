@@ -696,6 +696,37 @@ head('another tab changed the basket');
   handlers.storage({ key: 'something-else', newValue: '{}' });
   ok('another key is ignored', S.snapshot().items[0].slug === 'b');
 }
+head('the selected combination controls availability before the cart');
+{
+  const A = bootApp().app;
+  const live = { inStock: true, variants: [{ id: 'chocolate' }] };
+  const count = (n) => ({ stock: n });
+  ok('a disabled/missing flavour does not fall back to the size being available',
+    A.productAvailability(live, null, 10).available === false);
+  ok('an empty active-variant list is unavailable, not legacy mode',
+    A.productAvailability({ inStock: true, variants: [] }, null, null).available === false);
+  ok('a zero-count flavour is unavailable even when its size has stock',
+    A.productAvailability(live, count(0), 10).available === false);
+  ok('a positive flavour count wins over the size count',
+    A.productAvailability(live, count(2), 0).available === true
+      && A.productAvailability(live, count(2), 10).ceiling === 2);
+  ok('an uncounted active flavour is available without a fabricated count',
+    A.productAvailability(live, count(null), null).available === true
+      && A.productAvailability(live, count(null), null).stock === null);
+  ok('the product manual off switch still wins',
+    A.productAvailability({ inStock: false, variants: live.variants }, count(4), 4).available === false);
+  ok('an oversold combination cannot be bought',
+    A.productAvailability(live, count(-1), null).available === false);
+  ok('the shop quantity limit is still twenty',
+    A.productAvailability(live, count(50), null).ceiling === 20);
+  ok('a legacy product without a variant catalogue still sells normally',
+    A.productAvailability({ inStock: true }, null, null).available === true);
+  ok('legacy size zero still disables buying',
+    A.productAvailability({ inStock: true }, null, 0).available === false);
+  ok('legacy size counts still cap quantity',
+    A.productAvailability({ inStock: true }, null, 3).ceiling === 3);
+}
+
 console.log('\n----------------------------------------');
 console.log(`passed: ${pass}    failed: ${fail}`);
 process.exit(fail ? 1 : 0);
