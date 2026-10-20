@@ -53,6 +53,8 @@ function admin_nav_items(): array
         ['href' => 'pricing.php',  'label' => 'قیمت‌گذاری', 'icon' => 'coins', 'group' => 'prices'],
         ['href' => 'margins.php',  'label' => 'حاشیه سود',  'icon' => 'scale', 'group' => 'prices'],
         ['href' => 'stock.php',    'label' => 'موجودی انبار', 'icon' => 'boxes', 'group' => 'prices'],
+        ['href' => 'inquiries.php', 'label' => 'استعلام موجودی', 'icon' => 'boxes', 'group' => 'prices',
+         'badge' => admin_inquiries_waiting()],
         ['href' => 'report.php',   'label' => 'گزارش مالی', 'icon' => 'chart', 'group' => 'system'],
         ['href' => 'settings.php', 'label' => 'تنظیمات',  'icon' => 'gear', 'group' => 'system'],
         ['href' => 'users.php',    'label' => 'کاربران پنل', 'icon' => 'users', 'group' => 'system',
@@ -319,6 +321,14 @@ function admin_orders_waiting(): int
     } catch (Throwable $e) {
         return 0;
     }
+}
+
+function admin_inquiries_waiting(): int
+{
+    try {
+        require_once SUPPEX_ROOT . '/lib/inquiries.php';
+        return inquiries_waiting();
+    } catch (Throwable $e) { return 0; }
 }
 
 /** How many reviews wait for the owner - 0 until the table exists. */

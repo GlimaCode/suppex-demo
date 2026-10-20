@@ -33,6 +33,7 @@ require_once SUPPEX_ROOT . '/lib/quotes.php';
 require_once SUPPEX_ROOT . '/lib/notify.php';
 require_once SUPPEX_ROOT . '/lib/receipts.php';
 require_once SUPPEX_ROOT . '/lib/seo.php';
+require_once SUPPEX_ROOT . '/lib/inquiries.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -113,6 +114,13 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 try {
     switch ($route) {
+
+        case 'inquirystate':
+            if ($method !== 'POST') { api_error('Method not allowed.', 405); }
+            if (!inquiry_same_origin()) { api_error('Forbidden.', 403); }
+            $body = api_json_body();
+            $inquiry = inquiry_find((string) ($body['code'] ?? ''), (string) ($body['phone'] ?? ''));
+            api_send($inquiry === null ? ['ok' => false] : inquiry_public($inquiry));
 
         case 'products':
             api_send(products_list([
@@ -233,7 +241,8 @@ try {
                    back together. The sizes above are quoted anyway and cost
                    nothing - a converted product simply never asks for them. */
                 $variantRows = [];
-                foreach (variants_list((int) $r['id']) as $vr) {
+                $allVariantRows = variants_list((int) $r['id']);
+                foreach ($allVariantRows as $vr) {
                     if ((int) $vr['is_active'] !== 1 || (int) $vr['price'] <= 0
                         || variant_requires_inquiry($vr)) {
                         /* An unpriced or switched-off combination is quoted at
@@ -273,7 +282,10 @@ try {
                     /* A product hidden since the item was added is treated as
                        unavailable rather than omitted, so the cart can say so
                        instead of silently dropping a line. */
-                    'available' => ((int) $r['is_active'] === 1 && product_row_available($r)),
+                    'available' => (int) $r['is_active'] === 1 && (int) $r['in_stock'] === 1
+                        && ($allVariantRows ? (bool) array_filter($variantRows,
+                            static fn(array $v): bool => $v['stock'] === null || $v['stock'] > 0)
+                            : product_row_available($r)),
                     /* How many are left, so a cart holding three of the last
                        one is corrected here rather than at checkout, after the
                        customer has typed their address. null = uncounted.

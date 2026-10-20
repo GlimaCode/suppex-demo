@@ -2949,46 +2949,78 @@ SUPPEX.app = (function () {
     });
   }
 
-  function openStockInquiry(product, parts, qty) {
-    var text = inquiryMessage(product, parts, qty, window.location.href.split('#')[0]);
-    var routes = inquiryRoutes(inquiryConfiguredChannels, text);
+  function openStockInquiry(product, parts, qty, variant) {
     var dlg = document.createElement('dialog');
     dlg.className = 'stock-inquiry';
     dlg.setAttribute('aria-labelledby', 'stock-inquiry-title');
+    var key = '';
+    if (window.crypto && window.crypto.getRandomValues) {
+      var bytes = new Uint8Array(16); window.crypto.getRandomValues(bytes);
+      key = Array.prototype.map.call(bytes, function (n) { return ('0' + n.toString(16)).slice(-2); }).join('');
+    }
     dlg.innerHTML = '<div class="stock-inquiry__body">'
       + '<button class="btn btn--ghost" type="button" data-inquiry-close>بستن</button>'
-      + '<h2 class="u-h3" id="stock-inquiry-title">استعلام موجودی</h2>'
-      + '<p>پاسخ موجودی را حداکثر تا ۳۰ دقیقه در همان گفتگو اعلام می‌کنیم. '
-      + 'پس از تأیید، به صفحهٔ محصول برگردید و آن را تازه کنید تا خرید انجام شود.</p>'
-      + '<label>متن درخواست<textarea rows="5" readonly data-inquiry-message>' + ui.esc(text) + '</textarea></label>'
-      + '<button class="btn btn--ghost" type="button" data-inquiry-copy>کپی متن درخواست</button>'
-      + '<p class="u-sm u-muted" data-inquiry-status role="status">برای تلگرام، متن درخواست را در گفتگو جای‌گذاری و ارسال کنید.</p>'
-      + '<div class="stock-inquiry__channels">'
-      + routes.map(function (r, i) { return '<button class="btn btn--primary" type="button" data-inquiry-contact="' + i + '">'
-          + 'استعلام در ' + ui.esc(r.label) + '</button>'; }).join('')
-      + '</div>'
-      + (!routes.length ? '<p>فعلاً راه ارتباطی برای استعلام در دسترس نیست. لطفاً بعداً دوباره تلاش کنید.</p>' : '')
-      + '<p class="u-xs u-muted">این درخواست سفارش یا رزرو کالا نیست؛ خرید پس از تأیید موجودی انجام می‌شود.</p></div>';
+      + '<h2 class="u-h3" id="stock-inquiry-title">درخواست استعلام موجودی</h2>'
+      + '<p>' + ui.esc(product.nameFa) + '<br>' + ui.esc(parts.join(' · '))
+      + '<br>تعداد درخواستی: ' + ui.faDigits(qty) + '</p>'
+      + '<p>درخواست در پنل فروشگاه ثبت می‌شود و پاسخ را حداکثر تا ۳۰ دقیقه در صفحهٔ پیگیری می‌بینید؛ نیازی به پیام خصوصی نیست.</p>'
+      + '<form class="form" method="post" action="inquiry.php">'
+      + '<input type="hidden" name="action" value="create">'
+      + '<input type="hidden" name="slug" value="' + ui.esc(product.slug) + '">'
+      + '<input type="hidden" name="variant" value="' + ui.esc(variant ? variant.id : '') + '">'
+      + '<input type="hidden" name="qty" value="' + qty + '">'
+      + '<input type="hidden" name="request_key" value="' + key + '">'
+      + '<label class="form__label">نام<input class="input form__control" name="name" autocomplete="name" maxlength="100" required minlength="2"></label>'
+      + '<label class="form__label">موبایل<input class="input form__control" name="phone" type="tel" dir="ltr" autocomplete="tel" maxlength="15" required></label>'
+      + '<div hidden aria-hidden="true"><input name="website" tabindex="-1" autocomplete="off"></div>'
+      + '<p class="u-xs u-muted">موبایل برای پیگیری درخواست است؛ در اعلان گروه نمایش داده نمی‌شود.</p>'
+      + '<button class="btn btn--primary" type="submit"' + (!key || !variant ? ' disabled' : '') + '>ثبت درخواست و دریافت کد پیگیری</button>'
+      + '</form><p class="u-xs u-muted">استعلام سفارش یا رزرو نیست. پس از تأیید، همان تعداد به موجودی عمومی اضافه می‌شود و می‌توانید خرید کنید.</p>'
+      + '<a href="inquiry.php">پیگیری استعلام قبلی</a></div>';
     document.body.appendChild(dlg);
-    function copy() {
-      copyText(text, function () { $('[data-inquiry-status]', dlg).textContent = 'متن کپی شد؛ آن را در گفتگو جای‌گذاری و ارسال کنید.'; },
-        function () { $('[data-inquiry-status]', dlg).textContent = 'کپی خودکار انجام نشد؛ متن بالا را انتخاب و کپی کنید.'; });
-    }
-    $('[data-inquiry-close]', dlg).addEventListener('click', function () {
-      if (typeof dlg.close === 'function') { dlg.close(); } else { dlg.remove(); }
-    });
-    $('[data-inquiry-copy]', dlg).addEventListener('click', copy);
-    $$('[data-inquiry-contact]', dlg).forEach(function (button) {
-      button.addEventListener('click', function () {
-        var route = routes[Number(button.getAttribute('data-inquiry-contact'))];
-        if (!route) { return; }
-        if (route.needsPaste) { copy(); }
-        window.open(route.url, '_blank', 'noopener');
-      });
+    $('[data-inquiry-close]', dlg).addEventListener('click', function () { dlg.close(); });
+    $('form', dlg).addEventListener('submit', function () {
+      var send = $('[type="submit"]', dlg); send.textContent = 'در حال ثبت…';
     });
     dlg.addEventListener('close', function () { dlg.remove(); });
-    if (typeof dlg.showModal === 'function') { dlg.showModal(); }
-    else { dlg.setAttribute('open', ''); }
+    if (typeof dlg.showModal === 'function') { dlg.showModal(); } else { dlg.setAttribute('open', ''); }
+  }
+
+  function initInquiryTracking() {
+    var page = $('[data-inquiry-page]');
+    if (!page || !repo.getInquiryState) { return; }
+    var form = $('[data-inquiry-lookup]', page), box = $('[data-inquiry-result]', page);
+    if (!form || !box) { return; }
+    var code = $('[name="code"]', form), phone = $('[name="phone"]', form), timer, busy = false;
+    var storageKey = 'suppex.lastInquiry';
+    try {
+      var last = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      if (!code.value && last) { code.value = last.code || ''; }
+      if (!phone.value && last && last.code === code.value) { phone.value = last.phone || ''; }
+      if (code.value && phone.value) { localStorage.setItem(storageKey, JSON.stringify({code: code.value, phone: phone.value})); }
+    } catch (ignore) { /* The form remains usable with storage disabled. */ }
+    function poll() {
+      if (busy || document.hidden || !code.value || !phone.value) { return; }
+      busy = true;
+      var lookupCode = code.value, lookupPhone = phone.value;
+      repo.getInquiryState(lookupCode, lookupPhone).then(function (r) {
+        busy = false;
+        if (lookupCode !== code.value || lookupPhone !== phone.value) { return; }
+        if (!r) { clearInterval(timer); $('[data-inquiry-poll-note]', page).textContent = 'بررسی خودکار فعلاً ممکن نیست؛ دکمهٔ بررسی نتیجه را بزنید.'; return; }
+        var title = r.status === 'approved' ? 'موجودی تأیید شد' : (r.status === 'rejected' ? 'موجود نیست' : 'در انتظار بررسی');
+        var note = r.status === 'pending'
+          ? (r.deadline < r.serverNow ? 'مهلت پاسخ گذشته؛ درخواست هنوز در حال بررسی است.' : 'درخواست ثبت شده؛ فروشگاه تا ۳۰ دقیقه پاسخ می‌دهد.')
+          : (r.status === 'approved' ? 'همان تعداد به موجودی عمومی اضافه شد. این استعلام رزرو شخصی نیست؛ موجودی و قیمت هنگام خرید بررسی می‌شوند.' : 'فروشگاه موجودی این درخواست را تأیید نکرد. پرداختی انجام ندهید.');
+        box.hidden = false;
+        box.innerHTML = '<h2 class="u-h3">' + title + '</h2><p>کد پیگیری: <bdi>' + ui.esc(r.code)
+          + '</bdi></p><p>' + ui.esc(r.product) + ' · ' + ui.esc(r.choice) + ' · ' + ui.faDigits(r.qty) + ' عدد</p><p>' + note + '</p>'
+          + (r.status === 'approved' && !r.available ? '<p>موجودی قابل خرید فعلاً در دسترس نیست؛ صفحه محصول را بررسی کنید.</p>' : '')
+          + '<p><a class="btn btn--primary" href="' + ui.esc(r.productUrl) + '">بازگشت به محصول</a></p>';
+        $('[data-inquiry-poll-note]', page).textContent = 'نتیجه به‌روز شد. کد و موبایل را برای مراجعهٔ بعدی نگه دارید.';
+        if (r.status !== 'pending') { clearInterval(timer); }
+      }).catch(function () { busy = false; });
+    }
+    timer = setInterval(poll, 20000); poll();
   }
 
   function renderProduct(product) {
@@ -3601,7 +3633,7 @@ SUPPEX.app = (function () {
         if (buyBtn.disabled) { return; }
         var parts = choiceParts();
         if (productAvailability(product, currentVariant(), selected.size ? selected.size.stock : null).inquiry) {
-          openStockInquiry(product, parts, selected.qty);
+          openStockInquiry(product, parts, selected.qty, currentVariant());
           return;
         }
 
@@ -3709,6 +3741,7 @@ SUPPEX.app = (function () {
          that the way back to an order is there wherever the customer lands. */
       initLastOrder();
       initMyOrders();
+      initInquiryTracking();
       initReceipts(document);
       initOrderWatch();
       /* track.php renders its own hold countdown server-side; the drawer's is

@@ -78,6 +78,12 @@ try {
 
 /* The list, most urgent first. kind: urgent | info | warn | calm. */
 $todo = [];
+if (($inquiryWaiting = admin_inquiries_waiting()) > 0) {
+    $todo[] = ['kind' => 'urgent', 'icon' => 'boxes',
+        'title' => fa_digits((string) $inquiryWaiting) . ' درخواست استعلام موجودی',
+        'sub' => 'تا ۳۰ دقیقه پاسخ دهید؛ تأیید هر درخواست، همان تعداد را یک‌بار به موجودی عمومی اضافه می‌کند.',
+        'href' => 'inquiries.php', 'cta' => 'بررسی استعلام‌ها'];
+}
 if (!empty($priceStale['stale'])) {
     /* drift_pct is read from the hourly readings (pricing_staleness()), and is
        null without a recent one. It was read here before pricing_staleness()

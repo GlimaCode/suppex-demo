@@ -912,6 +912,47 @@ function migrate_run(array &$log): void
         $log
     );
 
+    step(
+        'stock_inquiries - customer requests and exactly-once stock approval',
+        static fn(): bool => table_exists('stock_inquiries'),
+        static function (): void {
+            db()->exec("CREATE TABLE IF NOT EXISTS stock_inquiries (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                code VARCHAR(32) NOT NULL,
+                request_key CHAR(64) NOT NULL,
+                product_id INT UNSIGNED NOT NULL,
+                variant_id INT UNSIGNED NOT NULL,
+                product_slug VARCHAR(120) NOT NULL,
+                product_name VARCHAR(180) NOT NULL,
+                variant_ext VARCHAR(160) NOT NULL,
+                variant_label VARCHAR(500) NOT NULL,
+                qty INT UNSIGNED NOT NULL,
+                customer_name VARCHAR(100) NOT NULL,
+                phone VARCHAR(11) NOT NULL,
+                ip_hash CHAR(64) NOT NULL,
+                status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                respond_by DATETIME NOT NULL,
+                decided_at DATETIME NULL,
+                decided_by VARCHAR(100) NOT NULL DEFAULT '',
+                decision_note VARCHAR(300) NOT NULL DEFAULT '',
+                stock_before INT NULL,
+                stock_after INT NULL,
+                notify_state VARCHAR(16) NOT NULL DEFAULT 'pending',
+                notify_attempted_at DATETIME NULL,
+                notified_at DATETIME NULL,
+                notified_group VARCHAR(40) NOT NULL DEFAULT '',
+                UNIQUE KEY uq_inquiry_code (code),
+                UNIQUE KEY uq_inquiry_key (request_key),
+                KEY idx_inquiry_pending (status, created_at),
+                KEY idx_inquiry_ip (ip_hash, created_at),
+                KEY idx_inquiry_phone (phone, created_at),
+                KEY idx_inquiry_variant (variant_id, status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        },
+        $log
+    );
+
     /* 2026-10 - an order line carries a combination's whole key ------------ */
 
     step(
@@ -1025,6 +1066,7 @@ function migrate_pending(): array
         'product_attribute_values'   => table_exists('product_attribute_values'),
         'product_variants'           => table_exists('product_variants'),
         'product_variants.requires_inquiry' => column_exists('product_variants', 'requires_inquiry'),
+        'stock_inquiries' => table_exists('stock_inquiries'),
         'product_variant_values'     => table_exists('product_variant_values'),
         'order_items.unit_cost'      => column_exists('order_items', 'unit_cost'),
         'orders.commission_basis'    => column_exists('orders', 'commission_basis'),

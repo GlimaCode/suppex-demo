@@ -300,6 +300,16 @@ SUPPEX.repo = (function () {
        that reads this is decoration: a countdown in a bar and a dot on an
        icon. Neither is worth an error in the console, and neither may ever
        get in the way of somebody trying to buy something. */
+    getInquiryState: function (code, phone) {
+      if (!isRemote() || !code || !phone) { return local(null); }
+      return fetch(apiUrl('inquirystate'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ code: code, phone: phone }),
+      }).then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (body) { return body && body.ok ? body : null; })
+        .catch(function () { return null; });
+    },
+
     getOrderState: function (code, phone) {
       if (!isRemote() || !code || !phone) { return local(null); }
       return fetch(apiUrl('orderstate'), {

@@ -92,6 +92,7 @@ $url   = seo_origin() . '/track.php';
 
       <header class="article__head">
         <h1 class="article__title">پیگیری سفارش</h1>
+        <p><a href="inquiry.php">پیگیری درخواست استعلام موجودی</a></p>
         <p class="article__lede">
           شماره پیگیری همان کدی است که پس از ثبت سفارش در سایت دریافت کردید.
         </p>

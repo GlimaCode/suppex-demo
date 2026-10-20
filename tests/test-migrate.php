@@ -73,6 +73,8 @@ $failed  = array_filter($freshLog, static fn(array $l): bool => $l[0] === "fail"
 ok("migrate_run() applies the missing steps on a fresh schema", $applied >= 10, (string) $applied);
 ok("and none of them fail", $failed === [],
    implode(" | ", array_map(static fn(array $l): string => $l[1], $failed)));
+ok('fresh installation includes stock enquiry requests', table_exists('stock_inquiries'));
+ok('fresh requests have a unique retry key', index_exists('stock_inquiries', 'uq_inquiry_key'));
 
 /* The exact INSERT lib/orders.php performs. This is the check that would have
    caught the whole thing: it fails on schema.sql alone and passes after the

@@ -381,7 +381,7 @@ admin_head('تنظیمات', ['user' => $user]);
   $tgChatOn = trim((string) ($tgBotCfg['chat_id'] ?? '')) !== '';
 ?>
 <div class="card" id="telegram">
-  <h2 class="card__title">تلگرام: سفارش‌ها و رسیدها</h2>
+  <h2 class="card__title">تلگرام: سفارش‌ها، رسیدها و استعلام موجودی</h2>
   <p class="hint" style="margin-block-end:16px">
     <?php if (!$tgBotOn): ?>
       ربات تلگرام خاموش است یا توکن ندارد؛ آن را در فایل suppex-config.php روشن کنید.
@@ -389,11 +389,12 @@ admin_head('تنظیمات', ['user' => $user]);
       ربات روشن است<?= $tgChatOn ? ' و سفارش‌ها و رسیدها به گفتگوی شما می‌رسد' : '؛ شناسهٔ گفتگوی شما (chat_id) در suppex-config.php خالی است' ?>.
     <?php endif; ?>
     رسید واریزی که مشتری از سایت می‌فرستد، در گروهی که اینجا مشخص کنید هم می‌آید.
+    اعلان استعلام موجودی فقط به همین گروه می‌رود و به پیوی مدیر ارسال نمی‌شود؛ نام و موبایل خریدار در اعلان گروه نیست.
   </p>
   <form method="post" action="settings.php#telegram">
     <?= csrf_field() ?>
     <div class="field">
-      <label for="telegram_group_id">شناسهٔ گروه تأیید سفارش‌ها</label>
+      <label for="telegram_group_id">شناسهٔ گروه بررسی سفارش‌ها و استعلام موجودی</label>
       <input type="text" id="telegram_group_id" name="telegram_group_id" dir="ltr" inputmode="numeric"
              placeholder="-1001234567890" value="<?= e((string) setting('telegram_group_id', '')) ?>">
       <span class="hint">

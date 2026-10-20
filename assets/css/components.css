@@ -2285,4 +2285,7 @@ body.is-locked .toast-stack { inset-block-end: auto; inset-block-start: var(--sp
 .stock-inquiry textarea { width: 100%; min-height: 9rem; resize: vertical; padding: var(--sp-3); border: 1px solid var(--line-mid); border-radius: var(--r-md); color: var(--text); background: var(--surface-2); font: inherit; }
 .stock-inquiry__channels { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
 .stock-inquiry__channels .btn { flex: 1 1 160px; }
+.stock-inquiry .form { display: grid; gap: var(--sp-4); }
+.inquiry-result { margin-block: var(--sp-6); padding: var(--sp-5); border: 1px solid var(--line-mid); border-radius: var(--r-md); background: var(--surface-2); overflow-wrap: anywhere; }
+.inquiry-result p { margin-block: var(--sp-3); }
 [data-p-inquiry-note][hidden] { display: none; }

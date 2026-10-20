@@ -333,7 +333,8 @@ function product_list_choices(array $list): array
             $v    = $variants[$id];
             $p['hasInquiry'] = !empty($p['inquiryAllowed']) && (int) $v['inquiries'] > 0;
             $p['requiresInquiry'] = $p['hasInquiry'] && (int) $v['ready'] === 0;
-            if ($p['requiresInquiry']) { $p['inStock'] = false; }
+            /* A converted product sells variant counts, never its old size count. */
+            $p['inStock'] = !empty($p['inquiryAllowed']) && (int) $v['ready'] > 0;
             $vals = (int) $v['live'] === 1 ? ($values[(int) $v['one']] ?? []) : [];
             if (!$many && $vals) {
                 $attrs = [];
@@ -523,7 +524,7 @@ function product_get(string $slug): ?array
         $readyVariants = array_filter($p['variants'], static fn(array $v): bool =>
             !$v['requiresInquiry'] && $v['price'] > 0 && ($v['stock'] === null || $v['stock'] > 0));
         $p['requiresInquiry'] = $p['hasInquiry'] && !$readyVariants;
-        if ($p['requiresInquiry']) { $p['inStock'] = false; }
+        $p['inStock'] = $p['inquiryAllowed'] && (bool) $readyVariants;
     }
 
     /* A size's count falls back to the product's, which is the same
