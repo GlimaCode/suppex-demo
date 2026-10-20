@@ -234,7 +234,8 @@ try {
                    nothing - a converted product simply never asks for them. */
                 $variantRows = [];
                 foreach (variants_list((int) $r['id']) as $vr) {
-                    if ((int) $vr['is_active'] !== 1 || (int) $vr['price'] <= 0) {
+                    if ((int) $vr['is_active'] !== 1 || (int) $vr['price'] <= 0
+                        || variant_requires_inquiry($vr)) {
                         /* An unpriced or switched-off combination is quoted at
                            nothing, so a basket holding it is corrected here
                            rather than refused at checkout. */

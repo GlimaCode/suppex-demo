@@ -32,6 +32,24 @@ declare(strict_types=1);
 const VARIANT_SIZE_ATTR   = 'size';
 const VARIANT_FLAVOR_ATTR = 'flavor';
 
+/** Additive rollout: the shop keeps working between uploading code and running
+    the migration. Only the new checkbox waits for its column. */
+function variants_inquiry_ready(): bool
+{
+    static $ready = null;
+    if ($ready === null) {
+        $ready = db_value("SELECT 1 FROM information_schema.COLUMNS
+                           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_variants'
+                             AND COLUMN_NAME = 'requires_inquiry'") !== null;
+    }
+    return $ready;
+}
+
+function variant_requires_inquiry(array $variant): bool
+{
+    return !empty($variant['requires_inquiry']);
+}
+
 /** Joins the per-axis ext_ids into one variant key. */
 function variant_key(array $extIds): string
 {

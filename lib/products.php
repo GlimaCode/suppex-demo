@@ -112,6 +112,7 @@ function product_row_to_api(array $r): array
            gets its «ناموجود» badge and its disabled buy button without a line
            of rendering changing. */
         'inStock'      => product_row_available($r),
+        'inquiryAllowed' => (int) $r['in_stock'] === 1,
         'stock'        => product_row_stock($r),
         'badges'       => $r['badges'] === '' ? [] : explode(',', $r['badges']),
         'image'        => $r['image'],
@@ -287,11 +288,15 @@ function product_list_choices(array $list): array
                           GROUP BY product_id", $ids) as $r) {
             $flavors[(int) $r['product_id']] = $r;
         }
-        /* `live` is what the server would sell: switched on, with a price. */
+        $inquirySql = variants_inquiry_ready() ? 'requires_inquiry' : '0';
+        /* Inquiries stay visible, but are never a card's direct cart choice. */
         foreach (db_all("SELECT product_id,
-                                SUM(is_active = 1 AND price > 0) AS live,
-                                MIN(CASE WHEN is_active = 1 AND price > 0 THEN id END) AS one,
-                                MIN(CASE WHEN is_active = 1 AND price > 0 THEN price END) AS price
+                                SUM(is_active = 1 AND price > 0 AND $inquirySql = 0) AS live,
+                                SUM(is_active = 1 AND price > 0 AND $inquirySql = 1) AS inquiries,
+                                SUM(is_active = 1 AND price > 0 AND $inquirySql = 0
+                                    AND (stock_qty IS NULL OR stock_qty > 0)) AS ready,
+                                MIN(CASE WHEN is_active = 1 AND price > 0 AND $inquirySql = 0 THEN id END) AS one,
+                                MIN(CASE WHEN is_active = 1 AND price > 0 AND $inquirySql = 0 THEN price END) AS price
                            FROM product_variants WHERE product_id IN ($in)
                           GROUP BY product_id", $ids) as $r) {
             $variants[(int) $r['product_id']] = $r;
@@ -326,6 +331,9 @@ function product_list_choices(array $list): array
                exactly one on sale, and the card adds that one - every axis it
                is made of, the way order_price_line() resolves it. */
             $v    = $variants[$id];
+            $p['hasInquiry'] = !empty($p['inquiryAllowed']) && (int) $v['inquiries'] > 0;
+            $p['requiresInquiry'] = $p['hasInquiry'] && (int) $v['ready'] === 0;
+            if ($p['requiresInquiry']) { $p['inStock'] = false; }
             $vals = (int) $v['live'] === 1 ? ($values[(int) $v['one']] ?? []) : [];
             if (!$many && $vals) {
                 $attrs = [];
@@ -366,7 +374,7 @@ function product_list_choices(array $list): array
             }
         }
 
-        $p['needsChoice'] = $choice === null;
+        $p['needsChoice'] = $choice === null || !empty($p['hasInquiry']);
         $p['choice']      = $choice;
     }
     unset($p);
@@ -497,6 +505,7 @@ function product_get(string $slug): ?array
                 /* null is «not counted», not «none left» - the same rule the
                    sizes below follow. */
                 'stock'     => $v['stock_qty'] === null ? null : max(0, (int) $v['stock_qty']),
+                'requiresInquiry' => variant_requires_inquiry($v),
                 'image'     => (string) $v['image'],
                 /* The choice this row stands for, so the page can match a
                    selection to it without knowing how the key is built. */
@@ -509,6 +518,12 @@ function product_get(string $slug): ?array
                 })($v['values']),
             ];
         }
+        $p['hasInquiry'] = $p['inquiryAllowed'] && (bool) array_filter($p['variants'],
+            static fn(array $v): bool => $v['requiresInquiry']);
+        $readyVariants = array_filter($p['variants'], static fn(array $v): bool =>
+            !$v['requiresInquiry'] && $v['price'] > 0 && ($v['stock'] === null || $v['stock'] > 0));
+        $p['requiresInquiry'] = $p['hasInquiry'] && !$readyVariants;
+        if ($p['requiresInquiry']) { $p['inStock'] = false; }
     }
 
     /* A size's count falls back to the product's, which is the same

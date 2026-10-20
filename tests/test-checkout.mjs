@@ -728,5 +728,27 @@ head('the selected combination controls availability before the cart');
 }
 
 console.log('\n----------------------------------------');
+head('supplier stock inquiry is separate from buying');
+{
+  const { app:A } = bootApp();
+  const p={nameFa:'پروتئین تست',slug:'test-protein',inStock:true,inquiryAllowed:true,variants:[{id:'v'}]};
+  const request={stock:0,requiresInquiry:true};
+  const state=A.productAvailability(p,request,null);
+  ok('zero-count inquiry is visible as an inquiry but cannot be purchased',state.inquiry===true&&state.available===false);
+  ok('a positive count does not bypass the inquiry flag',A.productAvailability(p,{stock:5,requiresInquiry:true},null).available===false);
+  ok('an all-inquiry product can still be inquired about',A.productAvailability({...p,inStock:false},request,null).inquiry===true);
+  ok('the manual product off switch suppresses inquiries',A.productAvailability({...p,inStock:false,inquiryAllowed:false},request,null).inquiry===false);
+  ok('a disabled/missing flavour cannot become an inquiry',A.productAvailability(p,null,null).inquiry===false);
+  ok('approval with counted stock restores buying',A.productAvailability(p,{stock:3,requiresInquiry:false},null).available===true);
+  ok('inquiry cards navigate to the choice page',!!A.cardAddPlan({...p,requiresInquiry:true,needsChoice:false,choice:{price:100}}).go);
+  const msg=A.inquiryMessage(p,['وانیل','۹۰۰ گرم'],2,'https://suppex.ir/product.php?p=test-protein');
+  ok('the request names the product, flavour, size, quantity and response time',msg.includes('پروتئین تست')&&msg.includes('وانیل')&&msg.includes('۹۰۰ گرم')&&msg.includes('۲')&&msg.includes('۳۰'));
+  const routes=A.inquiryRoutes([{id:'whatsapp',url:'https://wa.me/989000000000',enabled:true},{id:'telegram',url:'https://t.me/suppex',enabled:true},{id:'whatsapp',url:'javascript:alert(1)',enabled:true}],msg);
+  ok('WhatsApp receives the request text, not the shopping basket',decodeURIComponent(routes[0].url).includes(msg)&&routes[0].needsPaste===false);
+  ok('Telegram uses the supported clipboard path',routes[1].url==='https://t.me/suppex'&&routes[1].needsPaste===true);
+  ok('unsafe destinations are not offered',routes.length===2);
+  ok('disabled channels stay unavailable',A.inquiryRoutes([{id:'telegram',url:'https://t.me/suppex',enabled:false}],msg).length===0);
+  ok('long messages use copy instead of truncating the request',A.inquiryRoutes([{id:'whatsapp',url:'https://wa.me/989000000000'}],'الف'.repeat(1000))[0].needsPaste===true);
+}
 console.log(`passed: ${pass}    failed: ${fail}`);
 process.exit(fail ? 1 : 0);

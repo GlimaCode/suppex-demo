@@ -76,6 +76,7 @@ $pWas   = ($product === null || empty($product['onSale'])) ? null : (int) $produ
    page does not jump when the script takes over. */
 $pOff   = ($pWas !== null && $pWas > $pPrice) ? (int) ($product['discountPercent'] ?? 0) : 0;
 $pStock = $product !== null && !empty($product['inStock']);
+$pInquiry = $product !== null && !empty($product['requiresInquiry']);
 $unit   = 'تومان';
 ?>
 <!DOCTYPE html>
@@ -197,7 +198,7 @@ $unit   = 'تومان';
         <!-- Stock state in the markup, not only as a disabled button: a crawler
              reading text has no other way to tell a listable product from one
              that is out of stock. -->
-        <p class="sr-only" data-p-stock><?= $pStock ? 'موجود در انبار' : 'ناموجود' ?></p>
+        <p class="sr-only" data-p-stock><?= $pInquiry ? 'نیازمند استعلام موجودی' : ($pStock ? 'موجود در انبار' : 'ناموجود') ?></p>
 
         <div class="pdp__field">
           <span class="pdp__field-label">طعم</span>
@@ -251,8 +252,11 @@ $unit   = 'تومان';
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
-          <button class="btn btn--primary" type="button" data-p-add>افزودن به سبد خرید</button>
+          <button class="btn btn--primary" type="button" data-p-add><?= $pInquiry ? 'استعلام موجودی' : 'افزودن به سبد خرید' ?></button>
         </div>
+        <p class="u-sm u-muted" data-p-inquiry-note<?= $pInquiry ? '' : ' hidden' ?>>
+          موجودی این انتخاب باید بررسی شود. پاسخ در تلگرام یا واتس‌اپ، حداکثر تا ۳۰ دقیقه؛ خرید پس از تأیید موجودی.
+        </p>
 
         <div class="pdp__assur">
           <!-- The middle item used to read «برگه آزمایش سری تولید», with a

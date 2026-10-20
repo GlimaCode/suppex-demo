@@ -234,7 +234,8 @@ ok('  read on scroll once a frame - a fling crosses nothing an observer would se
    && strpos($app, 'window.requestAnimationFrame(paintBuybar);') !== false);
 ok('  the price and the choice follow the selection', strpos($app, "set('[data-buybar-price]',") !== false
    && strpos($app, "set('[data-buybar-choice]', ui.esc(choiceParts().join(' · ')));") !== false);
-ok('  sold out, it says so', strpos($app, "barBtn.textContent = sold ? 'ناموجود' : 'افزودن به سبد';") !== false);
+ok('  sold out still says so alongside the inquiry state',
+   strpos($app, "barBtn.textContent = state.inquiry ? 'استعلام موجودی' : (sold ? 'ناموجود' : 'افزودن به سبد');") !== false);
 ok('the basket line is labelled by the same words', strpos($app, 'var parts = choiceParts();') !== false);
 $css = (string) file_get_contents(SUPPEX_ROOT . '/assets/css/components.css');
 ok('not on a desktop', preg_match('~@media \(min-width: 900px\) \{\s*\.buybar \{ display: none; \}~', $css) === 1);

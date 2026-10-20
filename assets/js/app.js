@@ -20,6 +20,8 @@ SUPPEX.app = (function () {
   /* Products already fetched, so an add-to-cart click doesn't need a round
      trip. With a real API this becomes a tiny client-side cache. */
   var productCache = {};
+  /* Only live shop settings supply enquiry destinations, never demo contacts. */
+  var inquiryConfiguredChannels = [];
 
   function cache(list) {
     list.forEach(function (p) { productCache[p.slug] = p; });
@@ -1406,6 +1408,7 @@ SUPPEX.app = (function () {
   function cardAddPlan(product) {
     if (!product) { return null; }
     var page = (cfg.productPage || 'product.php') + '?p=' + encodeURIComponent(product.slug);
+    if (product.requiresInquiry || product.hasInquiry) { return { go: page }; }
     if (typeof product.needsChoice === 'boolean') {
       var c = product.choice;
       if (product.needsChoice || !c) { return { go: page }; }
@@ -1740,6 +1743,7 @@ SUPPEX.app = (function () {
 
     var incoming = (remote.ordering && remote.ordering.channels)
       || remote.channels || [];
+    inquiryConfiguredChannels = incoming;
     var usable = incoming
       .filter(function (c) { return c && c.url && c.enabled !== false; })
       .map(function (c) {
@@ -2909,16 +2913,82 @@ SUPPEX.app = (function () {
      The API omits disabled rows, including when every row is disabled. */
   function productAvailability(product, variant, legacyStock) {
     var left = variant ? variant.stock : legacyStock;
+    var inquiry = !!variant && variant.requiresInquiry === true
+      && (typeof product.inquiryAllowed === 'boolean' ? product.inquiryAllowed : product.inStock !== false);
     var available = product.inStock !== false
       && (!Array.isArray(product.variants) || !!variant)
+      && !inquiry && !(variant && variant.requiresInquiry)
       && !(typeof left === 'number' && left <= 0);
     return {
       available: available,
+      inquiry: inquiry,
       stock: left,
       ceiling: available
         ? (typeof left === 'number' ? Math.max(1, Math.min(20, left)) : 20)
-        : 1,
+        : (inquiry ? 20 : 1),
     };
+  }
+
+  function inquiryMessage(product, parts, qty, url) {
+    return 'سلام، لطفاً موجودی این محصول را بررسی کنید:\n' + product.nameFa
+      + (parts.length ? '\n' + parts.join(' · ') : '')
+      + '\nتعداد درخواستی: ' + ui.faDigits(qty)
+      + '\n' + url + '\nلطفاً نتیجهٔ موجودی را تا ۳۰ دقیقه اعلام کنید.';
+  }
+
+  function inquiryRoutes(channels, text) {
+    return (channels || []).filter(function (c) {
+      return c && c.enabled !== false && (c.id === 'telegram' || c.id === 'whatsapp')
+        && /^https:\/\/(?:t\.me|wa\.me|api\.whatsapp\.com)(?:\/|$)/i.test(c.url || '');
+    }).map(function (c) {
+      var prefill = c.id === 'whatsapp'
+        ? c.url + (c.url.indexOf('?') < 0 ? '?' : '&') + 'text=' + encodeURIComponent(text) : '';
+      return { id: c.id, label: c.id === 'whatsapp' ? 'واتس‌اپ' : 'تلگرام',
+        url: prefill && prefill.length <= 2000 ? prefill : c.url,
+        needsPaste: !prefill || prefill.length > 2000 };
+    });
+  }
+
+  function openStockInquiry(product, parts, qty) {
+    var text = inquiryMessage(product, parts, qty, window.location.href.split('#')[0]);
+    var routes = inquiryRoutes(inquiryConfiguredChannels, text);
+    var dlg = document.createElement('dialog');
+    dlg.className = 'stock-inquiry';
+    dlg.setAttribute('aria-labelledby', 'stock-inquiry-title');
+    dlg.innerHTML = '<div class="stock-inquiry__body">'
+      + '<button class="btn btn--ghost" type="button" data-inquiry-close>بستن</button>'
+      + '<h2 class="u-h3" id="stock-inquiry-title">استعلام موجودی</h2>'
+      + '<p>پاسخ موجودی را حداکثر تا ۳۰ دقیقه در همان گفتگو اعلام می‌کنیم. '
+      + 'پس از تأیید، به صفحهٔ محصول برگردید و آن را تازه کنید تا خرید انجام شود.</p>'
+      + '<label>متن درخواست<textarea rows="5" readonly data-inquiry-message>' + ui.esc(text) + '</textarea></label>'
+      + '<button class="btn btn--ghost" type="button" data-inquiry-copy>کپی متن درخواست</button>'
+      + '<p class="u-sm u-muted" data-inquiry-status role="status">برای تلگرام، متن درخواست را در گفتگو جای‌گذاری و ارسال کنید.</p>'
+      + '<div class="stock-inquiry__channels">'
+      + routes.map(function (r, i) { return '<button class="btn btn--primary" type="button" data-inquiry-contact="' + i + '">'
+          + 'استعلام در ' + ui.esc(r.label) + '</button>'; }).join('')
+      + '</div>'
+      + (!routes.length ? '<p>فعلاً راه ارتباطی برای استعلام در دسترس نیست. لطفاً بعداً دوباره تلاش کنید.</p>' : '')
+      + '<p class="u-xs u-muted">این درخواست سفارش یا رزرو کالا نیست؛ خرید پس از تأیید موجودی انجام می‌شود.</p></div>';
+    document.body.appendChild(dlg);
+    function copy() {
+      copyText(text, function () { $('[data-inquiry-status]', dlg).textContent = 'متن کپی شد؛ آن را در گفتگو جای‌گذاری و ارسال کنید.'; },
+        function () { $('[data-inquiry-status]', dlg).textContent = 'کپی خودکار انجام نشد؛ متن بالا را انتخاب و کپی کنید.'; });
+    }
+    $('[data-inquiry-close]', dlg).addEventListener('click', function () {
+      if (typeof dlg.close === 'function') { dlg.close(); } else { dlg.remove(); }
+    });
+    $('[data-inquiry-copy]', dlg).addEventListener('click', copy);
+    $$('[data-inquiry-contact]', dlg).forEach(function (button) {
+      button.addEventListener('click', function () {
+        var route = routes[Number(button.getAttribute('data-inquiry-contact'))];
+        if (!route) { return; }
+        if (route.needsPaste) { copy(); }
+        window.open(route.url, '_blank', 'noopener');
+      });
+    });
+    dlg.addEventListener('close', function () { dlg.remove(); });
+    if (typeof dlg.showModal === 'function') { dlg.showModal(); }
+    else { dlg.setAttribute('open', ''); }
   }
 
   function renderProduct(product) {
@@ -3451,7 +3521,7 @@ SUPPEX.app = (function () {
     }
 
     var buyBtn   = $('[data-p-add]');
-    var buyLabel = buyBtn ? buyBtn.textContent : '';
+    var buyLabel = 'افزودن به سبد خرید';
 
     /* The selected combination owns availability, including a missing row
        that the owner switched off. Repaint both buy buttons and both stock
@@ -3460,30 +3530,32 @@ SUPPEX.app = (function () {
       var state = productAvailability(product, currentVariant(),
         selected.size ? selected.size.stock : null);
       var left = state.stock;
-      var sold = !state.available;
+      var sold = !state.available && !state.inquiry;
 
       if (selected.qty > qtyCeiling()) { selected.qty = qtyCeiling(); paintQty(); }
 
       if (buyBtn) {
         buyBtn.disabled    = sold;
-        buyBtn.textContent = sold ? 'موقتاً ناموجود' : buyLabel;
+        buyBtn.textContent = state.inquiry ? 'استعلام موجودی' : (sold ? 'موقتاً ناموجود' : buyLabel);
       }
       var barBtn = $('[data-buybar-add]');
       if (barBtn) {
         barBtn.disabled    = sold;
-        barBtn.textContent = sold ? 'ناموجود' : 'افزودن به سبد';
+        barBtn.textContent = state.inquiry ? 'استعلام موجودی' : (sold ? 'ناموجود' : 'افزودن به سبد');
       }
 
-      set('[data-p-stock]', sold ? 'ناموجود' : 'موجود در انبار');
+      set('[data-p-stock]', state.inquiry ? 'نیازمند استعلام موجودی' : (sold ? 'ناموجود' : 'موجود در انبار'));
+      var inquiryNote = $('[data-p-inquiry-note]');
+      if (inquiryNote) { inquiryNote.hidden = !state.inquiry; }
 
       set('[data-p-rating]', ui.ratingHtml(product) +
         '<span class="u-xs" style="color:' +
-          (sold ? 'var(--text-dim)' : (typeof left === 'number' ? 'var(--amber)' : 'var(--success)')) +
+          (state.inquiry ? 'var(--amber)' : (sold ? 'var(--text-dim)' : (typeof left === 'number' ? 'var(--amber)' : 'var(--success)'))) +
         '">' +
-        (sold ? '● موقتاً ناموجود'
+        (state.inquiry ? '● نیازمند استعلام موجودی — پاسخ تا ۳۰ دقیقه' : (sold ? '● موقتاً ناموجود'
               : (typeof left === 'number'
                   ? '● تنها <span class="num">' + left + '</span> عدد مانده'
-                  : '● موجود در انبار')) +
+                  : '● موجود در انبار'))) +
         '</span>');
     }
     paintAvailability();
@@ -3528,6 +3600,10 @@ SUPPEX.app = (function () {
            size and back. */
         if (buyBtn.disabled) { return; }
         var parts = choiceParts();
+        if (productAvailability(product, currentVariant(), selected.size ? selected.size.stock : null).inquiry) {
+          openStockInquiry(product, parts, selected.qty);
+          return;
+        }
 
         var buyVariant = currentVariant();
         addToCart(product, {
@@ -3612,6 +3688,8 @@ SUPPEX.app = (function () {
     forgetMyOrder: forgetMyOrder,
     cardAddPlan: cardAddPlan,
     productAvailability: productAvailability,
+    inquiryMessage: inquiryMessage,
+    inquiryRoutes: inquiryRoutes,
     VALIDATORS: VALIDATORS,
     normaliseMobile: normaliseMobile,
     init: function () {

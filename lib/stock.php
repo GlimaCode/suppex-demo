@@ -92,7 +92,8 @@ final class StockShortfall extends RuntimeException
  *
  * @return array{table:string,ext:?string,qty:int}|null  null when nothing is counted
  */
-function stock_target(int $productId, string $sizeExt, bool $forUpdate = false): ?array
+function stock_target(int $productId, string $sizeExt, bool $forUpdate = false,
+                      bool $allowInquiry = false): ?array
 {
     $lock = $forUpdate ? ' FOR UPDATE' : '';
 
@@ -102,9 +103,12 @@ function stock_target(int $productId, string $sizeExt, bool $forUpdate = false):
            count nobody is selling from. Tried before the size rather than
            after, because both tables can hold a row for the same product. */
         $var = db_one(
-            'SELECT stock_qty FROM product_variants WHERE product_id = ? AND ext_id = ?' . $lock,
+            'SELECT * FROM product_variants WHERE product_id = ? AND ext_id = ?' . $lock,
             [$productId, $sizeExt]
         );
+        if ($var !== null && !empty($var['requires_inquiry']) && !$allowInquiry) {
+            return ['table' => 'product_variants', 'ext' => $sizeExt, 'qty' => 0, 'blocked' => true];
+        }
         if ($var !== null && $var['stock_qty'] !== null) {
             return ['table' => 'product_variants', 'ext' => $sizeExt,
                     'qty' => (int) $var['stock_qty']];
@@ -165,7 +169,10 @@ function stock_take_line(
         return ['from' => null, 'held' => 0];
     }
 
-    $target = stock_target($productId, $sizeExt, true);
+    $target = stock_target($productId, $sizeExt, true, $force);
+    if (!empty($target['blocked'])) {
+        throw new StockShortfall($productName, 0);
+    }
     if ($target === null) {
         return ['from' => null, 'held' => 0];   // nothing is counted here
     }

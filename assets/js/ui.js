@@ -295,7 +295,8 @@ SUPPEX.ui = (function () {
     (product.badges || []).forEach(function (b) {
       if (BADGE_TEXT[b]) { left += '<span class="badge badge--light">' + esc(BADGE_TEXT[b]) + '</span>'; }
     });
-    if (!product.inStock) { left += '<span class="badge badge--outline">ناموجود</span>'; }
+    if (product.requiresInquiry) { left += '<span class="badge badge--warn">استعلام موجودی</span>'; }
+    else if (!product.inStock) { left += '<span class="badge badge--outline">ناموجود</span>'; }
     /* The server only sends a count when it is low enough to matter, so
        anything that arrives here is worth printing. typeof, because 0 is a
        number the shop means - it just never reaches this line, since a product
@@ -346,9 +347,9 @@ SUPPEX.ui = (function () {
           '<div class="pcard__foot">' +
             priceHtml(product) +
             '<button class="add-btn" type="button" data-add="' + esc(product.slug) + '" ' +
-              'aria-label="افزودن ' + esc(product.nameFa) + ' به سبد خرید"' +
-              (product.inStock ? '' : ' disabled') + '>' +
-              icon('plus') +
+              'aria-label="' + (product.requiresInquiry ? 'استعلام موجودی ' + esc(product.nameFa) : 'افزودن ' + esc(product.nameFa) + ' به سبد خرید') + '"' +
+              (product.inStock || product.requiresInquiry ? '' : ' disabled') + '>' +
+              icon(product.requiresInquiry ? 'info' : 'plus') +
             '</button>' +
           '</div>' +
         '</div>' +

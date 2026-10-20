@@ -114,6 +114,7 @@ $need = [
     "product_sizes" => ["cost_aed", "profit_toman", "promo_toman", "cost_toman",
                         "price_applied_rate", "price_applied_at", "commission_percent",
                         "stock_qty"],
+    "product_variants" => ["requires_inquiry"],
     "orders"        => ["expires_at", "profit_total", "commission_basis",
                         "commission_percent", "commission_amount", "rate_at_order",
                         "items_hash"],

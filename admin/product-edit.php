@@ -325,6 +325,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         $priced  = null;
         $droppedPremium = false;
         $stockConflict = false;
+        $inquiryNeedsStock = false;
         $legacyStockForm = false;
         $pdo = db();
         $pdo->beginTransaction();
@@ -678,6 +679,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             $gStock  = (array) ($_POST['variant_stock'] ?? []);
             $gWas    = (array) ($_POST['variant_stock_was'] ?? []);
             $gActive = (array) ($_POST['variant_active'] ?? []);
+            $gInquiry = (array) ($_POST['variant_inquiry'] ?? []);
+            $gInquiryWas = (array) ($_POST['variant_inquiry_was'] ?? []);
             $parseGridStock = static function (string $raw): ?int {
                 $raw = trim(to_latin_digits($raw));
                 if ($raw === '') { return null; }
@@ -692,7 +695,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 /* Matched on the key, not on $gi. The grid posts back in render
                    order, but renaming a value in the block above reorders it -
                    and by index the 900g price would land on the 2270g row. */
-                $gRow = db_one('SELECT id, stock_qty FROM product_variants
+                $gRow = db_one('SELECT * FROM product_variants
                                  WHERE product_id = ? AND ext_id = ? FOR UPDATE', [$id, $extRaw]);
                 if ($gRow === null) { continue; }
                 $gvId = (int) $gRow['id'];
@@ -741,6 +744,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 if ($writeStock) {
                     $gSets[] = 'stock_qty = ?';
                     $gVals[] = $stockIn;
+                }
+                if (variants_inquiry_ready() && array_key_exists($extRaw, $gInquiryWas)) {
+                    $wasInquiry = (string) $gInquiryWas[$extRaw] === '1';
+                    $newInquiry = !empty($gInquiry[$extRaw]);
+                    if ($wasInquiry !== $newInquiry) {
+                        if (variant_requires_inquiry($gRow) !== $wasInquiry) {
+                            $stockConflict = true;
+                            throw new RuntimeException('variant inquiry state changed while editor was open');
+                        }
+                        $effectiveStock = $writeStock ? $stockIn : ($gRow['stock_qty'] === null ? null : (int) $gRow['stock_qty']);
+                        if (!$newInquiry && !empty($gActive[$extRaw]) && ($effectiveStock === null || $effectiveStock <= 0)) {
+                            $inquiryNeedsStock = true;
+                            throw new RuntimeException('inquiry approval needs a positive stock count');
+                        }
+                        $gSets[] = 'requires_inquiry = ?';
+                        $gVals[] = $newInquiry ? 1 : 0;
+                    }
                 }
                 if ($priceMode === 'aed') {
                     /* Blank is «what its size - or the product - costs, plus
@@ -812,12 +832,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             $pdo->commit();
         } catch (Throwable $ex) {
             $pdo->rollBack();
-            if (!$stockConflict) {
+            if (!$stockConflict && !$inquiryNeedsStock) {
                 error_log('[suppex] product save failed: ' . $ex->getMessage());
             }
             $errors['_'] = $stockConflict
                 ? 'موجودی از زمان باز شدن این صفحه تغییر کرده است؛ هیچ تغییری ذخیره نشد. صفحه را دوباره باز کنید، موجودی تازه را ببینید و سپس ویرایش کنید.'
-                : 'ذخیره محصول با خطا مواجه شد.';
+                : ($inquiryNeedsStock
+                    ? 'برای تأیید موجودی و برداشتن تیک استعلام، تعداد واقعی بیشتر از صفر وارد کنید؛ هیچ تغییری ذخیره نشد.'
+                    : 'ذخیره محصول با خطا مواجه شد.');
         }
 
         /* --- Image order ----------------------------------------------------
@@ -1857,10 +1879,20 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
                 <?php endif; ?>
                 <input type="file" name="variant_image_<?= (int) $gv['id'] ?>" accept="image/*">
               </div>
+              <div>
               <label class="variant__on">
                 <input type="checkbox" name="variant_active[<?= e($gk) ?>]" value="1"
-                       <?= (int) $gv['is_active'] === 1 ? 'checked' : '' ?>>
+                       aria-label="فعال: <?= e(implode(' · ', array_column($gv['values'], 'label'))) ?>"
+                       <?= (int) $gv['is_active'] === 1 ? 'checked' : '' ?>> فعال
               </label>
+              <?php if (variants_inquiry_ready()): ?>
+              <label class="variant__on" style="gap:6px;margin-block-start:8px;white-space:nowrap">
+                <input type="checkbox" name="variant_inquiry[<?= e($gk) ?>]" value="1"
+                       <?= variant_requires_inquiry($gv) ? 'checked' : '' ?>> نیازمند استعلام
+              </label>
+              <input type="hidden" name="variant_inquiry_was[<?= e($gk) ?>]" value="<?= variant_requires_inquiry($gv) ? '1' : '0' ?>">
+              <?php endif; ?>
+              </div>
             </div>
           <?php endforeach; ?>
         </div>
@@ -1873,6 +1905,14 @@ admin_head($isNew ? 'محصول جدید' : 'ویرایش: ' . v($product, 'name
           <br>
           تیک «فعال» را بردارید تا یک ترکیب فروخته نشود؛ سفارشی که آن را
           بخواهد رد می‌شود.
+          <br>
+          با تیک «نیازمند استعلام» و روشن‌بودن «فعال»، خریدار ابتدا از تلگرام یا
+          واتس‌اپ موجودی را می‌پرسد؛ مهلت پاسخ تا ۳۰ دقیقه نمایش داده می‌شود.
+          پس از بررسی و پاسخ در گفتگو، تعداد واقعی بیشتر از صفر را وارد کنید و
+          تیک استعلام را بردارید تا خرید فعال شود. پاسخ منفی یعنی خاموش‌کردن «فعال».
+          <?php if (!variants_inquiry_ready()): ?>
+          <br><strong>برای فعال‌شدن گزینهٔ استعلام، به‌روزرسانی ساختار دیتابیس لازم است.</strong>
+          <?php endif; ?>
           <?php if ($aedMode && $aedRateNow !== null): ?>
             <br>
             در حالت درهمی قیمت هر ترکیب خودکار حساب می‌شود: خرید همان ترکیب

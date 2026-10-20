@@ -227,7 +227,8 @@ function order_price_line(array $line, array $quoted = []): ?array
         /* Refused rather than approximated. A basket that names a combination
            this product no longer has is stale, and the shopper picked
            something specific. */
-        if ($variant === null || (int) $variant['is_active'] !== 1) {
+        if ($variant === null || (int) $variant['is_active'] !== 1
+            || variant_requires_inquiry($variant)) {
             return null;
         }
 

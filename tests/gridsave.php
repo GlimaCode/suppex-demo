@@ -90,6 +90,12 @@ if (($argv[2] ?? '') !== '') {
 }
 
 
+if (isset($argv[4])) {
+    $inquiry = json_decode(base64_decode($argv[4], true), true, 512, JSON_THROW_ON_ERROR);
+    $_POST['variant_inquiry'] = $inquiry['inquiry'] ?? [];
+    $_POST['variant_inquiry_was'] = $inquiry['was'] ?? [];
+}
+
  ob_start();
  include SUPPEX_ROOT . '/admin/product-edit.php';
  echo ob_get_clean();

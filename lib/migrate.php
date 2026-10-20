@@ -701,6 +701,7 @@ function migrate_run(array &$log): void
                 stock_qty          INT NULL,
                 image              VARCHAR(255) NOT NULL DEFAULT '',
                 is_active          TINYINT(1) NOT NULL DEFAULT 1,
+                requires_inquiry   TINYINT(1) NOT NULL DEFAULT 0,
                 sort_order         INT NOT NULL DEFAULT 0,
                 UNIQUE KEY uq_variant (product_id, ext_id),
                 KEY idx_variant_product (product_id)
@@ -902,6 +903,15 @@ function migrate_run(array &$log): void
         $log
     );
 
+    step(
+        'product_variants.requires_inquiry - check supplier stock before buying',
+        static fn(): bool => column_exists('product_variants', 'requires_inquiry'),
+        static function (): void {
+            db()->exec('ALTER TABLE product_variants ADD COLUMN requires_inquiry TINYINT(1) NOT NULL DEFAULT 0');
+        },
+        $log
+    );
+
     /* 2026-10 - an order line carries a combination's whole key ------------ */
 
     step(
@@ -1014,6 +1024,7 @@ function migrate_pending(): array
         'product_attributes'         => table_exists('product_attributes'),
         'product_attribute_values'   => table_exists('product_attribute_values'),
         'product_variants'           => table_exists('product_variants'),
+        'product_variants.requires_inquiry' => column_exists('product_variants', 'requires_inquiry'),
         'product_variant_values'     => table_exists('product_variant_values'),
         'order_items.unit_cost'      => column_exists('order_items', 'unit_cost'),
         'orders.commission_basis'    => column_exists('orders', 'commission_basis'),

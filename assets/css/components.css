@@ -2266,3 +2266,23 @@ textarea.form__control { resize: vertical; min-height: 64px; line-height: 1.8; }
    the receipt, «ادامه», the channels. Last in the file so it wins over the
    buy bar's offset. */
 body.is-locked .toast-stack { inset-block-end: auto; inset-block-start: var(--sp-6); }
+
+/* Supplier-stock enquiries precede checkout; native dialog manages focus and Escape. */
+.stock-inquiry {
+  width: min(92vw, 560px);
+  max-height: 90dvh;
+  margin: auto;
+  padding: 0;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-lg);
+  overflow: auto;
+}
+.stock-inquiry::backdrop { background: rgba(0,0,0,.75); }
+.stock-inquiry__body { display: grid; gap: var(--sp-4); padding: var(--sp-5); line-height: 1.9; }
+.stock-inquiry label { display: grid; gap: var(--sp-2); }
+.stock-inquiry textarea { width: 100%; min-height: 9rem; resize: vertical; padding: var(--sp-3); border: 1px solid var(--line-mid); border-radius: var(--r-md); color: var(--text); background: var(--surface-2); font: inherit; }
+.stock-inquiry__channels { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.stock-inquiry__channels .btn { flex: 1 1 160px; }
+[data-p-inquiry-note][hidden] { display: none; }
