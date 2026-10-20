@@ -492,13 +492,10 @@ function rate_recent_polls(int $hours = 24): array
 const RATE_APPLY_ABS_MIN = RATE_ABSOLUTE_MIN;
 const RATE_APPLY_ABS_MAX = RATE_ABSOLUTE_MAX;
 
-/** The deadband is deliberately ASYMMETRIC. The rial depreciates far more often
-    than it recovers, so a symmetric band is a one-way tax: the shelf lags every
-    rise by up to half a band and gives the difference away on every sale. A
-    price that rises a little too readily costs goodwill; one that falls too
-    readily costs money. */
-const RATE_DEADBAND_UP_PCT   = 0.5;
-const RATE_DEADBAND_DOWN_PCT = 2.0;
+/** A lone source needs agreement with recent history before it can move the
+    catalogue. Wait for confirmation instead of manufacturing a rate by
+    clipping it to the median. Two agreeing sources already confirm the rate. */
+const RATE_SINGLE_SOURCE_MAX_DEVIATION_PCT = 2.0;
 
 /** Beyond this, one automatic step will not go — but it CLAMPS rather than
     refuses. Refusing looks safe and is not: on a genuine 12% move, doing
@@ -554,9 +551,9 @@ function rate_median(array $rates): ?float
  *   confirmed  both sources agreed on it, or there are three readings in the
  *              last six hours to measure it against. One source standing alone
  *              is a real reading, not one to reprice the shop on by itself;
- *   banded     it is held within 2% of the six-hour median, so one bad print
- *              among good ones cannot move the shelf. A real move gets through
- *              within the hour or two the median takes to follow it.
+ *   exact      the newest confirmed reading is used in full. A lone source
+ *              more than 2% from the six-hour median waits for confirmation;
+ *              it never turns into an invented, partly applied market rate.
  *
  * Six readings taken eighteen hours ago are still refused by the first rule:
  * they describe a market that has since moved.
@@ -603,20 +600,20 @@ function rate_estimate(array $polls, ?int $now = null): array
         return $fail('تازه‌ترین خوانش را فقط یک منبع داده و در شش ساعت اخیر خوانش کافی برای سنجیدنش نیست');
     }
 
-    /* The estimator: the NEWEST reading, held inside a band around the recent
-       median. A flat median is robust and badly wrong in exactly the case that
-       costs money — through a steady climb it returns the mid-ramp value, so
-       the shelf is set to part of the move on the very day customers buy
-       because they saw the currency move. Recency gives accuracy, the median
-       band gives protection from a single bad print. */
+    /* The shop follows the actual newest reading, not a smoothed substitute.
+       History still checks a lone source; two agreeing sources can confirm a
+       genuine move immediately. */
     $mid = rate_median($recent);
     if ($mid === null || $mid <= 0) {
         return $fail('میانه قابل محاسبه نبود');
     }
 
-    $rate = min(max($rows[0]['r'], $mid * 0.98), $mid * 1.02);
+    if (!$rows[0]['confirmed']
+        && abs(($rows[0]['r'] - $mid) / $mid * 100) > RATE_SINGLE_SOURCE_MAX_DEVIATION_PCT) {
+        return $fail('نرخ تازهٔ تک‌منبعی بیش از ۲٪ با میانهٔ شش ساعت اخیر اختلاف دارد؛ منتظر تأیید منبع دوم یا خوانش‌های بیشتر');
+    }
 
-    return ['ok' => true, 'rate' => round($rate, 2), 'reason' => '', 'used' => count($recent)];
+    return ['ok' => true, 'rate' => round($rows[0]['r'], 2), 'reason' => '', 'used' => count($recent)];
 }
 
 /**
@@ -665,10 +662,10 @@ function rate_decide(?float $applied, ?float $anchor, float $candidate): array
 
     $changePct = ($candidate - $applied) / $applied * 100;
 
-    /* Asymmetric on purpose — see the constants. */
-    $band = $changePct >= 0 ? RATE_DEADBAND_UP_PCT : RATE_DEADBAND_DOWN_PCT;
-    if (abs($changePct) < $band) {
-        return $out('skip', null, sprintf('تغییر %.2f%% کمتر از آستانه است', $changePct));
+    /* Rates are stored to two decimal places. Every actual change, up or down,
+       must reach the catalogue in this run; only the same stored rate skips. */
+    if (round($candidate, 2) === round($applied, 2)) {
+        return $out('skip', null, 'نرخ تازه با نرخ اعمال‌شده یکسان است');
     }
 
     /* A big move is treated differently by direction, because the two are not
@@ -703,18 +700,17 @@ function rate_decide(?float $applied, ?float $anchor, float $candidate): array
 
 /**
  * One automatic look at the shelf: reprice every dirham-priced product from the
- * latest readings if the market has moved past the deadband, and write down what
- * was decided either way.
+ * latest confirmed reading whenever it changes, and record the decision.
  *
  * tools/rate-cron.php calls this every hour, straight after its poll. It used
  * to wait for twenty hours since the last apply AND for four in the morning, so
  * a dirham that rose at ten reached the shelf the next day; the owner asked on
  * 2026-10-02 for every hourly reading to be applied there and then.
  *
- * What makes applying hourly safe is not here but around it: the deadband keeps
- * the shelf from twitching a rounding step for every wobble; a quote holds the
- * price a shopper was shown while they check out (lib/quotes.php), and an order
- * holds its total for its payment window (lib/orders.php).
+ * Small rises and falls are applied too (owner request, 2026-10-20). Source
+ * validation and exceptional-move guards still run. A quote holds the price a
+ * shopper was shown while they check out (lib/quotes.php), and an order holds
+ * its total for its payment window (lib/orders.php).
  *
  * Kept out of the cron script so it can be tested without the network.
  *
@@ -745,7 +741,7 @@ function rate_auto_apply(?int $now = null): array
     $out['rate']   = $decision['rate'];
 
     if ($decision['action'] === 'skip') {
-        /* Not news: the shelf is already on the market, within the band. It
+        /* Not news: the shelf is already on exactly this rate. It
            counts as a check for «are these prices current?», which is what
            pricing_staleness() reads it as. */
         settings_save(['rate_auto_last_apply' => (string) $now]);

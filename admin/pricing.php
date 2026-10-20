@@ -343,7 +343,7 @@ admin_head('قیمت‌گذاری بر اساس درهم', ['user' => $user]);
           <div class="u-dim" style="font-size:.82rem">آمادگی قیمت‌گذاری</div>
           <div style="font-weight:600;margin-block-start:2px">
             <?php if ($rs['ready']): ?>
-              آماده — برآورد <span class="num"><?= e(number_format((float) $rs['estimate'])) ?></span> تومان
+              آماده — نرخ تأییدشده <span class="num"><?= e(number_format((float) $rs['estimate'])) ?></span> تومان
             <?php else: ?>
               فعلاً نه
             <?php endif; ?>
@@ -367,21 +367,14 @@ admin_head('قیمت‌گذاری بر اساس درهم', ['user' => $user]);
       </div>
 
       <?php
-      /* What the hourly job does, and what it did at its last check - the
-         owner asked on 2026-10-02 for every hourly reading to reach the
-         prices there and then (tools/rate-cron.php). */
-      /* In Persian digits, like the sentence they sit in: Latin ones with the
-         Persian percent sign were drawn the wrong way round. */
-      $bandFa   = static fn(float $pct): string =>
-          fa_digits(str_replace('.', '٫', rtrim(rtrim(number_format($pct, 1), '0'), '.'))) . '٪';
-      $bandUp   = $bandFa(RATE_DEADBAND_UP_PCT);
-      $bandDown = $bandFa(RATE_DEADBAND_DOWN_PCT);
+      /* Small rate changes are applied too; the source and exceptional-move
+         guards still decide whether a reading can be used unattended. */
       ?>
       <div class="hint" style="margin-block-end:14px;line-height:2.1">
-        هر ساعت نرخ تازه خوانده می‌شود و اگر از نرخی که قیمت‌ها با آن ساخته شده‌اند
-        <?= e($bandUp) ?> بالاتر یا
-        <?= e($bandDown) ?> پایین‌تر باشد،
-        همان ساعت روی قیمت همهٔ محصولات درهمی اعمال می‌شود.
+        هر ساعت نرخ تازه خوانده و بررسی می‌شود. هر افزایش یا کاهش نرخ تأییدشده،
+        حتی تغییر کوچک، همان ساعت روی همهٔ اقلام درهمیِ قابل قیمت‌گذاری اعمال می‌شود.
+        نرخ با خوانش‌های قبلی میانگین‌گیری نمی‌شود. کنترل منابع و محافظ جهش‌های
+        غیرعادی برقرار است؛ قیمت نهایی طبق تنظیم فروشگاه گرد می‌شود.
         <?php if ($rs['last_check'] !== null && $rs['last_note'] !== ''): ?>
           <br>
           آخرین بررسی

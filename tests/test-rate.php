@@ -224,28 +224,42 @@ $est = rate_estimate($climb, $now);
 ok('the flat 24h median lags the climb badly', $flatMedian < 57600.0, (string) $flatMedian);
 ok('  while the estimate stays with the market', $est['rate'] > 58500.0, (string) $est['rate']);
 
-/* But it must still not chase a single bad print. */
+/* A lone bad print waits instead of manufacturing a rate inside the band. */
 $spike = [];
 for ($h = 0; $h < 24; $h++) {
     $spike[] = ['rate' => 59000.0, 'created_unix' => $now - $h * 3600 - 60];
 }
 $spike[0]['rate'] = 88000.0;   // newest reading is the bad one
 $est = rate_estimate($spike, $now);
-ok('a spike in the newest reading is held to the median band',
-   $est['rate'] < 60500.0, (string) $est['rate']);
+ok('a lone spike waits for confirmation rather than applying a synthetic rate',
+   $est['ok'] === false && $est['rate'] === null, json_encode($est, JSON_UNESCAPED_UNICODE));
+$spike[0]['rate'] = 62000.0;
+$spike[0]['cross_rate'] = 62000.0;
+$est = rate_estimate($spike, $now);
+ok('two sources confirm the full newest rate even beyond the old median band',
+   $est['ok'] === true && $est['rate'] === 62000.0, json_encode($est, JSON_UNESCAPED_UNICODE));
+$spike[0]['rate'] = 56000.0;
+$spike[0]['cross_rate'] = 56000.0;
+$est = rate_estimate($spike, $now);
+ok('a confirmed fall also uses the exact newest rate',
+   $est['ok'] === true && $est['rate'] === 56000.0, json_encode($est, JSON_UNESCAPED_UNICODE));
 
 echo "\n== what to do with a candidate rate ==\n";
 $applied = 59000.0; $anchor = 58000.0;
 $act = static fn(float $c): string => rate_decide($applied, $anchor, $c)['action'];
 
-ok('a tiny rise is inside the deadband', $act(59100.0) === 'skip');
+ok('a tiny rise is applied in full', $act(59100.0) === 'apply');
 ok('a real rise is applied', $act(59500.0) === 'apply');
-/* Asymmetric on purpose: the rial falls far more often than it rises, so a
-   symmetric band would lag every rise and give the difference away. */
-ok('the upward band is tighter than the downward one',
-   RATE_DEADBAND_UP_PCT < RATE_DEADBAND_DOWN_PCT);
-ok('  so a 1% fall is ignored where a 1% rise is not',
-   $act(58410.0) === 'skip' && $act(59590.0) === 'apply');
+ok('small falls and rises both apply',
+   $act(58410.0) === 'apply' && $act(59590.0) === 'apply');
+ok('a one-toman rise is not discarded', $act(59001.0) === 'apply');
+ok('a one-toman fall is not discarded', $act(58999.0) === 'apply');
+ok('the same rate skips without another history row', $act(59000.0) === 'skip');
+ok('equality is measured at the stored two-decimal precision', $act(59000.001) === 'skip');
+ok('the live 72190 to 72430 case applies exactly 72430',
+   rate_decide(72190.0, 72190.0, 72430.0)['rate'] === 72430.0);
+ok('the reverse small fall applies exactly 72190',
+   rate_decide(72430.0, 72190.0, 72190.0)['rate'] === 72190.0);
 
 ok('a 3% fall is applied', $act(57000.0) === 'apply');
 /* Refusing a big RISE guarantees selling below replacement cost until someone
@@ -437,21 +451,24 @@ ok('  and the panel is told what happened',
 ok('no twenty-hour wait for the next one: the same hour looks again and leaves it',
    rate_auto_apply()['action'] === 'skip');
 $poll(61100.0, 300);
-ok('a 0.2% wobble stays inside the deadband', rate_auto_apply()['action'] === 'skip');
-ok('  and the shelf with it', $priceOf() === pricing_round_up(100 * 61000 + 1000000));
+$step = rate_auto_apply();
+ok('a sub-0.5% rise applies immediately', $step['action'] === 'apply' && $step['rate'] === 61100.0);
+ok('  and updates the actual product rate',
+   (float) db_value('SELECT price_applied_rate FROM products WHERE id = ?', [$autoId]) === 61100.0);
+$priceAfterSmallRise = $priceOf();
 settings_save(['aed_rate_updated_at' => date('Y-m-d H:i:s', time() - 5 * 86400)]);
 rate_auto_apply();
 $st = pricing_staleness();
 ok('a shelf the job confirmed this hour is not stale, whenever the rate last moved',
    $st['days'] !== null && $st['days'] < 0.1, json_encode($st));
-ok('  and the drift is what the latest reading says', $st['drift_pct'] !== null && abs($st['drift_pct'] - 0.2) < 0.05,
+ok('  and the drift is now zero', $st['drift_pct'] !== null && abs($st['drift_pct']) < 0.01,
    json_encode($st));
 
 db_query('DELETE FROM rate_polls');
 $poll(62500.0, 4 * 3600);
 $step = rate_auto_apply();
 ok('a reading hours old is waited out, not applied', $step['action'] === 'wait'
-   && $priceOf() === pricing_round_up(100 * 61000 + 1000000), json_encode($step, JSON_UNESCAPED_UNICODE));
+   && $priceOf() === $priceAfterSmallRise, json_encode($step, JSON_UNESCAPED_UNICODE));
 db_query('DELETE FROM rate_polls');
 $poll(62500.0, 300, false);
 ok('a lone source by itself is waited out too', rate_auto_apply()['action'] === 'wait');
@@ -465,6 +482,50 @@ ok('three single-source readings within six hours are applied', $step['action'] 
    && $priceOf() > pricing_round_up(100 * 61000 + 1000000)
    && abs((float) db_value('SELECT price_applied_rate FROM products WHERE id = ?', [$autoId]) - 62500) < 0.01,
    json_encode($step, JSON_UNESCAPED_UNICODE) . ' price ' . $priceOf());
+
+echo "\n== the live small-change case reaches every pricing model ==\n";
+$sizeParent = db_insert("INSERT INTO products (slug, name_fa, price, price_mode, cost_aed, profit_toman)
+                        VALUES ('zz-rate-size', 'زد اندازه', 4000000, 'aed', 50, 500000)");
+$sizeId = db_insert("INSERT INTO product_sizes (product_id, ext_id, label, price, cost_aed, profit_toman)
+                    VALUES (?, 'small', 'کوچک', 4000000, 50, 500000)", [$sizeParent]);
+$variantParent = db_insert("INSERT INTO products (slug, name_fa, price, price_mode, cost_aed, profit_toman)
+                           VALUES ('zz-rate-variant', 'زد ترکیب', 8000000, 'aed', 100, 1000000)");
+$variantId = db_insert("INSERT INTO product_variants (product_id, ext_id, price, cost_aed, profit_toman, stock_qty)
+                       VALUES (?, 'chocolate', 8000000, 100, 1000000, 5)", [$variantParent]);
+$manualId = db_insert("INSERT INTO products (slug, name_fa, price, price_mode)
+                      VALUES ('zz-rate-manual', 'زد دستی', 123450, 'manual')");
+
+pricing_apply(72190.0, ['id' => null, 'name' => 'tester'], null, 'manual');
+foreach ([72430.0, 72420.0, 72190.0] as $nextRate) {
+    db_query('DELETE FROM rate_polls');
+    $poll($nextRate, 60);
+    $step = rate_auto_apply();
+    ok('the small hourly change applies the exact rate ' . $nextRate,
+       $step['action'] === 'apply' && $step['rate'] === $nextRate,
+       json_encode($step, JSON_UNESCAPED_UNICODE));
+    foreach ([['products', $autoId], ['product_sizes', $sizeId], ['product_variants', $variantId]] as [$table, $rowId]) {
+        ok($table . ' receives the full rate ' . $nextRate,
+           (float) db_value('SELECT price_applied_rate FROM ' . $table . ' WHERE id = ?', [$rowId]) === $nextRate);
+    }
+    ok('the size parent card follows its recalculated size',
+       (int) db_value('SELECT price FROM products WHERE id = ?', [$sizeParent])
+       === (int) db_value('SELECT price FROM product_sizes WHERE id = ?', [$sizeId]));
+    ok('the variant parent card follows its recalculated flavour',
+       (int) db_value('SELECT price FROM products WHERE id = ?', [$variantParent])
+       === (int) db_value('SELECT price FROM product_variants WHERE id = ?', [$variantId]));
+    ok('manual prices and counted stock are preserved',
+       (int) db_value('SELECT price FROM products WHERE id = ?', [$manualId]) === 123450
+       && (int) db_value('SELECT stock_qty FROM product_variants WHERE id = ?', [$variantId]) === 5);
+    ok('the applied setting and automatic history use the same rate',
+       pricing_rate() === $nextRate && pricing_last_applied_rate() === $nextRate
+       && db_value('SELECT source FROM rate_history ORDER BY id DESC LIMIT 1') === 'auto');
+}
+$historyCount = (int) db_value('SELECT COUNT(*) FROM rate_history');
+ok('an unchanged hourly reading does not create duplicate repricing history',
+   rate_auto_apply()['action'] === 'skip'
+   && (int) db_value('SELECT COUNT(*) FROM rate_history') === $historyCount);
+db_query('DELETE FROM product_variants WHERE product_id = ?', [$variantParent]);
+db_query('DELETE FROM products WHERE id IN (?, ?, ?)', [$sizeParent, $variantParent, $manualId]);
 
 $cron = (string) file_get_contents(SUPPEX_ROOT . '/tools/rate-cron.php');
 ok('the cron applies on every run', strpos($cron, '$step = rate_auto_apply();') !== false

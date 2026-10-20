@@ -12,10 +12,10 @@
    owner asked for every hourly reading to reach every price there and then,
    and the reasons for waiting were each answered somewhere else:
 
-     - prices round up to the nearest 10,000 toman, so a 0.3% wobble would
-       move a price a whole step: the deadband in rate_decide() leaves the
-       shelf alone until the market is 0.5% above it or 2% below it, measured
-       from the rate last APPLIED, so small moves still add up and get through;
+     - since 2026-10-20 every changed, confirmed rate reaches the catalogue,
+       including small rises and falls. Product prices still round according
+       to the shop setting; source validation and exceptional-move guards
+       remain in lib/rate.php;
      - payment is card-to-card, so the gap between seeing a price and paying
        is minutes or hours: the quote holds what the shopper was shown while
        they check out (lib/quotes.php), and an order holds its total for its
