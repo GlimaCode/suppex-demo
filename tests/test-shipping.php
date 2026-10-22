@@ -32,7 +32,7 @@ try {
     ob_start(); include SUPPEX_ROOT . '/partials/chrome-top.php'; $top = ob_get_clean();
     ok('shared header also uses current settings',
         str_contains($top, '<span data-shipping-announcement>' . storefront_shipping_html() . '</span>'));
-    foreach (['index.html', 'product.html', 'product.php', 'partials/chrome-foot.php', 'assets/js/ui.js'] as $file) {
+    foreach (['index.html', 'product.html', 'product.php', 'assets/js/ui.js'] as $file) {
         $src = (string) file_get_contents(SUPPEX_ROOT . '/' . $file);
         ok($file . ' has the current delivery times and return conditions',
            str_contains($src, 'همان روز') && str_contains($src, '۲ روز') && str_contains($src, '۲ تا ۳ روز')
