@@ -341,13 +341,13 @@ admin_head('سفارش ' . $order['code'], ['user' => $user]);
           <!-- In the same form as the status, deliberately. The moment the
                barcode is in hand is the moment the order is being marked
                shipped, and a second screen for it is a second thing to forget. -->
-          <label for="tracking_code">کد رهگیری مرسوله پستی</label>
+          <label for="tracking_code">کد رهگیری مرسوله (تیپاکس یا پست)</label>
           <input type="text" id="tracking_code" name="tracking_code" dir="ltr"
                  inputmode="numeric" value="<?= e((string) $order['tracking_code']) ?>">
           <span class="hint">
             بعد از ثبت، مشتری آن را در صفحه پیگیری سفارش خودش می‌بیند و لازم
             نیست از شما بپرسد. فقط رقم‌ها ذخیره می‌شود. خالی بگذارید تا نمایش
-            داده نشود.
+            داده نشود. برای پیک، تحویل را با گیرنده هماهنگ کنید؛ این کادر مخصوص کد مرسوله است.
           </span>
         </div>
         <div class="field" style="margin-block-start:12px">

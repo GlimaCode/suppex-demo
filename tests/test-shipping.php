@@ -1,5 +1,7 @@
 <?php
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+// Keep assertion output buffered while the real pages send their headers.
+ob_start();
 require __DIR__ . '/../lib/bootstrap.php';
 $pass = 0; $fail = 0;
 function ok(string $label, bool $condition): void {
@@ -30,6 +32,14 @@ try {
     ob_start(); include SUPPEX_ROOT . '/partials/chrome-top.php'; $top = ob_get_clean();
     ok('shared header also uses current settings',
         str_contains($top, '<span data-shipping-announcement>' . storefront_shipping_html() . '</span>'));
+    foreach (['index.html', 'product.html', 'product.php', 'partials/chrome-foot.php', 'assets/js/ui.js'] as $file) {
+        $src = (string) file_get_contents(SUPPEX_ROOT . '/' . $file);
+        ok($file . ' has the current delivery times and return conditions',
+           str_contains($src, 'همان روز') && str_contains($src, '۲ روز') && str_contains($src, '۲ تا ۳ روز')
+           && str_contains($src, 'باز نشدن محصول و اثبات غیراصل‌بودن آن'));
+        ok($file . ' does not advertise the former seven-day return badge',
+           !str_contains($src, 'مرجوعی ۷ روز کاری') && !str_contains($src, 'مرجوعی تا ۷ روز'));
+    }
 } finally { settings_save($original); }
 echo "\npassed: $pass    failed: $fail\n";
 exit($fail ? 1 : 0);

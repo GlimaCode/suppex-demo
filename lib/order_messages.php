@@ -95,7 +95,7 @@ function order_messages(array $order): array
         ])],
         'shipped' => ['label' => 'ارسال مرسوله', 'text' => implode("\n", array_merge(
             [$hello, 'سفارش ' . $code . ' ارسال شد. 📦'],
-            $tracking !== '' ? ['کد رهگیری مرسوله پستی: ' . $tracking] : [],
+            $tracking !== '' ? ['کد رهگیری مرسوله: ' . $tracking] : [],
             ['', $track, '', brand_signature()]
         ))],
         'done' => ['label' => 'درخواست نظر', 'text' => implode("\n", [

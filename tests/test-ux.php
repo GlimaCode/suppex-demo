@@ -287,10 +287,10 @@ $trust = (string) (preg_match('~aria-labelledby="why-title">.*?</section>~s', $i
 $trustText = (string) preg_replace('/<!--.*?-->/s', '', $trust);
 ok('four promises, each a heading, a line and the detail', substr_count($trust, 'class="trust-card__title"') === 4
    && substr_count($trust, 'class="trust-card__lead"') === 4 && substr_count($trust, 'class="trust-card__more"') === 4);
-ok('  the headings say what the cards always said',
-   mb_strpos($trust, '>اصل و پلمب‌شده<') !== false && mb_strpos($trust, '>کد رهگیری پستی<') !== false
+ok('  the headings cover authenticity, delivery, pricing and support',
+   mb_strpos($trust, '>اصل و پلمب‌شده<') !== false && mb_strpos($trust, '>ارسال با پیک و تیپاکس<') !== false
    && mb_strpos($trust, '>قیمت قفل‌شده<') !== false && mb_strpos($trust, '>مشاورهٔ رک<') !== false);
-ok('  and no more: no guarantee, no «۱۰۰٪», no day count', preg_match('/تضمین|۱۰۰٪|100%|۲۴ ساعت|فوری/u', $trustText) === 0);
+ok('  no unapproved absolute guarantees or express cut-off', preg_match('/تضمین|۱۰۰٪|100%|۲۴ ساعت|فوری/u', $trustText) === 0);
 ok('  the flask of the lab tests the shop never ran is gone - the price card has a lock', strpos($trust, 'M10 3v6.2L4.6 18') === false
    && strpos($trust, 'M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3') !== false);
 ok('  one card to a row on a phone, the icon beside the words', strpos($layoutCss, '.trust-grid { grid-template-columns: minmax(0, 1fr); }') !== false

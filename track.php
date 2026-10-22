@@ -293,10 +293,12 @@ $url   = seo_origin() . '/track.php';
               <span class="u-eyebrow u-eyebrow--bare">کد رهگیری مرسوله</span>
               <p class="track__parcel-code num" dir="ltr"><?= e($tracking) ?></p>
               <p class="u-xs u-dim">
-                این کد را در
+                کد تیپاکس را در
+                <a href="https://tipaxco.com/tracking" target="_blank" rel="noopener noreferrer">سامانه رهگیری تیپاکس</a>
+                و کد پست را در
                 <a href="https://tracking.post.ir/" target="_blank" rel="noopener noreferrer">سامانه رهگیری پست</a>
-                وارد کنید تا ببینید مرسوله کجاست. تا چند ساعت بعد از تحویل به پست،
-                ممکن است هنوز در سامانه ثبت نشده باشد.
+                وارد کنید. سامانه را مطابق شرکت حمل انتخاب کنید؛ ثبت اولیهٔ مرسوله ممکن است کمی زمان ببرد.
+                هماهنگی تحویل با پیک از طریق پشتیبانی انجام می‌شود.
               </p>
             </div>
           <?php endif; ?>

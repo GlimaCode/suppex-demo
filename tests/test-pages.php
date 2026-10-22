@@ -12,9 +12,8 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
    content directory, and can anything in a file become a tag.
 
    The second is the CONTENT, and it is the reason this file is long. These
-   pages exist because the shop makes promises on them - a seven-working-day
-   withdrawal right, a refund route, a statement about what data is kept - and
-   the failure mode that matters is not a broken page. It is two pages that
+   pages describe delivery, return conditions, statutory rights and privacy. A
+   failure can be more than a broken page: it can be two pages that
    disagree, or a page that quietly reintroduces a claim the shop cannot back.
    Those are pinned as assertions, because nothing else will catch them.
    =========================================================================== */
@@ -114,13 +113,21 @@ foreach (PAGE_ORDER as $slug) {
     $p = page_get($slug);
     $body[$slug] = $p === null ? '' : $p['body'];
 }
-/* The withdrawal right is statutory - ماده ۳۷ قانون تجارت الکترونیکی - and a
-   shop's own page cannot shorten it. shipping.md once imposed 48 hours for
-   reporting a problem while returns.md promised in as many words that no
-   shorter deadline would be imposed. A customer reading both had to assume the
-   one that cost them a right. */
-ok('the returns page states the seven working days',
-   strpos($body['returns'], '۷ روز کاری') !== false);
+/* The business return policy and mandatory rights are distinct. Neither a
+   blanket return promise nor a blanket waiver should be inferred. */
+ok('the returns page preserves statutory rights where applicable',
+   strpos($body['returns'], '۷ روز کاری') !== false
+   && strpos($body['returns'], 'در موارد مشمول و با رعایت استثناهای قانونی') !== false);
+ok('the return policy requires both an unopened product and proven non-authenticity',
+   strpos($body['returns'], 'فقط با وجود هر دو شرط') !== false
+   && strpos($body['returns'], '**محصول باز نشده باشد**') !== false
+   && strpos($body['returns'], '**غیراصل‌بودن محصول اثبات شود**') !== false);
+foreach (['shipping', 'faq', 'terms'] as $slug) {
+    ok($slug . ' includes courier, Tipax and provincial delivery times',
+       strpos($body[$slug], 'پیک') !== false && strpos($body[$slug], 'همان روز') !== false
+       && strpos($body[$slug], 'تیپاکس') !== false && strpos($body[$slug], '۲ روز') !== false
+       && strpos($body[$slug], '۲ تا ۳ روز') !== false);
+}
 ok('and the shipping page does not impose a shorter deadline',
    strpos($body['shipping'], '۴۸ ساعت') === false,
    'shipping.md is imposing 48 hours again');

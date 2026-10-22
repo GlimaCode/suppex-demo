@@ -521,6 +521,8 @@ SUPPEX.ui = (function () {
 
     return '<div class="form" data-customer-form>' +
       '<p class="form__intro">برای هماهنگی ارسال، این اطلاعات لازم است. یک بار وارد کنید — دفعه بعد پر شده است.</p>' +
+      '<p class="u-xs u-muted">تهران با پیک: ارسال در همان روز؛ تیپاکس: حدود ۲ روز؛ سایر استان‌ها: ۲ تا ۳ روز. هماهنگی پس از تأیید پرداخت و موجودی. <a href="page.php?p=shipping">جزئیات ارسال</a></p>' +
+      '<p class="u-xs u-muted">مرجوعی طبق سیاست فروشگاه فقط با باز نشدن محصول و اثبات غیراصل‌بودن آن پذیرفته می‌شود؛ حقوق قانونی خریدار محفوظ است. <a href="page.php?p=returns">شرایط مرجوعی</a></p>' +
       rows +
     '</div>';
   }
@@ -848,7 +850,7 @@ SUPPEX.ui = (function () {
             : '') +
         '</p>' +
         (live && live.trackingCode
-          ? '<p class="myorder__parcel">کد رهگیری پست: <span class="num" dir="ltr">' + esc(live.trackingCode) + '</span></p>'
+          ? '<p class="myorder__parcel">کد رهگیری مرسوله: <span class="num" dir="ltr">' + esc(live.trackingCode) + '</span></p>'
           : '') +
         '<div class="myorder__actions">' +
           '<form method="post" action="track.php">' +

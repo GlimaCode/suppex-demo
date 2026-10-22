@@ -206,6 +206,9 @@ ok("  under its own class, not the order code's",
    anything about itself. */
 ok("  with the post office's own tracking service to paste it into",
    strpos($withCode, "tracking.post.ir") !== false);
+ok('Tipax tracking is also available without assuming every parcel is postal',
+   strpos($withCode, 'https://tipaxco.com/tracking') !== false
+   && strpos($withCode, 'هماهنگی تحویل با پیک') !== false);
 ok("  opened safely", strpos($withCode, 'rel="noopener noreferrer"') !== false);
 
 /* Not gated on the status: a parcel handed over has a number whether or not

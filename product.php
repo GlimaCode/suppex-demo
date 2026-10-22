@@ -259,17 +259,7 @@ $unit   = 'تومان';
         </p>
 
         <div class="pdp__assur">
-          <!-- The middle item used to read «برگه آزمایش سری تولید», with a
-               green tick, on all fifteen products, in the server-rendered
-               HTML - while the shop's own returns, FAQ and terms pages say in
-               plain Persian that there is no laboratory and no batch is
-               tested. What replaced it promised something the shop does not do
-               either, so it went too: the strip keeps only what is true.
-
-               «مرجوعی ۷ روزه» became «۷ روز کاری»: the withdrawal right in
-               ماده ۳۷ is in WORKING days, so the old wording was narrower than
-               both the law and the shop's own returns page. -->
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> مرجوعی ۷ روز کاری</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> مرجوعی مشروط</span>
           <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> اورجینال و پلمب‌شده</span>
         </div>
 
@@ -306,16 +296,10 @@ $unit   = 'تومان';
               <svg class="acc__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             </button>
             <div class="acc__panel"><div><p class="acc__body">
-              <!-- Was: «سفارش‌های ثبت‌شده تا ساعت ۱۵ همان روز ارسال می‌شود»
-                   - a dispatch SLA nothing in the code enforces and one
-                   person cannot promise, removed from index.html for the same
-                   reason - and «مرجوعی تا ۷ روز», which is narrower than the
-                   ۷ روز کاری the law gives and the returns page states.
-
-                   Shipping copy follows the shop settings. -->
-              <span data-shipping-policy><?= storefront_shipping_html(true) ?></span> زمان ارسال هر سفارش را در
-              همان گفتگو می‌گوییم. مرجوعی تا ۷ روز کاری پذیرفته می‌شود؛ شرایط و
-              استثناهایش در صفحه مرجوعی و بازگشت وجه نوشته شده است.
+              <span data-shipping-policy><?= storefront_shipping_html(true) ?></span><br>
+              تهران با پیک: ارسال در همان روز؛ تیپاکس: حدود ۲ روز؛ سایر استان‌ها: ۲ تا ۳ روز. هماهنگی پس از تأیید پرداخت و موجودی.<br>
+              مرجوعی طبق سیاست فروشگاه فقط با باز نشدن محصول و اثبات غیراصل‌بودن آن پذیرفته می‌شود؛ حقوق قانونی خریدار محفوظ است.
+              <a href="page.php?p=shipping">جزئیات ارسال</a> · <a href="page.php?p=returns">شرایط مرجوعی</a>
             </p></div></div>
           </div>
         </div>
