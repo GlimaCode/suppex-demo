@@ -8,6 +8,7 @@ require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/images.php';
 require_once SUPPEX_ROOT . '/lib/stock.php';
 require_once __DIR__ . '/partials/layout.php';
+require_once __DIR__ . '/partials/inventory.php';
 
 $user = auth_require();
 
@@ -108,7 +109,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST'
            rule stock.php uses, for the same reason. */
         $wasRaw = trim(to_latin_digits((string) ($f['stock_was'] ?? '')));
         $nowRaw = trim(to_latin_digits((string) ($f['stock_qty'] ?? '')));
-        if ($wasRaw !== $nowRaw) {
+        if ($wasRaw !== $nowRaw && !variants_has($qid)) {
             db_query('UPDATE products SET stock_qty = ? WHERE id = ?',
                 [$nowRaw === '' ? null : (int) $nowRaw, $qid]);
         }
@@ -203,10 +204,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 
 $sql = 'SELECT p.id, p.slug, p.name_fa, p.name_en, p.brand, p.price, p.compare_at,
                p.in_stock, p.stock_qty, p.is_active, p.image, p.badges, p.sort_order,
-               p.price_mode, p.category_id, c.name_fa AS category_name,
-               (SELECT COUNT(*) FROM product_sizes s WHERE s.product_id = p.id) AS sizes_total,
-               (SELECT MIN(s.stock_qty) FROM product_sizes s
-                 WHERE s.product_id = p.id) AS sizes_lowest
+               p.price_mode, p.category_id, c.name_fa AS category_name
           FROM products p
           LEFT JOIN categories c ON c.id = p.category_id
          WHERE 1';
@@ -224,8 +222,8 @@ if ($catId > 0) {
 $sql .= ' ORDER BY p.sort_order, p.id DESC LIMIT 300';
 
 $products     = db_all($sql, $params);
+$inventory    = admin_inventory_map($products);
 $categories   = db_all('SELECT id, name_fa FROM categories ORDER BY sort_order, id');
-$lowThreshold = stock_low_threshold();
 
 admin_head('محصولات', [
     'user'   => $user,
@@ -353,28 +351,7 @@ admin_head('محصولات', [
             </td>
             <td>
               <?php
-              /* The manual switch first, because it overrides everything. Then
-                 the number, when there is one: "موجود" beside a count of zero
-                 would be the panel disagreeing with the storefront. */
-              if ((int) $p['in_stock'] !== 1): ?>
-                <span class="pill pill--cancelled">ناموجود</span>
-              <?php else:
-                  $n = $p['stock_qty'] === null ? null : (int) $p['stock_qty'];
-                  /* A product sold in sizes reports its emptiest size, since
-                     that is the one about to embarrass somebody. */
-                  if ((int) $p['sizes_total'] > 0 && $p['sizes_lowest'] !== null) {
-                      $n = (int) $p['sizes_lowest'];
-                  }
-                  if ($n === null): ?>
-                    <span class="pill pill--paid">موجود</span>
-                  <?php elseif ($n <= 0): ?>
-                    <span class="pill pill--cancelled">تمام شد</span>
-                  <?php else: ?>
-                    <span class="pill <?= $n <= $lowThreshold ? 'pill--new' : 'pill--paid' ?>">
-                      <span class="num"><?= $n ?></span> عدد
-                    </span>
-                  <?php endif;
-              endif; ?>
+              echo admin_inventory_badge($inventory[(int) $p['id']]); ?>
             </td>
             <td>
               <span class="pill <?= (int) $p['is_active'] === 1 ? 'pill--new' : 'pill--off' ?>">
@@ -429,6 +406,13 @@ admin_head('محصولات', [
                 </div>
 
                 <div class="quick__f">
+                  <?php if ($inventory[$pid]['variants'] > 0): ?>
+                  <span>موجودی طعم‌ها و اندازه‌ها</span>
+                  <div class="quick__ro">
+                    <?= admin_inventory_badge($inventory[$pid]) ?>
+                    <a href="product-edit.php?id=<?= $pid ?>#sec-options">ویرایش موجودی طعم‌ها</a>
+                  </div>
+                  <?php else: ?>
                   <label for="qs<?= $pid ?>">موجودی</label>
                   <input type="text" id="qs<?= $pid ?>" inputmode="numeric" dir="ltr"
                          name="q[<?= $pid ?>][stock_qty]"
@@ -436,6 +420,7 @@ admin_head('محصولات', [
                          placeholder="شمرده نشده">
                   <input type="hidden" name="q[<?= $pid ?>][stock_was]"
                          value="<?= $p['stock_qty'] === null ? '' : (int) $p['stock_qty'] ?>">
+                  <?php endif; ?>
                 </div>
 
                 <div class="quick__f">

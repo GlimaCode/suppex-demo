@@ -24,6 +24,7 @@ require_once SUPPEX_ROOT . '/lib/auth.php';
 require_once SUPPEX_ROOT . '/lib/stock.php';
 require_once SUPPEX_ROOT . '/lib/orders.php';
 require_once __DIR__ . '/partials/layout.php';
+require_once __DIR__ . '/partials/inventory.php';
 
 $user = auth_require();
 
@@ -64,7 +65,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     foreach ((array) ($_POST['p'] ?? []) as $pid => $raw) {
         $pid = (int) $pid;
         $was = (string) ($_POST['p_was'][$pid] ?? '');
-        if ($pid <= 0 || !stock_changed((string) $raw, $was)) {
+        if ($pid <= 0 || !stock_changed((string) $raw, $was) || variants_has($pid)) {
             continue;
         }
         db_query('UPDATE products SET stock_qty = ? WHERE id = ?',
@@ -77,7 +78,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         foreach ((array) $rows as $ext => $raw) {
             $ext = (string) $ext;
             $was = (string) ($_POST['s_was'][$pid][$ext] ?? '');
-            if ($pid <= 0 || $ext === '' || !stock_changed((string) $raw, $was)) {
+            if ($pid <= 0 || $ext === '' || !stock_changed((string) $raw, $was) || variants_has($pid)) {
                 continue;
             }
             db_query('UPDATE product_sizes SET stock_qty = ? WHERE product_id = ? AND ext_id = ?',
@@ -109,6 +110,7 @@ foreach (db_all('SELECT product_id, ext_id, label, stock_qty FROM product_sizes
                   ORDER BY product_id, sort_order, id') as $s) {
     $sizes[(int) $s['product_id']][] = $s;
 }
+$inventory = admin_inventory_map($products);
 
 /* How many units the open orders are sitting on. The count above already has
    these subtracted, so without this line the operator counts four tubs on the
@@ -126,7 +128,11 @@ foreach (db_all(
 $heldOf = static fn(int $pid, string $src): int => $held[$pid . '|' . $src] ?? 0;
 
 /** Is this row worth showing when the page is filtered to what needs attention? */
-$needsEye = static function (array $p) use ($sizes, $low): bool {
+$needsEye = static function (array $p) use ($sizes, $low, $inventory): bool {
+    $summary = $inventory[(int) $p['id']];
+    if ($summary['variants'] > 0) {
+        return $summary['low'] || $summary['kind'] === 'empty' || $summary['kind'] === 'inquiry';
+    }
     if ($p['stock_qty'] !== null && (int) $p['stock_qty'] <= $low) {
         return true;
     }
@@ -139,9 +145,7 @@ $needsEye = static function (array $p) use ($sizes, $low): bool {
 };
 
 $rows    = $lowOnly ? array_values(array_filter($products, $needsEye)) : $products;
-$counted = count(array_filter($products, static fn(array $p): bool => $p['stock_qty'] !== null))
-         + count(array_filter($sizes, static fn(array $ss): bool => (bool) array_filter(
-               $ss, static fn(array $s): bool => $s['stock_qty'] !== null)));
+$counted = array_sum(array_column($inventory, 'counted'));
 
 admin_head('موجودی انبار', ['user' => $user]);
 ?>
@@ -153,6 +157,8 @@ admin_head('موجودی انبار', ['user' => $user]);
   <br>
   اگر محصولی اندازه دارد، عدد هر اندازه جداگانه شمرده می‌شود؛ اندازه‌ای که
   خالی بماند از عدد خودِ محصول استفاده می‌کند.
+  محصولی که جدول ترکیب‌ها دارد، از موجودی همان طعم‌ها و اندازه‌ها استفاده می‌کند؛
+  برای تغییر تعداد، «ویرایش موجودی طعم‌ها» را بزنید.
 </p>
 
 <div class="filters" style="margin-block-end:16px">
@@ -188,6 +194,32 @@ admin_head('موجودی انبار', ['user' => $user]);
             $mySizes  = $sizes[$pid] ?? [];
             $pStock   = $p['stock_qty'] === null ? '' : (string) (int) $p['stock_qty'];
             $pHeld    = $heldOf($pid, '');
+            $summary  = $inventory[$pid];
+            if ($summary['variants'] > 0):
+        ?>
+          <tr>
+            <td>
+              <div class="t-title"><?= e($p['name_fa']) ?></div>
+              <div class="t-sub lat"><?= e($p['brand']) ?></div>
+              <?php if ((int) $p['is_active'] !== 1): ?>
+                <div class="t-sub">در سایت پنهان است</div>
+              <?php endif; ?>
+            </td>
+            <td>
+              <?= admin_inventory_badge($summary) ?>
+              <div class="t-sub"><?= $summary['qty'] === null ? 'تعداد برخی طعم‌ها شمرده نشده' : 'جمع موجودی طعم‌های فعال' ?></div>
+              <a href="product-edit.php?id=<?= $pid ?>#sec-options">ویرایش موجودی طعم‌ها</a>
+            </td>
+            <td class="num u-dim"><?php
+              $reserved = 0;
+              foreach ($held as $key => $amount) {
+                  if (str_starts_with($key, $pid . '|')) { $reserved += $amount; }
+              }
+              echo $reserved > 0 ? $reserved : '—';
+            ?></td>
+            <td><?= admin_inventory_badge($summary) ?></td>
+          </tr>
+        <?php continue; endif;
         ?>
           <tr>
             <td>
