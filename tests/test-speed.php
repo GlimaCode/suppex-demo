@@ -225,10 +225,17 @@ ok('every script under its version, the data before them',
 ok('  none of them the static page\'s date', preg_match('~\.js\?v=20\d{6}"~', $home) === 0);
 ok('the canonical is the site itself', strpos($home, '<link rel="canonical" href="https://suppex.ir/">') !== false);
 ok('og:url and an absolute og:image', strpos($home, '<meta property="og:url" content="https://suppex.ir/">') !== false
-   && preg_match('~<meta property="og:image" content="https://suppex\.ir/assets/images/og-cover\.jpg\?v=[0-9a-z]+">~', $home) === 1);
+   && strpos($home, '<meta property="og:image" content="' . seo_home_image() . '">') !== false);
 ok('no link to /index.html - it is a redirect now', strpos($home, 'href="index.html') === false);
 
 $ldHome = speed_ld($home);
+ok('homepage schema and OG identify the same square product photograph',
+   (speed_ld_node($ldHome, 'WebPage')['primaryImageOfPage']['url'] ?? '') === seo_home_image()
+   && (speed_ld_node($ldHome, 'WebPage')['primaryImageOfPage']['width'] ?? 0) === 1200
+   && (speed_ld_node($ldHome, 'WebPage')['primaryImageOfPage']['height'] ?? 0) === 1200);
+ok('the representative photograph is also in the visible homepage markup',
+   strpos($home, 'src="' . asset('assets/images/suppex-home-cover-20261022.webp') . '"') !== false
+   && strpos($home, 'hero-tub.svg') === false);
 $list = speed_ld_node($ldHome, 'ItemList');
 ok('the featured products as an ItemList', $list !== null
    && count((array) ($list['itemListElement'] ?? [])) === count($featured));
@@ -595,7 +602,7 @@ if ($homePicks) {
     ok('  the first photograph fetched first, the others after',
        substr_count($home, 'decoding="async" fetchpriority="high"') === 1
        && substr_count($home, 'decoding="async" fetchpriority="low"') === count($homePicks) - 1);
-    ok('  the hidden poster not fetched at all', strpos($home, 'width="520" height="560" loading="lazy">') !== false);
+    ok('  the hidden poster not fetched at all', strpos($home, 'width="1200" height="1200" loading="lazy">') !== false);
     ok('  its bars and pause button there when there are two or more', count($homePicks) < 2
        || (preg_match_all('~class="deals__pip( is-on)?"~', $home) === count($homePicks)
            && strpos($home, 'data-deals-toggle aria-label="توقف نمایش خودکار">') !== false

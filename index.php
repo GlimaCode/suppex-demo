@@ -201,9 +201,33 @@ if ($headCount !== 1) {
 
 $put('<link rel="canonical" href="https://suppex.ir/">',
      '<link rel="canonical" href="' . e($origin . '/') . '">', 'canonical');
-$put('<meta property="og:image" content="assets/images/og-cover.png">',
+$put('<meta property="og:image" content="assets/images/suppex-home-cover-20261022.webp">',
      '<meta property="og:url" content="' . e($origin . '/') . '">' . "\n"
-     . '<meta property="og:image" content="' . e(seo_cover()) . '">', 'og:image');
+     . '<meta property="og:image" content="' . e(seo_home_image()) . '">', 'og:image');
+$put('src="assets/images/suppex-home-cover-20261022.webp"',
+     'src="' . e(asset('assets/images/suppex-home-cover-20261022.webp')) . '"', 'home poster');
+
+/* Google may use the primary image, OG metadata or the visible photograph.
+   All three identify the same real-product cover, including without JavaScript. */
+$homeImageSchema = json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'WebPage',
+    'url' => $origin . '/',
+    'name' => 'SUPPEX | فروشگاه تخصصی مکمل‌های ورزشی',
+    'primaryImageOfPage' => [
+        '@type' => 'ImageObject', 'url' => seo_home_image(),
+        'width' => 1200, 'height' => 1200,
+    ],
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+$fromImage = strpos($html, '<!-- home:primary-image -->');
+$toImage = strpos($html, '<!-- /home:primary-image -->');
+if ($fromImage !== false && $toImage !== false && $toImage > $fromImage && $homeImageSchema !== false) {
+    $html = substr($html, 0, $fromImage)
+          . '<script type="application/ld+json">' . $homeImageSchema . "</script>\n"
+          . substr($html, $toImage + strlen('<!-- /home:primary-image -->'));
+} else {
+    $missed[] = 'home primary image';
+}
 
 /* The brand's own profiles, from the contact settings in the panel.
 
@@ -278,7 +302,7 @@ if ($picks) {
         $slides .= str_replace(' decoding="async">', ' decoding="async" fetchpriority="' . ($i === 0 ? 'high' : 'low') . '">', $slide);
     }
     $put('<div class="stage-wrap" data-deals-wrap>', '<div class="stage-wrap has-deals" data-deals-wrap>', 'deals: frame');
-    $put('width="520" height="560" fetchpriority="high">', 'width="520" height="560" loading="lazy">', 'deals: poster');
+    $put('width="1200" height="1200" fetchpriority="high">', 'width="1200" height="1200" loading="lazy">', 'deals: poster');
     $put('<div class="deals" data-deals role="region" aria-roledescription="اسلایدر" aria-labelledby="deals-title" hidden>',
          '<div class="deals is-paused" data-deals role="region" aria-roledescription="اسلایدر" aria-labelledby="deals-title">',
          'deals: box');

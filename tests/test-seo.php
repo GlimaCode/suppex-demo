@@ -279,6 +279,13 @@ ok('  under the ~300 KB WhatsApp still previews', is_file($cover) && filesize($c
    (string) @filesize($cover));
 ok('  at an address that changes when it does',
    preg_match('~/assets/images/og-cover\.jpg\?v=[0-9a-z]+$~', seo_cover()) === 1, seo_cover());
+$homeCover = SUPPEX_ROOT . '/assets/images/suppex-home-cover-20261022.webp';
+$homeInfo = @getimagesize($homeCover);
+ok('homepage has a dedicated 1200px square WebP photograph',
+   $homeInfo !== false && $homeInfo[0] === 1200 && $homeInfo[1] === 1200 && $homeInfo[2] === IMAGETYPE_WEBP);
+ok('homepage image is lightweight and gets a versioned absolute URL',
+   is_file($homeCover) && filesize($homeCover) < 300 * 1024
+   && preg_match('~^https://suppex\.ir/assets/images/suppex-home-cover-20261022\.webp\?v=[0-9a-z]+$~', seo_home_image()) === 1);
 $pagesSrc = '';
 foreach (['index.php', 'article.php', 'category.php', 'brand.php', 'brands.php', 'goal.php', 'page.php',
           'journal.php', 'lib/seo.php'] as $f) {

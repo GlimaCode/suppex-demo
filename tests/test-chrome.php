@@ -856,7 +856,7 @@ ok('the 3D scripts are no longer loaded',
 ok('the deals block is there, hidden until it has something to show',
    preg_match('/<div class="deals" data-deals[^>]*\bhidden\b/', $ix2) === 1);
 ok('  with the poster still underneath, for no JavaScript and nothing on offer',
-   strpos($ix2, 'hero-tub.svg') !== false);
+   strpos($ix2, 'suppex-home-cover-20261022.webp') !== false && strpos($ix2, 'hero-tub.svg') === false);
 ok('app.js fills it from the ticked products',
    strpos($app2, 'initHeroDeals();') !== false && strpos($app2, "badge: 'topdeal'") !== false);
 /* One product at a time, large, each for HERO_DEALS_MS - the owner asked

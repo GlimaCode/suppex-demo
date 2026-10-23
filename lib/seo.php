@@ -82,6 +82,12 @@ function seo_cover(): string
     return seo_absolute(asset('assets/images/og-cover.jpg'));
 }
 
+/** Representative homepage photograph, separate from the wide sharing cover. */
+function seo_home_image(): string
+{
+    return seo_absolute(asset('assets/images/suppex-home-cover-20261022.webp'));
+}
+
 /**
  * Trim to a length that survives a search snippet without ending mid-word.
  * Cut on a space so the result reads as a sentence rather than as truncation.
